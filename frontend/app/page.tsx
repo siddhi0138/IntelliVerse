@@ -25,6 +25,7 @@ import { DistributionPanel } from "@/components/DistributionPanel";
 import { ClusteringPanel } from "@/components/ClusteringPanel";
 import { GEValidationPanel } from "@/components/GEValidationPanel";
 import { ActionPlanPanel } from "@/components/ActionPlanPanel";
+import { SqlQueryPanel } from "@/components/SqlQueryPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -249,6 +250,8 @@ export default function Home() {
               primaryMetric={result.primary_metric}
             />
           </div>
+
+          <SqlQueryPanel key={`sql-${result.analysis_id}`} analysisId={result.analysis_id} />
 
           <div>
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Detected schema</h3>

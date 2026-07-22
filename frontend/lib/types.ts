@@ -483,3 +483,12 @@ export interface ActionPlanResult {
   actions: ActionPlanAction[];
   simulation_preview: SimulationResult | null;
 }
+
+// --- Additive: ad-hoc SQL querying via DuckDB -------------------------------
+
+export interface QueryResult {
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+  row_count: number;
+  truncated: boolean;
+}

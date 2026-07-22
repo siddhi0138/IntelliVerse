@@ -15,3 +15,6 @@ psycopg2-binary==2.9.12
 lightgbm==4.7.0
 shap==0.52.0
 great_expectations==1.19.0
+duckdb==1.5.5
+polars==1.43.0
+pyarrow==25.0.0

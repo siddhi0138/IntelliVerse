@@ -550,3 +550,48 @@ visualization, a full event/temporal engine, Qdrant/LlamaIndex/GraphRAG,
 and the entire production/deployment layer (auth, Kubernetes, CI/CD,
 hosted deployment, monitoring) — none of which had an actual problem in
 this app to solve yet.
+
+## Post-v7: closing the remaining gaps (tests, DuckDB, Polars)
+
+A later request asked for everything still unbuilt to be done in full.
+Declined the parts that need external accounts or a genuine
+multi-user architecture change (auth, Kubernetes, hosted deployment,
+Clerk/Sentry/Langfuse) pending your decision on scope; built the parts
+that don't:
+
+- **Backend test suite** (`backend/tests/`, Pytest) — 47 tests across
+  every deterministic module, including one that reconstructs the exact
+  Customer/Order/Product graph from the v6 manual verification and
+  re-asserts the same 1/3 contribution share computed by hand. Writing
+  these caught a real bug: `detect_time_series_spikes()` only guarded
+  against residual std being *exactly* zero, but a near-perfectly-linear
+  series produces residuals around 1e-14 with an equally tiny std —
+  dividing noise by noise produced "z-scores" that looked like real
+  numbers but weren't. Now guards against residual spread below 1e-9
+  relative to the series' scale. LLM-touching modules are tested only
+  for their deterministic error paths; the LLM calls themselves were
+  already verified manually against FreeLLMAPI throughout this build.
+- **DuckDB** (`backend/duckdb_query.py`) — real ad-hoc SQL querying over
+  the uploaded dataset, queried directly against the cached pandas
+  DataFrame with no export/reload step. Restricted to read-only `SELECT`
+  (rejects any statement containing `INSERT`/`DROP`/`ATTACH`/`COPY`/etc.,
+  and rejects multiple statements) — this executes arbitrary
+  user-supplied SQL, and DuckDB's `SELECT` surface includes
+  filesystem-reading table functions that an unrestricted query could
+  abuse. Verified: a `GROUP BY` aggregation query returned figures
+  matching the v2 root-cause finding exactly (North region's total); a
+  `DROP TABLE` was correctly rejected.
+- **Polars + PyArrow** — a measured, not assumed, fast path: benchmarked
+  pandas vs. Polars directly before adopting anything. At ~6MB/300k rows
+  they were statistically identical (0.10s vs 0.10s); the real advantage
+  only appeared at ~95MB/3M rows (Polars ~25% faster: 1.03s vs 1.37s).
+  The fast path in `_read_dataframe()` only activates above 20MB — below
+  that, the extra code path isn't worth having. PyArrow is a hard
+  dependency of Polars' `.to_pandas()` conversion, so it's real and used,
+  not just present in `requirements.txt` for show.
+- **Frontend**: `SqlQueryPanel` exposes the DuckDB query box on the main
+  dashboard.
+
+Still pending your decision: auth scope (full login wall vs. a lighter
+single API-token model), which determines whether every endpoint gets a
+`Depends()` auth check and the frontend gets a login screen.

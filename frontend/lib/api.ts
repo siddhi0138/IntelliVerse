@@ -12,6 +12,7 @@ import type {
   Forecast,
   Insight,
   PeriodComparison,
+  QueryResult,
   RankedFinding,
   Recommendation,
   RelationshipCandidate,
@@ -246,4 +247,13 @@ export async function generateActionPlan(
     }),
   });
   return unwrap<ActionPlanResult>(res);
+}
+
+export async function runSqlQuery(analysisId: string, sql: string): Promise<QueryResult> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sql }),
+  });
+  return unwrap<QueryResult>(res);
 }
