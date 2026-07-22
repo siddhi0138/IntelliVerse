@@ -105,7 +105,7 @@ export default function WorkspacePage() {
 
       <div
         onClick={() => inputRef.current?.click()}
-        className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-400 p-12 text-center cursor-pointer transition-colors"
+        className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-indigo-400 p-12 text-center cursor-pointer transition-colors"
       >
         <input
           ref={inputRef}
@@ -128,7 +128,7 @@ export default function WorkspacePage() {
             {workspace.tables.map((t) => (
               <span
                 key={t.table}
-                className="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-sm font-medium"
+                className="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-sm font-medium"
               >
                 {t.table} ({t.row_count.toLocaleString()} rows)
               </span>

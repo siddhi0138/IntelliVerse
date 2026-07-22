@@ -2,7 +2,7 @@ import type { Anomaly } from "@/lib/types";
 
 export function AnomaliesPanel({ anomalies }: { anomalies: Anomaly[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
       <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Anomalies</h3>
 
       {anomalies.length === 0 ? (

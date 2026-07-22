@@ -7,7 +7,7 @@ import type { ActionPlanResult, DataQualityReport, Forecast, RankedFinding, Risk
 const CONFIDENCE_COLORS: Record<string, string> = {
   high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   medium: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  low: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
 };
 
 export function ActionPlanPanel({
@@ -46,7 +46,7 @@ export function ActionPlanPanel({
   }
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/40 dark:bg-indigo-950/20 p-4">
+    <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/20 p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Autonomous Action Plan</h3>
         <button
@@ -71,7 +71,7 @@ export function ActionPlanPanel({
 
           <ol className="space-y-2">
             {plan.actions.map((a) => (
-              <li key={a.priority} className="text-sm border-b border-indigo-100 dark:border-indigo-900/50 last:border-0 pb-2 last:pb-0">
+              <li key={a.priority} className="text-sm border-b border-indigo-100 dark:border-indigo-800/50 last:border-0 pb-2 last:pb-0">
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-medium">
                     {a.priority}. {a.action}
@@ -95,7 +95,7 @@ export function ActionPlanPanel({
                 {showPreview ? "Hide" : "Show"} underlying simulation preview
               </button>
               {showPreview && (
-                <pre className="mt-2 text-xs bg-white dark:bg-slate-900 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
+                <pre className="mt-2 text-xs bg-white dark:bg-slate-800 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
                   {JSON.stringify(plan.simulation_preview, null, 2)}
                 </pre>
               )}

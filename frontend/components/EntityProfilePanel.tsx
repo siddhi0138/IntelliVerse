@@ -9,7 +9,7 @@ export function EntityProfilePanel({
 }) {
   if (!profile) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Entity Profile</h3>
         <p className="text-sm text-slate-500">Click a node in the graph to inspect it.</p>
       </div>
@@ -17,7 +17,7 @@ export function EntityProfilePanel({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
       <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         {profile.table}: {profile.key}
       </h3>
@@ -25,7 +25,7 @@ export function EntityProfilePanel({
       <table className="w-full text-sm mt-2 mb-4">
         <tbody>
           {Object.entries(profile.properties).map(([k, v]) => (
-            <tr key={k} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+            <tr key={k} className="border-b border-slate-100 dark:border-slate-700/60 last:border-0">
               <td className="py-1 pr-3 text-slate-500">{k}</td>
               <td className="py-1">{String(v)}</td>
             </tr>

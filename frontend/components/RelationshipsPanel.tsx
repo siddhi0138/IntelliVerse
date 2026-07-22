@@ -3,7 +3,7 @@ import type { CategoricalAssociation, NumericCorrelation } from "@/lib/types";
 const STRENGTH_COLORS: Record<string, string> = {
   strong: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   moderate: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  weak: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+  weak: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
 };
 
 export function RelationshipsPanel({
@@ -16,7 +16,7 @@ export function RelationshipsPanel({
   const hasAny = correlations.length > 0 || associations.length > 0;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
       <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Relationships</h3>
 
       {!hasAny && <p className="text-sm text-slate-500">No statistically meaningful relationships detected.</p>}

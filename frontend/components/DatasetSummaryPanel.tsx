@@ -45,7 +45,7 @@ export function DatasetSummaryPanel({
   }, [domain, rowCount, columnCount]);
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 p-4">
+    <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 p-4">
       {loading && <p className="text-sm text-slate-500">Summarizing this dataset…</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       {!loading && summary && <p className="text-sm text-slate-700 dark:text-slate-300">{summary}</p>}

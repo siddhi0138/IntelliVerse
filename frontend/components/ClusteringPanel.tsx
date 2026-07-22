@@ -5,7 +5,7 @@ const CLUSTER_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "
 export function ClusteringPanel({ clustering }: { clustering: ClusteringResult | null }) {
   if (!clustering) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Segmentation</h3>
         <p className="text-sm text-slate-500">Not enough numeric structure in this dataset to segment meaningfully.</p>
       </div>
@@ -13,7 +13,7 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
       <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         Segmentation ({clustering.k} clusters)
       </h3>
