@@ -31,6 +31,7 @@ from insights import (
     generate_insights,
     generate_simulation_explanation,
 )
+from autonomous_analyst import generate_action_plan
 from digital_twin import simulate_entity_impact
 from knowledge_graph_builder import build_graph
 from multi_table import RelationshipCandidate, discover_relationships
@@ -571,3 +572,48 @@ def simulate_entity(workspace_id: str, req: EntityImpactRequest) -> dict:
     if result is None:
         raise HTTPException(status_code=404, detail="Entity not found in the graph.")
     return result
+
+
+# --- V7 (lean): autonomous action plan -----------------------------------------
+
+
+class ActionPlanRequest(BaseModel):
+    analysis_id: str
+    domain: str
+    ranked_findings: list[dict] = []
+    risk_alerts: list[dict] = []
+    root_cause: dict | None = None
+    forecast: dict | None = None
+    quality: dict | None = None
+
+
+@app.post("/api/action-plan")
+async def action_plan(req: ActionPlanRequest) -> dict:
+    df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
+    schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
+    if df is None or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+
+    # ground the plan in one real simulation, not just a described possibility
+    numeric_cols = [c for c in schema if c.type == "numeric"]
+    simulation_preview = None
+    if numeric_cols:
+        try:
+            sim = _simulation_engine.propagate(df, schema, numeric_cols[0].name, 20.0)
+            simulation_preview = asdict(sim)
+        except Exception:
+            simulation_preview = None
+
+    try:
+        plan = await generate_action_plan(
+            req.domain,
+            req.ranked_findings,
+            req.risk_alerts,
+            req.root_cause,
+            req.forecast,
+            req.quality,
+            simulation_preview,
+        )
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return plan

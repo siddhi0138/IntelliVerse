@@ -1,4 +1,5 @@
 import type {
+  ActionPlanResult,
   AnalyzeResponse,
   Anomaly,
   AskResponse,
@@ -11,8 +12,10 @@ import type {
   Forecast,
   Insight,
   PeriodComparison,
+  RankedFinding,
   Recommendation,
   RelationshipCandidate,
+  RiskAlert,
   RootCauseAnalysis,
   SimulationExplanation,
   SimulationResult,
@@ -218,4 +221,29 @@ export async function simulateEntityImpact(
     body: JSON.stringify({ table, key, pct_change: pctChange }),
   });
   return unwrap<EntityImpactResult>(res);
+}
+
+export async function generateActionPlan(
+  analysisId: string,
+  domain: string,
+  rankedFindings: RankedFinding[],
+  riskAlerts: RiskAlert[],
+  rootCause: RootCauseAnalysis | null,
+  forecast: Forecast | null,
+  quality: DataQualityReport | null
+): Promise<ActionPlanResult> {
+  const res = await fetch(`${API_BASE}/api/action-plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      analysis_id: analysisId,
+      domain,
+      ranked_findings: rankedFindings,
+      risk_alerts: riskAlerts,
+      root_cause: rootCause,
+      forecast,
+      quality,
+    }),
+  });
+  return unwrap<ActionPlanResult>(res);
 }

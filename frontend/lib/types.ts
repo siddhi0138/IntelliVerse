@@ -467,3 +467,19 @@ export interface EntityImpactResult {
   affected_entities: EntityImpactEffect[];
   note: string;
 }
+
+// --- V7 (lean): autonomous action plan --------------------------------------
+
+export interface ActionPlanAction {
+  priority: number;
+  action: string;
+  rationale: string;
+  grounded_in: string;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface ActionPlanResult {
+  summary: string;
+  actions: ActionPlanAction[];
+  simulation_preview: SimulationResult | null;
+}

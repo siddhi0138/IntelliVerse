@@ -24,6 +24,7 @@ import { MultivariateAnomaliesPanel } from "@/components/MultivariateAnomaliesPa
 import { DistributionPanel } from "@/components/DistributionPanel";
 import { ClusteringPanel } from "@/components/ClusteringPanel";
 import { GEValidationPanel } from "@/components/GEValidationPanel";
+import { ActionPlanPanel } from "@/components/ActionPlanPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -199,6 +200,16 @@ export default function Home() {
               primaryMetric={result.primary_metric}
             />
           </div>
+
+          <ActionPlanPanel
+            analysisId={result.analysis_id}
+            domain={result.domain}
+            rankedFindings={result.ranked_findings}
+            riskAlerts={result.risk_alerts}
+            rootCause={result.root_cause}
+            forecast={result.forecast}
+            quality={result.quality}
+          />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {result.charts

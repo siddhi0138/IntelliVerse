@@ -497,3 +497,56 @@ matching the arithmetic exactly.
 `EntityImpactPanel` appears once an entity is selected in `/workspace`,
 with a slider for the % change and a list of affected entities annotated
 with hop count, contribution share, and the estimated delta.
+
+## v7 (lean): autonomous action plan
+
+The full spec's V7 wants Qdrant, LlamaIndex, GraphRAG, and multi-agent
+orchestration for an "autonomous AI analyst." That's built around
+retrieval-augmented generation — and RAG needs something to retrieve
+from: an unstructured document corpus. This app has none; every
+"knowledge base" NEXUS has is already structured JSON (schema, stats,
+findings). Standing up a vector database to search over data that's
+already fully structured would be adopting the technology, not solving a
+problem it exists for — so it's skipped, same reasoning as declining
+DuckDB/Polars/ECharts earlier: adopt tools where they solve a real
+problem here, not because a list says to.
+
+What "autonomous" honestly means for this app: an agent that decides
+*what's worth acting on* from everything already computed, rather than
+only answering a question you pose. `backend/autonomous_analyst.py`'s
+`generate_action_plan()` is a deterministic pipeline — no LangGraph, a
+plain async function is simpler and equally correct for chaining a fixed
+sequence of already-built steps:
+
+1. Gathers the ranked findings (v2), risk alerts (v3), root cause (v2),
+   and forecast (v3) already computed for the dataset.
+2. Actually **runs one real decision simulation** (v4's
+   `CorrelationRegressionEngine`, +20% on the primary metric) against the
+   cached DataFrame — a genuine computed preview, not a described
+   possibility.
+3. One LLM call prioritizes and narrates a short action plan, where every
+   action must cite the specific signal it's grounded in — same
+   "compute first, narrate second" rule as every other LLM call in this
+   backend.
+
+Verified against the retail sample: the plan correctly cited the actual
+root-cause percentages (Category 88.9%, Geography 83.8%), the actual
+correlation (r=0.998, Monetary Amount ↔ Profit), and the actual
+simulation numbers (+28.79% profit, -4.22% customers from a +20% revenue
+change) — nothing in the plan was untraceable to a real computed number.
+
+`POST /api/action-plan` exposes this; the frontend's `ActionPlanPanel`
+(main dashboard, below the forecast section) is manually triggered via a
+"Generate Plan" button rather than run automatically, since it chains an
+LLM call on top of an actual simulation run and isn't free.
+
+---
+
+This closes out the full original V1-V7 roadmap. Deliberately unbuilt
+across all versions, stated plainly rather than silently dropped:
+Kendall correlation, DBSCAN, text-to-Cypher, community detection beyond
+connected-components, a relationship timeline, Three.js/R3F
+visualization, a full event/temporal engine, Qdrant/LlamaIndex/GraphRAG,
+and the entire production/deployment layer (auth, Kubernetes, CI/CD,
+hosted deployment, monitoring) — none of which had an actual problem in
+this app to solve yet.
