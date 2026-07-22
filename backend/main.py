@@ -1,4 +1,5 @@
 import io
+import re
 import uuid
 from dataclasses import asdict
 
@@ -6,6 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before `insights` reads FREELLMAPI_* env vars at import time
 
+import networkx as nx
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +18,7 @@ from anomalies_ml import detect_multivariate_anomalies
 import catalog
 from distributions import analyze_distributions
 from forecasting import check_forecast_eligibility, discover_forecastable_targets, select_and_forecast
+from graph_analytics import compute_graph_analytics
 from graph_builder import build_knowledge_graph
 from insight_ranking import build_ranked_findings
 from insight_timeline import build_insight_timeline
@@ -26,6 +29,9 @@ from insights import (
     generate_insights,
     generate_simulation_explanation,
 )
+from knowledge_graph_builder import build_graph
+from multi_table import RelationshipCandidate, discover_relationships
+from neo4j_client import get_driver
 from profiling import build_quality_report
 from qa import answer_question
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
@@ -47,6 +53,14 @@ app.add_middleware(
 # tool; lost on restart, unbounded growth is not a concern at this scale.
 _ANALYSIS_DF_CACHE: dict[str, pd.DataFrame] = {}
 _ANALYSIS_SCHEMA_CACHE: dict[str, list[ColumnSchema]] = {}
+
+# V5: multi-table workspaces (distinct from the single-table analysis cache
+# above). Tables/schemas are the source of truth for re-running relationship
+# discovery or rebuilding the graph; the NetworkX graph is cached after
+# confirmation so /graph and /entity endpoints don't hit Neo4j on every call.
+_WORKSPACE_TABLES_CACHE: dict[str, dict[str, pd.DataFrame]] = {}
+_WORKSPACE_SCHEMAS_CACHE: dict[str, dict[str, list[ColumnSchema]]] = {}
+_WORKSPACE_GRAPH_CACHE: dict[str, nx.MultiDiGraph] = {}
 
 _simulation_engine = CorrelationRegressionEngine()
 
@@ -362,3 +376,167 @@ def update_column_label(analysis_id: str, column_name: str, req: UpdateLabelRequ
                 break
 
     return {"updated": True}
+
+
+# --- V5: multi-table workspaces ------------------------------------------------
+
+
+def _table_name_from_filename(filename: str) -> str:
+    name = filename.rsplit(".", 1)[0]
+    return re.sub(r"[^A-Za-z0-9_]", "_", name)
+
+
+@app.post("/api/workspace")
+async def create_workspace(files: list[UploadFile]) -> dict:
+    if not files:
+        raise HTTPException(status_code=400, detail="Upload at least one file.")
+
+    tables: dict[str, pd.DataFrame] = {}
+    schemas: dict[str, list[ColumnSchema]] = {}
+    table_summaries = []
+
+    for file in files:
+        content = await file.read()
+        if not content:
+            continue
+        try:
+            df = _read_dataframe(file.filename or "table.csv", content)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Could not parse '{file.filename}': {exc}") from exc
+        if df.empty:
+            continue
+
+        table_name = _table_name_from_filename(file.filename or f"table_{len(tables)}")
+        schema = build_schema(df)
+        tables[table_name] = df
+        schemas[table_name] = schema
+        table_summaries.append(
+            {
+                "table": table_name,
+                "filename": file.filename,
+                "row_count": len(df),
+                "column_count": len(df.columns),
+                "schema": [asdict(c) for c in schema],
+            }
+        )
+
+    if len(tables) < 1:
+        raise HTTPException(status_code=400, detail="No valid, non-empty tables were uploaded.")
+
+    workspace_id = str(uuid.uuid4())
+    _WORKSPACE_TABLES_CACHE[workspace_id] = tables
+    _WORKSPACE_SCHEMAS_CACHE[workspace_id] = schemas
+
+    suggested = discover_relationships(tables, schemas) if len(tables) > 1 else []
+
+    return {
+        "workspace_id": workspace_id,
+        "tables": table_summaries,
+        "suggested_relationships": [asdict(r) for r in suggested],
+    }
+
+
+class RelationshipInput(BaseModel):
+    from_table: str
+    from_column: str
+    to_table: str
+    to_column: str
+    confidence: float = 1.0
+    overlap_pct: float = 0.0
+    to_column_is_unique: bool = False
+    relationship_type: str = "many_to_one"
+    evidence: str = "User-confirmed relationship."
+
+
+class ConfirmRelationshipsRequest(BaseModel):
+    relationships: list[RelationshipInput]
+
+
+@app.post("/api/workspace/{workspace_id}/relationships")
+def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -> dict:
+    tables = _WORKSPACE_TABLES_CACHE.get(workspace_id)
+    schemas = _WORKSPACE_SCHEMAS_CACHE.get(workspace_id)
+    if tables is None or schemas is None:
+        raise HTTPException(status_code=404, detail="Workspace not found — re-upload the files and try again.")
+
+    relationships = [RelationshipCandidate(**r.model_dump()) for r in req.relationships]
+    for rel in relationships:
+        if rel.from_table not in tables or rel.to_table not in tables:
+            raise HTTPException(status_code=400, detail=f"Unknown table in relationship: {rel.from_table} -> {rel.to_table}")
+
+    try:
+        result = build_graph(workspace_id, tables, schemas, relationships)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not write to Neo4j: {exc}") from exc
+
+    graph = result["graph"]
+    _WORKSPACE_GRAPH_CACHE[workspace_id] = graph
+    analytics = compute_graph_analytics(graph)
+
+    return {
+        "node_count": result["node_count"],
+        "edge_count": result["edge_count"],
+        "analytics": analytics,
+    }
+
+
+@app.get("/api/workspace/{workspace_id}/graph")
+def get_workspace_graph(workspace_id: str, max_nodes: int = 150) -> dict:
+    graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
+    if graph is None:
+        raise HTTPException(status_code=404, detail="No confirmed graph for this workspace yet.")
+
+    degrees = dict(graph.degree())
+    top_nodes = sorted(degrees, key=lambda n: degrees[n], reverse=True)[:max_nodes]
+    top_node_set = set(top_nodes)
+
+    nodes = [
+        {"id": n, "table": graph.nodes[n].get("table"), "key": graph.nodes[n].get("key"), "degree": degrees[n]}
+        for n in top_nodes
+    ]
+    edges = [
+        {"source": u, "target": v, "type": data.get("type")}
+        for u, v, data in graph.edges(data=True)
+        if u in top_node_set and v in top_node_set
+    ]
+
+    return {"nodes": nodes, "edges": edges, "total_nodes": graph.number_of_nodes(), "total_edges": graph.number_of_edges()}
+
+
+@app.get("/api/workspace/{workspace_id}/entity/{table}/{key}")
+def get_entity_profile(workspace_id: str, table: str, key: str) -> dict:
+    if workspace_id not in _WORKSPACE_TABLES_CACHE:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+
+    driver = get_driver()
+    with driver.session() as session:
+        record = session.run(
+            f"MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}}) RETURN properties(n) AS props",
+            wid=workspace_id,
+            key=key,
+        ).single()
+        if record is None:
+            raise HTTPException(status_code=404, detail="Entity not found in the graph.")
+        properties = {k: v for k, v in record["props"].items() if not k.startswith("_")}
+
+        neighbors = session.run(
+            f"""
+            MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}})-[r]-(m)
+            RETURN labels(m)[0] AS table, m._key AS key, type(r) AS relationship,
+                   startNode(r)._key = $key AS outgoing
+            LIMIT 25
+            """,
+            wid=workspace_id,
+            key=key,
+        )
+        neighbor_list = [
+            {
+                "table": n["table"],
+                "key": n["key"],
+                "relationship": n["relationship"],
+                "direction": "outgoing" if n["outgoing"] else "incoming",
+            }
+            for n in neighbors
+        ]
+
+    return {"table": table, "key": key, "properties": properties, "neighbors": neighbor_list}

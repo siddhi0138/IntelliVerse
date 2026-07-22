@@ -105,9 +105,14 @@ export default function Home() {
           <h1 className="text-3xl font-semibold tracking-tight">NEXUS</h1>
           <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
         </div>
-        <Link href="/catalog" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-          Dataset catalog &rarr;
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/workspace" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            Multi-table workspace &rarr;
+          </Link>
+          <Link href="/catalog" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            Dataset catalog &rarr;
+          </Link>
+        </div>
       </header>
 
       <div

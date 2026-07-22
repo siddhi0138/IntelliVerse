@@ -4,14 +4,19 @@ import type {
   AskResponse,
   CatalogEntry,
   ColumnSchema,
+  ConfirmRelationshipsResponse,
   DataQualityReport,
+  EntityProfile,
   Forecast,
   Insight,
   PeriodComparison,
   Recommendation,
+  RelationshipCandidate,
   RootCauseAnalysis,
   SimulationExplanation,
   SimulationResult,
+  WorkspaceGraph,
+  WorkspaceResponse,
 } from "./types";
 
 
@@ -161,4 +166,41 @@ export async function explainForecast(domain: string, forecast: Forecast): Promi
 
   const body = await unwrap<{ summary: string }>(res);
   return body.summary;
+}
+
+export async function createWorkspace(files: File[]): Promise<WorkspaceResponse> {
+  const formData = new FormData();
+  for (const file of files) formData.append("files", file);
+
+  const res = await fetch(`${API_BASE}/api/workspace`, {
+    method: "POST",
+    body: formData,
+  });
+
+  return unwrap<WorkspaceResponse>(res);
+}
+
+export async function confirmRelationships(
+  workspaceId: string,
+  relationships: RelationshipCandidate[]
+): Promise<ConfirmRelationshipsResponse> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/relationships`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ relationships }),
+  });
+
+  return unwrap<ConfirmRelationshipsResponse>(res);
+}
+
+export async function fetchWorkspaceGraph(workspaceId: string): Promise<WorkspaceGraph> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/graph`);
+  return unwrap<WorkspaceGraph>(res);
+}
+
+export async function fetchEntityProfile(workspaceId: string, table: string, key: string): Promise<EntityProfile> {
+  const res = await fetch(
+    `${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/entity/${encodeURIComponent(table)}/${encodeURIComponent(key)}`
+  );
+  return unwrap<EntityProfile>(res);
 }

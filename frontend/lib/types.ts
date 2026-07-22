@@ -328,3 +328,85 @@ export interface CatalogEntry {
   domain: string;
   quality_score: number;
 }
+
+// --- V5: multi-table workspaces --------------------------------------------
+
+export interface WorkspaceTable {
+  table: string;
+  filename: string;
+  row_count: number;
+  column_count: number;
+  schema: ColumnSchema[];
+}
+
+export interface RelationshipCandidate {
+  from_table: string;
+  from_column: string;
+  to_table: string;
+  to_column: string;
+  confidence: number;
+  overlap_pct: number;
+  to_column_is_unique: boolean;
+  relationship_type: "many_to_one" | "many_to_many";
+  evidence: string;
+}
+
+export interface WorkspaceResponse {
+  workspace_id: string;
+  tables: WorkspaceTable[];
+  suggested_relationships: RelationshipCandidate[];
+}
+
+export interface GraphAnalyticsEntry {
+  node: string;
+  table: string | null;
+  key: string | null;
+  score: number;
+}
+
+export interface GraphAnalytics {
+  top_pagerank: GraphAnalyticsEntry[];
+  top_degree_centrality: GraphAnalyticsEntry[];
+  connected_components: number;
+  component_sizes: number[];
+}
+
+export interface ConfirmRelationshipsResponse {
+  node_count: number;
+  edge_count: number;
+  analytics: GraphAnalytics;
+}
+
+export interface WorkspaceGraphNode {
+  id: string;
+  table: string;
+  key: string;
+  degree: number;
+}
+
+export interface WorkspaceGraphEdge {
+  source: string;
+  target: string;
+  type: string;
+}
+
+export interface WorkspaceGraph {
+  nodes: WorkspaceGraphNode[];
+  edges: WorkspaceGraphEdge[];
+  total_nodes: number;
+  total_edges: number;
+}
+
+export interface EntityNeighbor {
+  table: string;
+  key: string;
+  relationship: string;
+  direction: "incoming" | "outgoing";
+}
+
+export interface EntityProfile {
+  table: string;
+  key: string;
+  properties: Record<string, unknown>;
+  neighbors: EntityNeighbor[];
+}

@@ -327,3 +327,99 @@ added for real rather than substituted again.
 
 Kendall correlation and DBSCAN remain skipped from the v2 pass (marked
 optional there); nothing new in this v3 pass was skipped.
+
+## v5: knowledge graph & multi-table intelligence
+
+This is the first version where NEXUS analyzes a *set* of related tables
+instead of one file — and the first version with real database
+infrastructure: **PostgreSQL 17** and **Neo4j 5.26 Community**, both
+installed natively on Windows (not Docker — see below). SQLite still
+backs the single-table catalog from earlier versions; Postgres is
+provisioned and ready but nothing has been migrated to it yet.
+
+**Multi-file upload** (`POST /api/workspace`) accepts several CSV/Excel
+files at once, builds a schema for each (reusing v1's `schema_inference`
+unchanged), and caches them in a workspace, separate from the
+single-table `analysis_id` cache used everywhere else.
+
+**Relationship discovery** (`backend/multi_table.py`) — never assumes a
+join. For every candidate column pair (matching by name, or a column
+named like `CustomerID` against a table named `Customers`), it measures
+actual value overlap between the two columns and only proposes a
+relationship above a confidence threshold, with the evidence (overlap %,
+whether the target column looks like a primary key) attached. Verified
+against a Sales/Customers/Products sample: correctly found both real
+foreign keys (`Sales.CustomerID → Customers.CustomerID`,
+`Sales.ProductID → Products.ProductID`) at 100% confidence with zero
+false positives.
+
+**Review step** — suggested relationships are returned to the frontend
+for confirmation before anything is built; `POST /api/workspace/{id}/relationships`
+only ingests what the user confirmed.
+
+**Knowledge graph builder** (`backend/knowledge_graph_builder.py`) —
+ingests each table's rows as Neo4j nodes (one node per row, labeled by
+table name) and confirmed relationships as edges, via batched `UNWIND`
+writes. Capped at 2,000 rows/table by design: this is a live
+request/response tool, not a batch ETL pipeline. A parallel NetworkX
+graph is built from the same data for analytics.
+
+**Graph analytics** (`backend/graph_analytics.py`) — PageRank, degree
+centrality, and connected components via NetworkX. Verified against the
+sample data: correctly ranked the customer and product appearing in the
+most orders as most influential, and correctly isolated a customer whose
+only purchase was an otherwise-unbought product as its own disconnected
+component (checked by hand against the raw CSV).
+
+**Entity profiles** (`GET /api/workspace/{id}/entity/{table}/{key}`) —
+live Cypher query against Neo4j returning a node's properties and 1-hop
+neighbors. Verified: querying a customer correctly returned their exact
+order history.
+
+**Frontend** (`/workspace`) — multi-file drop zone → relationship
+review checklist → "Build Knowledge Graph" → a graph explorer
+(`@xyflow/react`, entities clustered by table with a circular layout)
+where clicking a node loads its live entity profile, plus a graph
+analytics panel.
+
+**Scope, stated plainly** (matches the "never invent relationships"
+principle from the spec):
+- No text-to-Cypher, no LangGraph/LlamaIndex orchestration, no GraphRAG.
+  Natural-language questions over the graph aren't supported yet — that
+  would extend the existing `/api/ask` classify-then-compute pattern to
+  graph traversal, not a separate LLM-driven query engine, and wasn't
+  built this round.
+- Community detection beyond connected-components, and a relationship
+  timeline, weren't built (both were marked as lower-priority in the
+  original scoping discussion for this version).
+- Entities are ingested at the row level (real per-instance nodes, not
+  just table-level schema nodes), but capped per table — a genuine
+  multi-million-row warehouse load needs a background job, which this
+  synchronous endpoint doesn't attempt.
+
+### Getting PostgreSQL + Neo4j running (native Windows, no Docker)
+
+Both were installed directly on Windows via `winget`/direct download
+rather than Docker or WSL2 — WSL2's networking turned out to be broken
+on this machine (DNS resolved, TCP handshakes completed, but all
+response data silently dropped — not fixed by mirrored networking mode,
+MTU changes, or disabling the firewall; root cause never fully
+identified). If you hit the same wall, native installers are the
+pragmatic fallback:
+
+- **PostgreSQL**: `winget install PostgreSQL.PostgreSQL.17` (or the
+  interactive EDB installer from postgresql.org — note their download
+  CDN blocks default `curl`/PowerShell user agents as bot traffic; add a
+  browser-like `User-Agent` header if scripting the download).
+- **Neo4j**: needs a JVM first (`winget install Microsoft.OpenJDK.21`),
+  then download the Community Server zip directly from
+  `neo4j.com/artifact.php?name=neo4j-community-5.26.0-windows.zip` (the
+  `neo4j.com` mirror redirect worked fine; `archive.ubuntu.com`-style
+  default mirrors are unrelated and not needed here), extract it, and
+  either run `neo4j.bat console` directly (what this project currently
+  does — a foreground/background process, not a service) or
+  `neo4j.bat windows-service install` if you have admin rights to start
+  Windows services.
+
+Both are configured via `.env` (`NEO4J_URI`/`NEO4J_USER`/`NEO4J_PASSWORD`,
+`POSTGRES_DSN`) — see `.env.example`.
