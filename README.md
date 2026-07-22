@@ -423,3 +423,42 @@ pragmatic fallback:
 
 Both are configured via `.env` (`NEO4J_URI`/`NEO4J_USER`/`NEO4J_PASSWORD`,
 `POSTGRES_DSN`) — see `.env.example`.
+
+## Additive ML stack (post-v5)
+
+A later stack-alignment request asked for the full "final tech stack"
+list (DuckDB, Polars, Apache ECharts, shadcn/ui, Zustand, TanStack Query,
+Celery/Redis, Clerk auth, Kubernetes, etc.) to be retrofitted everywhere.
+Most of that was declined — swapping pandas for DuckDB/Polars,
+Recharts for ECharts, or `useState`/`fetch` for Zustand/TanStack Query
+would mean rewriting every working, tested module for zero new
+capability, which is exactly the kind of premature-refactor churn this
+project has avoided everywhere else. What *did* get adopted is the
+genuinely additive part of that list — new capabilities, not
+reformatted old ones:
+
+- **LightGBM** — a seventh forecast candidate in `forecasting.py`,
+  competing honestly alongside naive/linear/Holt/RF/XGBoost/Prophet in
+  the same backtest.
+- **SHAP** — explains *why* Isolation Forest flagged a row as anomalous
+  (`backend/anomalies_ml.py`), via `TreeExplainer` on the fitted model —
+  verified it correctly attributes an outlier month's anomaly score to
+  its Revenue/Inventory/Orders values.
+- **Local Outlier Factor + One-Class SVM** — `anomalies_ml.py` now runs
+  three multivariate anomaly methods and reports **consensus** (how many
+  agree on a given row) as an honest confidence signal, instead of
+  trusting a single method's score.
+- **KMeans clustering** (`backend/clustering.py`) — row segmentation
+  with K chosen automatically via silhouette score across a small
+  candidate range, not assumed; returns nothing if the data has no real
+  cluster structure rather than forcing a split.
+- **Great Expectations** (`backend/ge_validation.py`) — a supplementary
+  *structural* validation layer (row count, id uniqueness, excessive
+  nulls) that runs alongside, not instead of, the existing
+  business-meaning-aware quality report from v1. Adds real latency
+  (~2-3s per analyze call, mostly GE's own context/import overhead) —
+  a known, accepted tradeoff for a synchronous request.
+
+Frontend gains `ClusteringPanel`, `GEValidationPanel`, and
+`MultivariateAnomaliesPanel` now shows consensus + SHAP feature impacts;
+`ForecastComparisonTable`/`ForecastChart` know about the LightGBM label.

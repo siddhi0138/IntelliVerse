@@ -70,6 +70,7 @@ export type ForecastMethod =
   | "holt_linear_trend"
   | "random_forest"
   | "xgboost"
+  | "lightgbm"
   | "prophet"
   | "insufficient_data";
 
@@ -238,11 +239,47 @@ export interface InsightTimelineEntry {
   notes: string[];
 }
 
+export interface FeatureImpact {
+  feature: string;
+  impact: number;
+}
+
 export interface MultivariateAnomaly {
   row: string;
   anomaly_score: number;
   values: Record<string, number>;
   method: string;
+  detected_by: string[];
+  consensus: number;
+  top_contributing_features: FeatureImpact[] | null;
+}
+
+export interface ClusterProfile {
+  cluster_id: number;
+  size: number;
+  profile: Record<string, number>;
+  sample_ids: string[];
+}
+
+export interface ClusteringResult {
+  k: number;
+  silhouette_score: number;
+  clusters: ClusterProfile[];
+}
+
+export interface GEValidationFailure {
+  expectation: string;
+  column: string | null;
+  unexpected_count: number | null;
+  unexpected_percent: number | null;
+}
+
+export interface GEValidation {
+  available: boolean;
+  reason?: string;
+  success?: boolean;
+  expectations_run?: number;
+  failed?: GEValidationFailure[];
 }
 
 export interface AnalyzeResponse {
@@ -271,6 +308,8 @@ export interface AnalyzeResponse {
   ranked_findings: RankedFinding[];
   insight_timeline: InsightTimelineEntry[];
   risk_alerts: RiskAlert[];
+  clustering: ClusteringResult | null;
+  ge_validation: GEValidation;
   decisions: DecisionAction[];
   primary_metric: string | null;
 }

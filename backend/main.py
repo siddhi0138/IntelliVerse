@@ -16,8 +16,10 @@ from pydantic import BaseModel
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
 from anomalies_ml import detect_multivariate_anomalies
 import catalog
+from clustering import cluster_rows
 from distributions import analyze_distributions
 from forecasting import check_forecast_eligibility, discover_forecastable_targets, select_and_forecast
+from ge_validation import run_validation as run_ge_validation
 from graph_analytics import compute_graph_analytics
 from graph_builder import build_knowledge_graph
 from insight_ranking import build_ranked_findings
@@ -153,6 +155,13 @@ async def analyze(file: UploadFile) -> dict:
         forecast, root_cause, numeric_cols[0].semantic_label if numeric_cols else None
     )
 
+    # additive ML: KMeans segmentation (K chosen via silhouette score, not assumed)
+    clustering = cluster_rows(df, schema, id_column=id_cols[0].name if id_cols else None)
+
+    # additive: Great Expectations as a supplementary structural sanity check,
+    # layered on top of (not replacing) the business-meaning-aware quality report above
+    ge_validation = run_ge_validation(df, schema)
+
     analysis_id = str(uuid.uuid4())
     _ANALYSIS_DF_CACHE[analysis_id] = df
     _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
@@ -193,6 +202,8 @@ async def analyze(file: UploadFile) -> dict:
         "ranked_findings": ranked_findings,
         "insight_timeline": insight_timeline,
         "risk_alerts": risk_alerts,
+        "clustering": clustering,
+        "ge_validation": ge_validation,
         "decisions": build_decision_actions(schema),
         "primary_metric": primary_metric,
     }

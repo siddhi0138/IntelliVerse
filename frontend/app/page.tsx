@@ -22,6 +22,8 @@ import { RankedFindingsPanel } from "@/components/RankedFindingsPanel";
 import { InsightTimelinePanel } from "@/components/InsightTimelinePanel";
 import { MultivariateAnomaliesPanel } from "@/components/MultivariateAnomaliesPanel";
 import { DistributionPanel } from "@/components/DistributionPanel";
+import { ClusteringPanel } from "@/components/ClusteringPanel";
+import { GEValidationPanel } from "@/components/GEValidationPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -212,6 +214,8 @@ export default function Home() {
             <RootCausePanel rootCause={result.root_cause} />
             <DistributionPanel distributions={result.distributions} />
             <MultivariateAnomaliesPanel anomalies={result.multivariate_anomalies} />
+            <ClusteringPanel clustering={result.clustering} />
+            <GEValidationPanel validation={result.ge_validation} />
           </div>
 
           <InsightTimelinePanel timeline={result.insight_timeline} />

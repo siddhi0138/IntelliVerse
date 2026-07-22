@@ -1,14 +1,15 @@
 """V3: forecast eligibility, automatic target discovery, model selection,
 and validation metrics.
 
-Six candidates are backtested on a held-out tail of each series: naive
+Seven candidates are backtested on a held-out tail of each series: naive
 carry-forward, linear trend (OLS), Holt's linear exponential smoothing,
-Random Forest, XGBoost, and Prophet. Whichever has the lowest validation
-RMSE is chosen and refit on the full series. This is a real competition,
-not a fixed pick — on short, noisy monthly series the tree models often
-lose (they can't extrapolate a trend past the range they were trained on,
-a genuine, known limitation, not a bug), and that's exactly the point:
-let the backtest decide instead of assuming one algorithm.
+Random Forest, XGBoost, LightGBM, and Prophet. Whichever has the lowest
+validation RMSE is chosen and refit on the full series. This is a real
+competition, not a fixed pick — on short, noisy monthly series the tree
+models often lose (they can't extrapolate a trend past the range they
+were trained on, a genuine, known limitation, not a bug), and that's
+exactly the point: let the backtest decide instead of assuming one
+algorithm.
 
 Below `MIN_PERIODS_FOR_MODEL_SELECTION` there isn't enough data to
 backtest honestly, so this falls back to linear trend outright and says
@@ -142,6 +143,21 @@ def _xgboost_forecast(train: np.ndarray, steps: int) -> np.ndarray | None:
         return None
 
 
+def _lightgbm_forecast(train: np.ndarray, steps: int) -> np.ndarray | None:
+    if len(train) < 4:
+        return None
+    try:
+        from lightgbm import LGBMRegressor
+
+        x = np.arange(len(train)).reshape(-1, 1)
+        model = LGBMRegressor(n_estimators=100, max_depth=3, min_child_samples=1, verbosity=-1, random_state=42)
+        model.fit(x, train)
+        future_x = np.arange(len(train), len(train) + steps).reshape(-1, 1)
+        return model.predict(future_x)
+    except Exception:
+        return None
+
+
 def _prophet_forecast(train_periods: list[str], train_values: np.ndarray, steps: int) -> np.ndarray | None:
     if len(train_values) < 4:
         return None
@@ -199,6 +215,7 @@ def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) ->
             "holt_linear_trend": _holt_forecast(train, holdout),
             "random_forest": _random_forest_forecast(train, holdout),
             "xgboost": _xgboost_forecast(train, holdout),
+            "lightgbm": _lightgbm_forecast(train, holdout),
             "prophet": _prophet_forecast(train_periods, train, holdout),
         }
 
@@ -225,6 +242,7 @@ def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) ->
         "holt_linear_trend": lambda: _holt_forecast(values, periods_ahead),
         "random_forest": lambda: _random_forest_forecast(values, periods_ahead),
         "xgboost": lambda: _xgboost_forecast(values, periods_ahead),
+        "lightgbm": lambda: _lightgbm_forecast(values, periods_ahead),
         "prophet": lambda: _prophet_forecast(periods, values, periods_ahead),
     }
     predicted_future = forecast_fns[chosen_name]()

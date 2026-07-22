@@ -15,6 +15,10 @@ const MODEL_LABELS: Record<string, string> = {
   naive: "Naive (carry-forward)",
   linear_trend: "Linear trend (OLS)",
   holt_linear_trend: "Holt's linear exponential smoothing",
+  random_forest: "Random Forest",
+  xgboost: "XGBoost",
+  lightgbm: "LightGBM",
+  prophet: "Prophet",
 };
 
 function buildRows(forecast: Forecast): Row[] {

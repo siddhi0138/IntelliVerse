@@ -6,6 +6,7 @@ const MODEL_LABELS: Record<string, string> = {
   holt_linear_trend: "Holt's exponential smoothing",
   random_forest: "Random Forest",
   xgboost: "XGBoost",
+  lightgbm: "LightGBM",
   prophet: "Prophet",
 };
 
