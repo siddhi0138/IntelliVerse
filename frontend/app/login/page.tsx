@@ -32,8 +32,8 @@ export default function LoginPage() {
 
   return (
     <main className="flex-1 flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-center mb-1">IntelliVerse</h1>
+      <div className="w-full max-w-sm card">
+        <h1 className="text-2xl font-semibold tracking-tight text-center mb-1">🧠 IntelliVerse</h1>
         <p className="text-slate-500 text-center mb-8">
           {mode === "login" ? "Sign in to continue" : "Create an account"}
         </p>
@@ -47,7 +47,7 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm focus:border-indigo-400"
             />
           </div>
           <div>
@@ -58,17 +58,13 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-2 text-sm focus:border-indigo-400"
             />
           </div>
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading} className="btn-primary w-full py-2">
             {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
           </button>
         </form>

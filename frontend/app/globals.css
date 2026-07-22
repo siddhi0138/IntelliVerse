@@ -22,5 +22,66 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* The Geist fonts loaded in layout.tsx were never actually applied —
+     this line (left over from create-next-app's default template)
+     silently overrode them with a plain Arial fallback the whole time. */
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Smooth, deliberate transitions on the things that actually change state
+   (color scheme, hover, focus) — not a blanket `*` transition, which would
+   also animate layout-affecting properties and charts/graphs on every
+   re-render. */
+a,
+button,
+input,
+select,
+textarea,
+[role="button"] {
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease,
+    transform 0.1s ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active {
+  transform: scale(0.98);
+}
+
+:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184 / 0.7);
+}
+
+@layer components {
+  .btn-primary {
+    @apply rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 shadow-sm;
+  }
+  .btn-secondary {
+    @apply rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50;
+  }
+  .btn-danger-ghost {
+    @apply text-red-600 dark:text-red-400 hover:underline text-xs;
+  }
+  .card {
+    @apply rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow;
+  }
+  .badge {
+    @apply px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-sm font-medium;
+  }
 }

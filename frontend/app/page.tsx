@@ -147,22 +147,33 @@ export default function Home() {
 
   return (
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-10 flex items-center justify-between">
+      <header className="mb-10 flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">IntelliVerse</h1>
+          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
+            <span>🧠</span> IntelliVerse
+          </h1>
           <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
         </div>
-        <div className="flex gap-4">
-          <Link href="/workspace" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-            Multi-table workspace &rarr;
+        <nav className="flex gap-2">
+          <Link
+            href="/workspace"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+          >
+            Multi-table workspace
           </Link>
-          <Link href="/catalog" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-            Dataset catalog &rarr;
+          <Link
+            href="/catalog"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+          >
+            Dataset catalog
           </Link>
-          <Link href="/knowledge" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
-            Knowledge Assistant &rarr;
+          <Link
+            href="/knowledge"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+          >
+            Knowledge Assistant
           </Link>
-        </div>
+        </nav>
       </header>
 
       <div
@@ -173,10 +184,10 @@ export default function Home() {
         onDragLeave={() => setDragActive(false)}
         onDrop={onDrop}
         onClick={() => inputRef.current?.click()}
-        className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors ${
+        className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
           dragActive
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400"
+            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 scale-[1.01]"
+            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-900/40"
         }`}
       >
         <input
@@ -189,6 +200,17 @@ export default function Home() {
             if (file) handleFile(file);
           }}
         />
+        {!loading && (
+          <svg
+            className="mx-auto mb-3 w-8 h-8 text-slate-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0 3.75 3.75M12 9l-3.75 3.75M3.75 19.5h16.5" />
+          </svg>
+        )}
         <p className="text-slate-600 dark:text-slate-400">
           {loading
             ? progressStep ?? "Analyzing…"
@@ -210,9 +232,7 @@ export default function Home() {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-sm font-medium">
-                {result.domain}
-              </span>
+              <span className="badge">{result.domain}</span>
               <button
                 onClick={clearDataset}
                 title="Clear this dataset and start over"

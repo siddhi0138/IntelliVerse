@@ -90,12 +90,15 @@ export default function WorkspacePage() {
 
   return (
     <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12">
-      <header className="mb-10 flex items-center justify-between">
+      <header className="mb-10 flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">IntelliVerse Workspace</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">🕸️ IntelliVerse Workspace</h1>
           <p className="text-slate-500 mt-1">Upload related tables. IntelliVerse finds how they connect.</p>
         </div>
-        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+        <Link
+          href="/"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
+        >
           &larr; Single dataset
         </Link>
       </header>

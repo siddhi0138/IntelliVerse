@@ -23,26 +23,33 @@ export default function CatalogPage() {
 
   return (
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dataset Catalog</h1>
-          <p className="text-slate-500 mt-1 text-sm">
-            Every dataset you&apos;ve uploaded — click a row to reopen its full dashboard, no re-upload needed. Features
-            that need the live data (SQL query, re-running simulations/forecasts, the action plan) still require
-            re-uploading the file, since only the computed result is saved, not the raw file itself.
+          <p className="text-slate-500 mt-1 text-sm max-w-2xl">
+            Every dataset you&apos;ve uploaded — click a row to reopen its full dashboard, no re-upload needed.
+            SQL query, re-running simulations/forecasts, and the action plan still need the file re-uploaded, since
+            only the computed result is saved.
           </p>
         </div>
-        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+        <Link
+          href="/"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
+        >
           &larr; Back to upload
         </Link>
       </header>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      {datasets && datasets.length === 0 && <p className="text-sm text-slate-500">No datasets uploaded yet.</p>}
+      {datasets && datasets.length === 0 && (
+        <div className="card text-center py-12">
+          <p className="text-sm text-slate-500">No datasets uploaded yet.</p>
+        </div>
+      )}
 
       {datasets && datasets.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto shadow-sm">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">

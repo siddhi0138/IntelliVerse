@@ -71,13 +71,16 @@ export default function KnowledgePage() {
     <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Knowledge Assistant</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">📄 Knowledge Assistant</h1>
           <p className="text-slate-500 mt-1 text-sm">
             Ask questions across uploaded PDFs, Word docs, and PowerPoint decks — grounded only in what&apos;s
             retrieved, cited by filename. Optionally combine with a dataset&apos;s findings below.
           </p>
         </div>
-        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap mt-1">
+        <Link
+          href="/"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
+        >
           &larr; Back to upload
         </Link>
       </header>
@@ -118,7 +121,7 @@ export default function KnowledgePage() {
       {uploadError && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{uploadError}</p>}
 
       {documents && documents.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 mb-8">
+        <div className="card mb-8">
           <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Uploaded documents</h3>
           <ul className="space-y-2">
             {documents.map((d) => (
@@ -129,10 +132,7 @@ export default function KnowledgePage() {
                     ({d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}, {new Date(d.uploaded_at).toLocaleString()})
                   </span>
                 </span>
-                <button
-                  onClick={() => handleDelete(d.doc_id)}
-                  className="text-red-600 dark:text-red-400 hover:underline text-xs"
-                >
+                <button onClick={() => handleDelete(d.doc_id)} className="btn-danger-ghost">
                   Delete
                 </button>
               </li>
@@ -142,10 +142,12 @@ export default function KnowledgePage() {
       )}
 
       {documents && documents.length === 0 && (
-        <p className="text-sm text-slate-500 mb-8">No documents uploaded yet.</p>
+        <div className="card text-center py-8 mb-8">
+          <p className="text-sm text-slate-500">No documents uploaded yet.</p>
+        </div>
       )}
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+      <div className="card">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask across your documents</h3>
 
         {datasets.length > 0 && (
@@ -177,11 +179,7 @@ export default function KnowledgePage() {
             placeholder="e.g. Why did revenue decrease last quarter?"
             className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-1.5 text-sm"
           />
-          <button
-            onClick={handleAsk}
-            disabled={asking || !question.trim()}
-            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-          >
+          <button onClick={handleAsk} disabled={asking || !question.trim()} className="btn-primary">
             {asking ? "Thinking…" : "Ask"}
           </button>
         </div>
