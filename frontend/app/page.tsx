@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { analyzeFileWithProgress, fetchCatalogDataset, fetchInsights } from "@/lib/api";
+import { analyzeFileWithProgress, deleteDataset, fetchCatalogDataset, fetchInsights } from "@/lib/api";
 import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
@@ -90,7 +90,7 @@ export default function Home() {
     }
   }, []);
 
-  const clearDataset = useCallback(() => {
+  const resetView = useCallback(() => {
     setResult(null);
     setInsights(null);
     setRecommendations(null);
@@ -99,6 +99,32 @@ export default function Home() {
     window.history.replaceState(null, "", "/");
     localStorage.removeItem("nexus_last_analysis");
   }, []);
+
+  const handleDeleteDataset = useCallback(async () => {
+    if (!result) return;
+    if (!window.confirm(`Permanently delete "${result.filename}"? This can't be undone.`)) return;
+    const analysisId = result.analysis_id;
+    try {
+      await deleteDataset(analysisId);
+      resetView();
+      // Storage events only fire in *other* tabs, not this one — exactly
+      // what we want, since this tab already reset itself above. Any other
+      // tab showing this same analysis_id picks this up and clears too.
+      localStorage.setItem("nexus_dataset_deleted", analysisId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete this dataset.");
+    }
+  }, [result, resetView]);
+
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === "nexus_dataset_deleted" && e.newValue && e.newValue === result?.analysis_id) {
+        resetView();
+      }
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [result, resetView]);
 
   useEffect(() => {
     if (!result) return;
@@ -186,8 +212,8 @@ export default function Home() {
         onClick={() => inputRef.current?.click()}
         className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
           dragActive
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 scale-[1.01]"
-            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-900/40"
+            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 scale-[1.01]"
+            : "border-slate-300 dark:border-slate-600 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-900/40"
         }`}
       >
         <input
@@ -234,10 +260,10 @@ export default function Home() {
             <div className="flex items-center gap-3">
               <span className="badge">{result.domain}</span>
               <button
-                onClick={clearDataset}
-                title="Clear this dataset and start over"
-                aria-label="Clear this dataset"
-                className="rounded-full border border-slate-300 dark:border-slate-700 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors"
+                onClick={handleDeleteDataset}
+                title="Delete this dataset permanently"
+                aria-label="Delete this dataset"
+                className="rounded-full border border-slate-300 dark:border-slate-600 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors"
               >
                 ✕
               </button>
@@ -315,7 +341,7 @@ export default function Home() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Knowledge graph</h3>
-              <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden text-xs">
+              <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-xs">
                 <button
                   onClick={() => setGraphView("2d")}
                   className={`px-3 py-1 ${graphView === "2d" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-400"}`}

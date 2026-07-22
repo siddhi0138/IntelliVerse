@@ -165,6 +165,21 @@ def get_dataset(analysis_id: str, username: str) -> dict | None:
         return record
 
 
+def delete_dataset(analysis_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM datasets WHERE analysis_id = ? AND username = ?", (analysis_id, username))
+        # Saved forecasts/simulations are meaningless without their parent
+        # dataset — clean them up together rather than leaving orphans.
+        conn.execute(
+            "DELETE FROM saved_forecasts WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
+        conn.execute(
+            "DELETE FROM saved_simulations WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def update_semantic_label(analysis_id: str, username: str, column_name: str, new_label: str) -> bool:
     with _connect() as conn:
         row = conn.execute(

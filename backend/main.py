@@ -563,6 +563,22 @@ def get_dataset(analysis_id: str, current_user: str = Depends(get_current_user))
     return record
 
 
+@protected.delete("/api/datasets/{analysis_id}")
+def delete_dataset(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_dataset(analysis_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Dataset not found in catalog.")
+
+    # Drop the in-memory session too so a still-open tab can't keep
+    # simulating/forecasting against data that's supposed to be gone.
+    _ANALYSIS_DF_CACHE.pop(analysis_id, None)
+    _ANALYSIS_SCHEMA_CACHE.pop(analysis_id, None)
+    _ANALYSIS_RESULT_CACHE.pop(analysis_id, None)
+
+    logger.info("Dataset deleted: analysis_id={analysis_id} username={username}", analysis_id=analysis_id, username=current_user)
+    return {"deleted": True}
+
+
 class UpdateLabelRequest(BaseModel):
     label: str
 

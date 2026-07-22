@@ -178,6 +178,14 @@ export async function fetchCatalogDataset(analysisId: string): Promise<CatalogDe
   return unwrap<CatalogDetail>(res);
 }
 
+export async function deleteDataset(analysisId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(analysisId)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await unwrap<{ deleted: boolean }>(res);
+}
+
 export async function saveForecast(analysisId: string, label: string, forecast: Forecast): Promise<void> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts`, {
     method: "POST",
