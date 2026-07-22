@@ -16,7 +16,7 @@ import { DataQualityPanel } from "@/components/DataQualityPanel";
 import { RelationshipsPanel } from "@/components/RelationshipsPanel";
 import { RootCausePanel } from "@/components/RootCausePanel";
 import { RiskAlertsPanel } from "@/components/RiskAlertsPanel";
-import { AskNexus } from "@/components/AskNexus";
+import { AskIntelliVerse } from "@/components/AskIntelliVerse";
 import { DatasetSummaryPanel } from "@/components/DatasetSummaryPanel";
 import { RankedFindingsPanel } from "@/components/RankedFindingsPanel";
 import { InsightTimelinePanel } from "@/components/InsightTimelinePanel";
@@ -110,7 +110,7 @@ export default function Home() {
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
       <header className="mb-10 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">NEXUS</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">IntelliVerse</h1>
           <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
         </div>
         <div className="flex gap-4">
@@ -190,7 +190,7 @@ export default function Home() {
               <KpiRow key={chart.id} chart={chart} />
             ))}
 
-          <AskNexus analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
+          <AskIntelliVerse analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
 
           <RankedFindingsPanel findings={result.ranked_findings} />
 

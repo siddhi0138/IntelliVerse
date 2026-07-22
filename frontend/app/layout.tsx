@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NEXUS",
+  title: "IntelliVerse",
   description: "Upload anything. Understand everything.",
 };
 

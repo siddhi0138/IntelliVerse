@@ -1,6 +1,6 @@
 """Metadata catalog: persists dataset metadata (not raw data) across
 restarts, using SQLite — no extra dependency, no server process, matches
-the "lean, local-first" pattern the rest of NEXUS follows. This is the
+the "lean, local-first" pattern the rest of IntelliVerse follows. This is the
 "internal memory for future versions" the roadmap describes.
 
 Important scope note: this stores schema/quality/domain metadata, not the

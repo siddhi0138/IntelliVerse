@@ -4,7 +4,7 @@ import { useState } from "react";
 import { askQuestion } from "@/lib/api";
 import type { AskResponse } from "@/lib/types";
 
-export function AskNexus({
+export function AskIntelliVerse({
   analysisId,
   domain,
   primaryMetric,
@@ -35,7 +35,7 @@ export function AskNexus({
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask NEXUS</h3>
+      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask IntelliVerse</h3>
       <div className="flex gap-2">
         <input
           type="text"

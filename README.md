@@ -1,8 +1,8 @@
-# NEXUS
+# IntelliVerse
 
 **Upload anything. Understand everything.**
 
-NEXUS is a universal data analytics platform: drop in a CSV, Excel, or JSON
+IntelliVerse is a universal data analytics platform: drop in a CSV, Excel, or JSON
 file and it automatically infers what the columns mean, guesses the
 dataset's domain, and generates a full analytical dashboard — schema
 inference, statistics, forecasting, anomaly detection, root-cause analysis,
@@ -29,13 +29,13 @@ configuration, no manual column mapping.
 
 ## Design principle: compute first, narrate second
 
-Every number NEXUS shows you — a correlation, a forecast, a root-cause
+Every number IntelliVerse shows you — a correlation, a forecast, a root-cause
 percentage, a risk alert — comes from a real, deterministic computation
 (pandas, SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet,
 SHAP, NetworkX). The LLM is only ever handed *already-computed* structured
 results and asked to narrate them in plain English. It never sees raw data
 and never invents a statistic. If a computation isn't confident or doesn't
-apply, NEXUS says so explicitly instead of asking the LLM to fill the gap.
+apply, IntelliVerse says so explicitly instead of asking the LLM to fill the gap.
 
 ## Features
 

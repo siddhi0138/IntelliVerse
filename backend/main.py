@@ -51,7 +51,7 @@ from risk_alerts import generate_risk_alerts
 from schema_inference import ColumnSchema, build_schema, guess_domain, monthly_series, suggest_charts
 from simulation import CorrelationRegressionEngine, build_decision_actions
 
-app = FastAPI(title="NEXUS API", version="0.1.0")
+app = FastAPI(title="IntelliVerse API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

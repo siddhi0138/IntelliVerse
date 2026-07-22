@@ -33,7 +33,7 @@ export default function LoginPage() {
   return (
     <main className="flex-1 flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-center mb-1">NEXUS</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-center mb-1">IntelliVerse</h1>
         <p className="text-slate-500 text-center mb-8">
           {mode === "login" ? "Sign in to continue" : "Create an account"}
         </p>

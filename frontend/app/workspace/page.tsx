@@ -92,8 +92,8 @@ export default function WorkspacePage() {
     <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12">
       <header className="mb-10 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">NEXUS Workspace</h1>
-          <p className="text-slate-500 mt-1">Upload related tables. NEXUS finds how they connect.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">IntelliVerse Workspace</h1>
+          <p className="text-slate-500 mt-1">Upload related tables. IntelliVerse finds how they connect.</p>
         </div>
         <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
           &larr; Single dataset

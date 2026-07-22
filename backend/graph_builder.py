@@ -3,7 +3,7 @@
 v2 scope: a single uploaded table becomes a star schema — a central
 "dataset" node (labeled by the guessed domain), dimension/entity nodes for
 id/categorical/date columns, and measure nodes for numeric columns. When
-NEXUS supports multi-table/multi-file uploads later, this is the seam where
+IntelliVerse supports multi-table/multi-file uploads later, this is the seam where
 cross-table joins become graph edges instead of everything hanging off one
 root node.
 """

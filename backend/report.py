@@ -82,7 +82,7 @@ def build_pdf_report(result: dict[str, Any]) -> bytes:
     styles = getSampleStyleSheet()
     story: list[Any] = []
 
-    story.append(Paragraph("NEXUS Analysis Report", styles["Title"]))
+    story.append(Paragraph("IntelliVerse Analysis Report", styles["Title"]))
     story.append(Paragraph(result.get("filename", "Untitled dataset"), styles["Heading2"]))
     story.append(Spacer(1, 12))
 
@@ -143,7 +143,7 @@ def build_pptx_report(result: dict[str, Any]) -> bytes:
     bullet_layout = prs.slide_layouts[1]
 
     title_slide = prs.slides.add_slide(title_layout)
-    title_slide.shapes.title.text = "NEXUS Analysis Report"
+    title_slide.shapes.title.text = "IntelliVerse Analysis Report"
     title_slide.placeholders[1].text = result.get("filename", "Untitled dataset")
 
     kpi_slide = prs.slides.add_slide(bullet_layout)
