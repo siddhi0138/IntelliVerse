@@ -591,7 +591,32 @@ that don't:
   not just present in `requirements.txt` for show.
 - **Frontend**: `SqlQueryPanel` exposes the DuckDB query box on the main
   dashboard.
+- **Report export** (`backend/report.py`) — download a completed
+  analysis as PDF, Excel, or PowerPoint via
+  `GET /api/analyze/{id}/report?format=...`. Formats the already-computed
+  result (findings, risk alerts, forecast, schema, quality) with
+  openpyxl/reportlab/python-pptx — no LLM, no re-computation. The Excel
+  workbook includes a Raw Data sheet (capped at 5,000 rows); the PDF and
+  PPTX are one-page/four-slide executive summaries. `ReportExportPanel`
+  adds plain download links to the frontend.
+- **WebSocket progress streaming** (`backend/progress_jobs.py`) — a
+  forecast-eligible dataset takes a few seconds to analyze (mostly the
+  multi-model backtest competing Holt/Prophet/XGBoost/LightGBM/random
+  forest), and the UI used to just show a static "Analyzing..." for the
+  whole span. `POST /api/analyze/start` now runs analysis in a worker
+  thread and returns a `job_id` immediately; `WS /ws/analyze/{job_id}`
+  streams each real pipeline stage (parsing, schema inference, quality,
+  forecasting, anomaly detection, relationships, clustering, GE
+  validation) as it happens, then the final result. The original
+  synchronous `POST /api/analyze` is unchanged and still used by
+  `/report`, `/query`, and the test suite. Verified with a real browser
+  (Playwright/Chromium): captured the actual WS frames during a live
+  upload and confirmed all steps arrive in order before the result, with
+  zero console errors; also verified the error path and that a client
+  connecting after the job already finished gets the full log replayed
+  with no duplicates.
 
 Still pending your decision: auth scope (full login wall vs. a lighter
 single API-token model), which determines whether every endpoint gets a
-`Depends()` auth check and the frontend gets a login screen.
+`Depends()` auth check and the frontend gets a login screen. Docker/
+Docker Compose packaging is still outstanding too.
