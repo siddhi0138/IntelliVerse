@@ -10,6 +10,7 @@ import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { ForecastChart } from "@/components/ForecastChart";
 import { AnomaliesPanel } from "@/components/AnomaliesPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
+import { DecisionSimulator } from "@/components/DecisionSimulator";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -152,6 +153,20 @@ export default function Home() {
           <div>
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Knowledge graph</h3>
             <KnowledgeGraph graph={result.graph} />
+          </div>
+
+          <div>
+            <h3 className="text-lg font-medium mb-1">Decision Simulator</h3>
+            <p className="text-sm text-slate-500 mb-3">
+              Choose a decision, and see its estimated effect on other metrics based on historical associations in
+              this dataset.
+            </p>
+            <DecisionSimulator
+              analysisId={result.analysis_id}
+              domain={result.domain}
+              decisions={result.decisions}
+              primaryMetric={result.primary_metric}
+            />
           </div>
 
           <div>

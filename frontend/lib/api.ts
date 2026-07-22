@@ -1,4 +1,13 @@
-import type { AnalyzeResponse, Anomaly, ColumnSchema, Forecast, Insight, Recommendation } from "./types";
+import type {
+  AnalyzeResponse,
+  Anomaly,
+  ColumnSchema,
+  Forecast,
+  Insight,
+  Recommendation,
+  SimulationExplanation,
+  SimulationResult,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
@@ -47,4 +56,28 @@ export async function fetchInsights(
   });
 
   return unwrap<InsightsResult>(res);
+}
+
+export async function runSimulation(
+  analysisId: string,
+  driverColumn: string,
+  pctChange: number
+): Promise<SimulationResult> {
+  const res = await fetch(`${API_BASE}/api/simulate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_id: analysisId, driver_column: driverColumn, pct_change: pctChange }),
+  });
+
+  return unwrap<SimulationResult>(res);
+}
+
+export async function explainSimulation(domain: string, simulation: SimulationResult): Promise<SimulationExplanation> {
+  const res = await fetch(`${API_BASE}/api/simulate/explain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, simulation }),
+  });
+
+  return unwrap<SimulationExplanation>(res);
 }

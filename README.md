@@ -6,12 +6,13 @@ Universal analytics: upload a CSV/Excel/JSON file and NEXUS infers column
 types, guesses each column's real-world meaning, guesses the dataset's
 industry/domain, and generates a dashboard — no configuration.
 
-This is **v1-v3** of a larger roadmap:
+This is **v1-v4** of a larger roadmap:
 
 - **v1 (done)** — universal upload, schema/semantic inference, auto dashboard
 - **v2 (done)** — semantic knowledge graph + AI-generated insights
 - **v3 (done)** — forecasting, anomaly detection, recommendations
-- v4 — digital twin + scenario simulation
+- **v4 (done)** — decision simulation engine (schema-aware "what-if" decisions,
+  correlation/regression-based propagation, decision graph, scenario comparison)
 - v5 — 3D data exploration, AI research reports, collaboration
 
 ## Stack
@@ -91,3 +92,44 @@ synchronously as part of `/api/analyze`:
 Both anomalies and the forecast trend are fed into the same `/api/insights`
 LLM call, so recommendations come back grounded in what was actually
 detected rather than generic advice.
+
+## v4: decision simulation engine
+
+The core principle: **NEXUS never invents information the data doesn't
+support.** There is no fixed list of "business actions" (hire employees,
+increase marketing spend, delay a supplier) — `build_decision_actions()` in
+`backend/simulation.py` only offers a decision for a numeric column that
+was actually detected in the upload. Upload a dataset with no employee
+data, and there is no hiring scenario.
+
+`SimulationEngine` is a `Protocol` (see `backend/simulation.py`) so the
+propagation method itself can be swapped later — a Bayesian network, a
+structural causal model, a multi-table digital twin — without touching
+`/api/simulate` or the frontend. The v4 implementation,
+`CorrelationRegressionEngine`, is deliberately simple and explainable:
+
+1. Changing a driver column by X% scales its historical sum by X%.
+2. For every other numeric column, fit an ordinary-least-squares line
+   against the driver across paired historical rows, and project the new
+   sum through that fitted line.
+3. Report **R² as the confidence** in that association, and always label
+   the result an association, not a causal claim (a fixed disclaimer is
+   attached to every `SimulationResult`, independent of whether the LLM
+   explanation step succeeds).
+
+`POST /api/analyze` caches the parsed DataFrame in memory (keyed by
+`analysis_id`) so `POST /api/simulate` can re-run regressions without
+re-uploading the file — fine for a local single-user tool, lost on
+restart.
+
+Four scenario presets (Conservative Growth, Optimistic, Aggressive
+Expansion, Economic Downturn) are just different magnitudes/directions
+applied to the same primary metric through the *same* engine — no separate
+logic. `POST /api/simulate/explain` asks the LLM to narrate the computed
+deltas and confidence values; the prompt explicitly forbids inventing
+business reasoning beyond what the statistics show.
+
+The frontend's Decision Graph (`@xyflow/react`) is the centerpiece: each
+node shows the projected delta, and each edge is labeled with the R² and
+association direction, so the estimate is inspectable rather than a
+black box.

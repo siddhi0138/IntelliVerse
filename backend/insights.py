@@ -78,23 +78,15 @@ class InsightsUnavailable(Exception):
     pass
 
 
-async def generate_insights(
-    domain: str,
-    row_count: int,
-    schema: list[dict],
-    anomalies: list[dict] | None = None,
-    forecast: dict | None = None,
-) -> dict:
+async def _call_llm_json(system_prompt: str, user_content: str) -> dict:
     if not LLM_API_KEY:
         raise InsightsUnavailable("No FREELLMAPI_API_KEY configured on the backend.")
-
-    summary = _summarize_for_prompt(domain, row_count, schema, anomalies or [], forecast)
 
     payload = {
         "model": LLM_MODEL,
         "messages": [
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": summary},
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content},
         ],
         "response_format": {"type": "json_object"},
         "temperature": 0.3,
@@ -114,11 +106,61 @@ async def generate_insights(
     body = res.json()
     try:
         content = body["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
+        return json.loads(content)
     except (KeyError, IndexError, json.JSONDecodeError) as exc:
         raise InsightsUnavailable(f"Router returned an unparseable response: {exc}") from exc
 
+
+async def generate_insights(
+    domain: str,
+    row_count: int,
+    schema: list[dict],
+    anomalies: list[dict] | None = None,
+    forecast: dict | None = None,
+) -> dict:
+    summary = _summarize_for_prompt(domain, row_count, schema, anomalies or [], forecast)
+    parsed = await _call_llm_json(_SYSTEM_PROMPT, summary)
     return {
         "insights": parsed.get("insights", []),
         "recommendations": parsed.get("recommendations", []),
+    }
+
+
+_SIMULATION_SYSTEM_PROMPT = """You are explaining the output of a statistical scenario \
+simulation to a business user. You are given a decision (which metric was changed and by \
+how much) and a list of propagated effects on other metrics, each with a projected percent \
+change, an R-squared confidence value, and whether the association is positive or negative.
+
+These are historical statistical associations, NOT proven causal effects — say so \
+explicitly. Do not invent business mechanisms, causes, or reasoning beyond what the \
+statistics show. Only describe what changed and cite the confidence values given.
+
+Respond with strict JSON only, no markdown fences, matching exactly this shape:
+{"summary": "2-3 sentences describing the projected outcome, citing the strongest effects and their confidence",
+ "assumptions": ["short assumption 1", "short assumption 2"]}"""
+
+
+def _summarize_simulation_for_prompt(domain: str, simulation: dict) -> str:
+    lines = [
+        f"Domain guess: {domain}",
+        f"Decision: change {simulation['driver_label']} by {simulation['pct_change']}%",
+        "Propagated effects (associations, not causal claims):",
+    ]
+    for e in simulation["effects"]:
+        if e["column"] == simulation["driver_column"]:
+            continue
+        delta = f"{e['delta_pct']}%" if e["delta_pct"] is not None else "n/a"
+        lines.append(
+            f"- {e['semantic_label']}: projected change {delta}, confidence={e['confidence']} "
+            f"(r²={e['r_squared']}), {e['relationship']}"
+        )
+    return "\n".join(lines)
+
+
+async def generate_simulation_explanation(domain: str, simulation: dict) -> dict:
+    summary = _summarize_simulation_for_prompt(domain, simulation)
+    parsed = await _call_llm_json(_SIMULATION_SYSTEM_PROMPT, summary)
+    return {
+        "summary": parsed.get("summary", ""),
+        "assumptions": parsed.get("assumptions", []),
     }

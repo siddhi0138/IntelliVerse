@@ -59,7 +59,16 @@ export interface Anomaly {
   bounds: { lower: number; upper: number };
 }
 
+export interface DecisionAction {
+  id: string;
+  column: string;
+  label: string;
+  semantic_label: string;
+  default_pct: number;
+}
+
 export interface AnalyzeResponse {
+  analysis_id: string;
   filename: string;
   row_count: number;
   column_count: number;
@@ -69,6 +78,8 @@ export interface AnalyzeResponse {
   graph: KnowledgeGraph;
   forecast: Forecast | null;
   anomalies: Anomaly[];
+  decisions: DecisionAction[];
+  primary_metric: string | null;
 }
 
 export interface Insight {
@@ -81,4 +92,30 @@ export interface Recommendation {
   title: string;
   action: string;
   rationale: string;
+}
+
+export type Confidence = "high" | "medium" | "low";
+
+export interface PropagatedEffect {
+  column: string;
+  semantic_label: string;
+  baseline: number;
+  projected: number;
+  delta_pct: number | null;
+  r_squared: number;
+  confidence: Confidence;
+  relationship: "direct change" | "positive association" | "negative association";
+}
+
+export interface SimulationResult {
+  driver_column: string;
+  driver_label: string;
+  pct_change: number;
+  effects: PropagatedEffect[];
+  note: string;
+}
+
+export interface SimulationExplanation {
+  summary: string;
+  assumptions: string[];
 }

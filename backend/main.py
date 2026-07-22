@@ -1,4 +1,5 @@
 import io
+import uuid
 from dataclasses import asdict
 
 from dotenv import load_dotenv
@@ -12,8 +13,9 @@ from pydantic import BaseModel
 
 from analytics import detect_anomalies, forecast_next_periods
 from graph_builder import build_knowledge_graph
-from insights import InsightsUnavailable, generate_insights
-from schema_inference import build_schema, guess_domain, monthly_series, suggest_charts
+from insights import InsightsUnavailable, generate_insights, generate_simulation_explanation
+from schema_inference import ColumnSchema, build_schema, guess_domain, monthly_series, suggest_charts
+from simulation import CorrelationRegressionEngine, build_decision_actions
 
 app = FastAPI(title="NEXUS API", version="0.1.0")
 
@@ -23,6 +25,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# In-memory, single-process cache so /api/simulate can re-use the parsed
+# DataFrame without re-uploading the file. Fine for a local single-user dev
+# tool; lost on restart, unbounded growth is not a concern at this scale.
+_ANALYSIS_DF_CACHE: dict[str, pd.DataFrame] = {}
+_ANALYSIS_SCHEMA_CACHE: dict[str, list[ColumnSchema]] = {}
+
+_simulation_engine = CorrelationRegressionEngine()
 
 
 def _read_dataframe(filename: str, content: bytes) -> pd.DataFrame:
@@ -76,7 +86,12 @@ async def analyze(file: UploadFile) -> dict:
 
     anomalies = detect_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
 
+    analysis_id = str(uuid.uuid4())
+    _ANALYSIS_DF_CACHE[analysis_id] = df
+    _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
+
     return {
+        "analysis_id": analysis_id,
         "filename": file.filename,
         "row_count": len(df),
         "column_count": len(df.columns),
@@ -86,6 +101,8 @@ async def analyze(file: UploadFile) -> dict:
         "graph": asdict(graph),
         "forecast": forecast,
         "anomalies": anomalies,
+        "decisions": build_decision_actions(schema),
+        "primary_metric": numeric_cols[0].name if numeric_cols else None,
     }
 
 
@@ -101,6 +118,39 @@ class InsightsRequest(BaseModel):
 async def insights(req: InsightsRequest) -> dict:
     try:
         result = await generate_insights(req.domain, req.row_count, req.columns, req.anomalies, req.forecast)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return result
+
+
+class SimulateRequest(BaseModel):
+    analysis_id: str
+    driver_column: str
+    pct_change: float
+
+
+@app.post("/api/simulate")
+def simulate(req: SimulateRequest) -> dict:
+    df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
+    schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
+    if df is None or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+    if req.driver_column not in df.columns:
+        raise HTTPException(status_code=400, detail=f"Unknown column: {req.driver_column}")
+
+    result = _simulation_engine.propagate(df, schema, req.driver_column, req.pct_change)
+    return asdict(result)
+
+
+class ExplainSimulationRequest(BaseModel):
+    domain: str
+    simulation: dict
+
+
+@app.post("/api/simulate/explain")
+async def explain_simulation(req: ExplainSimulationRequest) -> dict:
+    try:
+        result = await generate_simulation_explanation(req.domain, req.simulation)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result
