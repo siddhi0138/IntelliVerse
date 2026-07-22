@@ -8,6 +8,7 @@ import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
+import { KnowledgeGraph3D } from "@/components/KnowledgeGraph3D";
 import { ForecastSection } from "@/components/ForecastSection";
 import { AnomaliesPanel } from "@/components/AnomaliesPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
@@ -34,6 +35,7 @@ export default function Home() {
   const [progressStep, setProgressStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [graphView, setGraphView] = useState<"2d" | "3d">("2d");
 
   const [insights, setInsights] = useState<Insight[] | null>(null);
   const [recommendations, setRecommendations] = useState<Recommendation[] | null>(null);
@@ -241,8 +243,24 @@ export default function Home() {
           <InsightTimelinePanel timeline={result.insight_timeline} />
 
           <div>
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Knowledge graph</h3>
-            <KnowledgeGraph graph={result.graph} />
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Knowledge graph</h3>
+              <div className="flex rounded-lg border border-slate-300 dark:border-slate-700 overflow-hidden text-xs">
+                <button
+                  onClick={() => setGraphView("2d")}
+                  className={`px-3 py-1 ${graphView === "2d" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-400"}`}
+                >
+                  2D
+                </button>
+                <button
+                  onClick={() => setGraphView("3d")}
+                  className={`px-3 py-1 ${graphView === "3d" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-400"}`}
+                >
+                  3D
+                </button>
+              </div>
+            </div>
+            {graphView === "2d" ? <KnowledgeGraph graph={result.graph} /> : <KnowledgeGraph3D graph={result.graph} />}
           </div>
 
           <div>

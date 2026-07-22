@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # build-essential + cmake: prophet's cmdstanpy backend compiles cmdstan from
 # source if no prebuilt binary matches this platform; without a toolchain
