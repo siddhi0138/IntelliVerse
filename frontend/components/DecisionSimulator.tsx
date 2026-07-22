@@ -108,8 +108,8 @@ export function DecisionSimulator({
 
   if (decisions.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Decision Simulator</h3>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Decision Simulator</h3>
         <p className="text-sm text-slate-500">No numeric columns detected to simulate against.</p>
       </div>
     );
@@ -117,8 +117,8 @@ export function DecisionSimulator({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Custom decision</h3>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Custom decision</h3>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={selectedColumn}
@@ -157,8 +157,8 @@ export function DecisionSimulator({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Scenario presets</h3>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Scenario presets</h3>
         <div className="flex flex-wrap gap-2">
           {SCENARIO_PRESETS.map((p) => (
             <button
@@ -199,8 +199,8 @@ export function DecisionSimulator({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-          <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Saved simulations</h4>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+          <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved simulations</h4>
           <ul className="space-y-1">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">

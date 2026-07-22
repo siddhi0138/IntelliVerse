@@ -40,7 +40,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Username</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Username</label>
             <input
               type="text"
               value={username}
@@ -51,7 +51,7 @@ export default function LoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Password</label>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Password</label>
             <input
               type="password"
               value={password}

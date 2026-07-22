@@ -21,7 +21,7 @@ export function KpiRow({ chart }: { chart: ChartSpec }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
       {chart.data.map((item, i) => (
-        <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
+        <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-600 p-4 bg-white dark:bg-slate-700">
           <div className="text-xs uppercase tracking-wide text-slate-500">
             {String(item.label)}
           </div>
@@ -36,8 +36,8 @@ export function KpiRow({ chart }: { chart: ChartSpec }) {
 
 export function ChartCard({ chart }: { chart: ChartSpec }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-800">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">{chart.title}</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 p-4 bg-white dark:bg-slate-700">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">{chart.title}</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           {chart.chart_type === "line" ? (

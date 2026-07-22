@@ -19,8 +19,8 @@ export function DistributionPanel({ distributions }: { distributions: Record<str
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Distributions</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Distributions</h3>
       <ul className="space-y-2">
         {entries.map(([col, d]) => (
           <li key={col} className="text-sm flex items-center justify-between gap-2">

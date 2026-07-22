@@ -128,8 +128,8 @@ export function ForecastSection({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-          <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Saved forecasts</h4>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+          <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved forecasts</h4>
           <ul className="space-y-1">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">

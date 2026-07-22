@@ -3,16 +3,16 @@ import type { RootCauseAnalysis } from "@/lib/types";
 export function RootCausePanel({ rootCause }: { rootCause: RootCauseAnalysis | null }) {
   if (!rootCause || rootCause.dimensions.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Root Cause Breakdown</h3>
+      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Root Cause Breakdown</h3>
         <p className="text-sm text-slate-500">No categorical dimension explains enough variance to report.</p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
         What explains changes in {rootCause.metric_label}?
       </h3>
       <p className="text-xs text-slate-500 mb-3">{rootCause.note}</p>

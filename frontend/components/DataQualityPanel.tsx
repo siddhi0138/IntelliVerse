@@ -14,9 +14,9 @@ function scoreColor(score: number): string {
 
 export function DataQualityPanel({ quality }: { quality: DataQualityReport }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Data Quality</h3>
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white">Data Quality</h3>
         <span className={`text-2xl font-semibold ${scoreColor(quality.score)}`}>{quality.score}</span>
       </div>
 
@@ -31,7 +31,7 @@ export function DataQualityPanel({ quality }: { quality: DataQualityReport }) {
       ) : (
         <ul className="space-y-2">
           {quality.recommendations.map((rec, i) => (
-            <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-700/60 last:border-0 pb-2 last:pb-0">
+            <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-600/60 last:border-0 pb-2 last:pb-0">
               <div className="flex items-center justify-between gap-2">
                 <span>{rec.issue}</span>
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${SEVERITY_COLORS[rec.severity]}`}>

@@ -16,15 +16,15 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
   if (anomalies.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Multivariate Anomalies</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Multivariate Anomalies</h3>
       <p className="text-xs text-slate-500 mb-3">
         Rows unusual across a combination of metrics — Isolation Forest, Local Outlier Factor, and One-Class SVM
         each vote; agreement across methods means higher confidence.
       </p>
       <ul className="space-y-3">
         {anomalies.map((a, i) => (
-          <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-700/60 last:border-0 pb-3 last:pb-0">
+          <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-600/60 last:border-0 pb-3 last:pb-0">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{a.row}</span>
               <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${CONSENSUS_COLORS[a.consensus] ?? CONSENSUS_COLORS[1]}`}>

@@ -2,8 +2,8 @@ import type { Anomaly } from "@/lib/types";
 
 export function AnomaliesPanel({ anomalies }: { anomalies: Anomaly[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Anomalies</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Anomalies</h3>
 
       {anomalies.length === 0 ? (
         <p className="text-sm text-slate-500">No statistical outliers detected.</p>

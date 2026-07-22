@@ -34,8 +34,8 @@ export function AskIntelliVerse({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask IntelliVerse</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Ask IntelliVerse</h3>
       <div className="flex gap-2">
         <input
           type="text"

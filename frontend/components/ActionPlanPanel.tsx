@@ -48,7 +48,7 @@ export function ActionPlanPanel({
   return (
     <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/20 p-4">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Autonomous Action Plan</h3>
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white">Autonomous Action Plan</h3>
         <button
           onClick={run}
           disabled={loading}
@@ -95,7 +95,7 @@ export function ActionPlanPanel({
                 {showPreview ? "Hide" : "Show"} underlying simulation preview
               </button>
               {showPreview && (
-                <pre className="mt-2 text-xs bg-white dark:bg-slate-800 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
+                <pre className="mt-2 text-xs bg-white dark:bg-slate-700 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
                   {JSON.stringify(plan.simulation_preview, null, 2)}
                 </pre>
               )}

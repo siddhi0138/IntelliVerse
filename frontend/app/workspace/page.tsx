@@ -97,7 +97,7 @@ export default function WorkspacePage() {
         </div>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5 whitespace-nowrap"
         >
           &larr; Single dataset
         </Link>

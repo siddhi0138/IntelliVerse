@@ -78,10 +78,10 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
   const [localSchema, setLocalSchema] = useState(schema);
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-x-auto">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500">
+          <tr className="border-b border-slate-200 dark:border-slate-600 text-left text-slate-500">
             <th className="px-4 py-2 font-medium">Column</th>
             <th className="px-4 py-2 font-medium">Inferred meaning</th>
             <th className="px-4 py-2 font-medium">Confidence</th>
@@ -91,7 +91,7 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
         </thead>
         <tbody>
           {localSchema.map((col) => (
-            <tr key={col.name} className="border-b border-slate-100 dark:border-slate-700/60 last:border-0">
+            <tr key={col.name} className="border-b border-slate-100 dark:border-slate-600/60 last:border-0">
               <td className="px-4 py-2 font-mono text-xs">{col.name}</td>
               <td className="px-4 py-2">
                 {analysisId ? (

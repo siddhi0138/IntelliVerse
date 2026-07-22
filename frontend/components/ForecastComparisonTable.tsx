@@ -12,10 +12,10 @@ const MODEL_LABELS: Record<string, string> = {
 
 export function ForecastComparisonTable({ validation }: { validation: ForecastValidation }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-x-auto">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500">
+          <tr className="border-b border-slate-200 dark:border-slate-600 text-left text-slate-500">
             <th className="px-4 py-2 font-medium">Model</th>
             <th className="px-4 py-2 font-medium text-right">MAPE</th>
             <th className="px-4 py-2 font-medium text-right">RMSE</th>
@@ -27,7 +27,7 @@ export function ForecastComparisonTable({ validation }: { validation: ForecastVa
           {validation.all_candidates.map((c) => (
             <tr
               key={c.model}
-              className={`border-b border-slate-100 dark:border-slate-700/60 last:border-0 ${
+              className={`border-b border-slate-100 dark:border-slate-600/60 last:border-0 ${
                 c.selected ? "bg-indigo-50/60 dark:bg-indigo-900/20" : ""
               }`}
             >
@@ -40,7 +40,7 @@ export function ForecastComparisonTable({ validation }: { validation: ForecastVa
           ))}
         </tbody>
       </table>
-      <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-700/60">
+      <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-600/60">
         Backtested on {validation.holdout_periods} held-out period(s): {validation.validation_period.start} to{" "}
         {validation.validation_period.end}, trained on {validation.train_period.start} to{" "}
         {validation.train_period.end}.

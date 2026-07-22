@@ -79,7 +79,7 @@ export default function KnowledgePage() {
         </div>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5 whitespace-nowrap"
         >
           &larr; Back to upload
         </Link>
@@ -122,7 +122,7 @@ export default function KnowledgePage() {
 
       {documents && documents.length > 0 && (
         <div className="card mb-8">
-          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Uploaded documents</h3>
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Uploaded documents</h3>
           <ul className="space-y-2">
             {documents.map((d) => (
               <li key={d.doc_id} className="flex items-center justify-between text-sm">
@@ -148,7 +148,7 @@ export default function KnowledgePage() {
       )}
 
       <div className="card">
-        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask across your documents</h3>
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Ask across your documents</h3>
 
         {datasets.length > 0 && (
           <div className="mb-3">

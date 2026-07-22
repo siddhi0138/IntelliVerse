@@ -25,8 +25,8 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">SQL Query (DuckDB)</h3>
+    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">SQL Query (DuckDB)</h3>
       <p className="text-xs text-slate-500 mb-3">
         Ad-hoc SQL over your uploaded data — the table is called <code>df</code>. Read-only SELECT queries only.
       </p>
@@ -51,7 +51,7 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-600 text-left text-slate-500">
                 {result.columns.map((c) => (
                   <th key={c} className="px-3 py-1.5 font-medium whitespace-nowrap">
                     {c}
@@ -61,7 +61,7 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
             </thead>
             <tbody>
               {result.rows.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 dark:border-slate-700/60 last:border-0">
+                <tr key={i} className="border-b border-slate-100 dark:border-slate-600/60 last:border-0">
                   {row.map((cell, j) => (
                     <td key={j} className="px-3 py-1.5 whitespace-nowrap">
                       {cell === null ? <span className="text-slate-400">null</span> : String(cell)}

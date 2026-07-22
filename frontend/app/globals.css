@@ -79,7 +79,7 @@ button:not(:disabled):active,
     @apply text-red-600 dark:text-red-400 hover:underline text-xs;
   }
   .card {
-    @apply rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4 shadow-sm hover:shadow-md transition-shadow;
   }
   .badge {
     @apply px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-sm font-medium;
