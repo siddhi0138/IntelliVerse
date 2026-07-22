@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { askDocuments, deleteDocument, listDocuments, uploadDocuments } from "@/lib/api";
-import type { AskDocumentsResponse, DocumentEntry } from "@/lib/types";
+import { askDocuments, deleteDocument, listDatasets, listDocuments, uploadDocuments } from "@/lib/api";
+import type { AskDocumentsResponse, CatalogEntry, DocumentEntry } from "@/lib/types";
 
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<DocumentEntry[] | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const [datasets, setDatasets] = useState<CatalogEntry[]>([]);
+  const [selectedDataset, setSelectedDataset] = useState<string>("");
 
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
@@ -26,6 +29,9 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     refresh();
+    listDatasets()
+      .then(setDatasets)
+      .catch(() => {});
   }, [refresh]);
 
   async function handleFiles(files: FileList | File[]) {
@@ -52,7 +58,7 @@ export default function KnowledgePage() {
     setAskError(null);
     setAnswer(null);
     try {
-      const result = await askDocuments(question.trim());
+      const result = await askDocuments(question.trim(), selectedDataset || undefined);
       setAnswer(result);
     } catch (err) {
       setAskError(err instanceof Error ? err.message : "Could not answer that question.");
@@ -67,8 +73,10 @@ export default function KnowledgePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Knowledge Assistant</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Upload PDFs, Word docs, or PowerPoint decks and ask questions across them — retrieval-then-narrate, same
-            as everywhere else: the answer is grounded only in what was actually retrieved, cited by filename.
+            Upload PDFs, Word docs, or PowerPoint decks and ask questions across them — optionally combined with a
+            dataset&apos;s findings below. Retrieval-then-narrate, same as everywhere else: the answer is grounded
+            only in what was actually retrieved, cited by filename. This is separate from the dataset upload on the
+            main page — that&apos;s for structured CSV/Excel analysis, this is for unstructured documents.
           </p>
         </div>
         <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
@@ -141,6 +149,27 @@ export default function KnowledgePage() {
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask across your documents</h3>
+
+        {datasets.length > 0 && (
+          <div className="mb-3">
+            <label className="block text-xs text-slate-500 mb-1">
+              Also consider this dataset&apos;s findings (optional)
+            </label>
+            <select
+              value={selectedDataset}
+              onChange={(e) => setSelectedDataset(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-1.5 text-sm"
+            >
+              <option value="">Documents only</option>
+              {datasets.map((d) => (
+                <option key={d.analysis_id} value={d.analysis_id}>
+                  {d.filename} ({d.domain})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <input
             type="text"
@@ -167,7 +196,7 @@ export default function KnowledgePage() {
             {answer.citations.length > 0 && (
               <p className="text-xs text-slate-500 mt-2">Sources: {answer.citations.join(", ")}</p>
             )}
-            {answer.chunks_used.length === 0 && (
+            {answer.chunks_used.length === 0 && !selectedDataset && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
                 No document excerpts were retrieved for this question — upload a relevant document first.
               </p>

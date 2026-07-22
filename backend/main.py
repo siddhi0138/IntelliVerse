@@ -953,7 +953,14 @@ class AskDocumentsRequest(BaseModel):
 async def ask_documents(req: AskDocumentsRequest, current_user: str = Depends(get_current_user)) -> dict:
     structured_context = None
     if req.analysis_id:
+        # Falls back to the persisted catalog record when the in-memory
+        # cache has been evicted (server restart, or the analysis just
+        # isn't the one currently open) — same result either way, since
+        # /catalog already persists the full response, not just metadata.
         result = _ANALYSIS_RESULT_CACHE.get(req.analysis_id)
+        if result is None:
+            record = catalog.get_dataset(req.analysis_id, current_user)
+            result = record.get("result") if record else None
         if result:
             findings = result.get("ranked_findings", [])[:8]
             if findings:

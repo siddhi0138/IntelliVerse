@@ -90,6 +90,8 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 **📄 Knowledge Assistant (document intelligence)**
 - Upload PDF/DOCX/PPTX/TXT documents and ask questions across them — answers
   grounded only in retrieved excerpts, cited by filename
+- Optionally combine document retrieval with a dataset's own ranked findings
+  in the same answer — genuinely grounded in both, not just documents alone
 - Runs fully locally: sentence-transformers for embeddings, Qdrant for storage —
   no external API key required
 
