@@ -45,12 +45,23 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const reopenId = new URLSearchParams(window.location.search).get("reopen");
+    // The URL's ?reopen= wins if present (a direct link or a fresh upload's
+    // replaceState below). Otherwise fall back to the last-viewed analysis
+    // in localStorage — this is what actually kept losing state: any nav
+    // link back to plain "/" (from /catalog, /workspace, /knowledge) has no
+    // query param at all, so the URL alone wasn't enough to survive normal
+    // in-app navigation, only a same-page reload.
+    const reopenId = new URLSearchParams(window.location.search).get("reopen") ?? localStorage.getItem("nexus_last_analysis");
     if (!reopenId) return;
     fetchCatalogDataset(reopenId)
       .then((detail) => {
-        if (detail.result) setResult(detail.result);
-        else setError("This dataset's full result wasn't saved (uploaded before this feature existed).");
+        if (detail.result) {
+          setResult(detail.result);
+          window.history.replaceState(null, "", `/?reopen=${reopenId}`);
+          localStorage.setItem("nexus_last_analysis", reopenId);
+        } else {
+          setError("This dataset's full result wasn't saved (uploaded before this feature existed).");
+        }
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not reopen this dataset."));
   }, []);
@@ -66,10 +77,11 @@ export default function Home() {
     try {
       const data = await analyzeFileWithProgress(file, setProgressStep);
       setResult(data);
-      // Reflect the analysis in the URL so a refresh (or sharing the link)
-      // reopens the same dataset instead of landing back on a blank upload
-      // screen — reuses the same `reopen` flow the catalog page's rows use.
+      // Reflect the analysis in both the URL (so a refresh or shared link
+      // reopens the same dataset) and localStorage (so plain in-app
+      // navigation back to "/" — the actual bug — doesn't lose it either).
       window.history.replaceState(null, "", `/?reopen=${data.analysis_id}`);
+      localStorage.setItem("nexus_last_analysis", data.analysis_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
