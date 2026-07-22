@@ -5,6 +5,7 @@ backend/*.log
 backend/.env
 backend/data/
 backend/.pytest_cache/
+backend/logs/
 
 # frontend
 frontend/node_modules/

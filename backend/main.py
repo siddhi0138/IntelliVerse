@@ -1,6 +1,7 @@
 import asyncio
 import io
 import re
+import time
 import uuid
 from dataclasses import asdict
 from typing import Callable
@@ -9,12 +10,18 @@ from dotenv import load_dotenv
 
 load_dotenv()  # must run before `insights` reads FREELLMAPI_* env vars at import time
 
+from logging_config import configure_logging
+
+configure_logging()
+
 import networkx as nx
 import pandas as pd
 import polars as pl
-from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from loguru import logger
+from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
@@ -59,6 +66,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Exposes GET /metrics in Prometheus text format (request counts, latency
+# histograms, in-progress requests) — self-hosted, no external account,
+# scraped by the prometheus service in docker-compose.yml.
+Instrumentator().instrument(app).expose(app, include_in_schema=False)
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "{method} {path} -> {status} ({duration_ms:.1f}ms)",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=duration_ms,
+    )
+    return response
 
 
 def get_current_user(
@@ -146,18 +173,23 @@ def register(req: AuthRequest) -> dict:
     try:
         create_user(req.username.strip(), req.password)
     except AuthError as exc:
+        logger.warning("Registration failed for username={username}: {reason}", username=req.username.strip(), reason=str(exc))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    logger.info("New user registered: username={username}", username=req.username.strip())
     return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
 
 
 @app.post("/api/auth/login")
 def login(req: AuthRequest) -> dict:
     if not authenticate_user(req.username.strip(), req.password):
+        logger.warning("Failed login attempt for username={username}", username=req.username.strip())
         raise HTTPException(status_code=401, detail="Invalid username or password.")
+    logger.info("User logged in: username={username}", username=req.username.strip())
     return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
 
 
 def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None] = lambda step: None) -> dict:
+    logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
@@ -167,6 +199,7 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
     except HTTPException:
         raise
     except Exception as exc:  # pandas parse errors, bad encoding, etc.
+        logger.error("Analysis failed to parse file={filename}: {error}", filename=filename, error=str(exc))
         raise HTTPException(status_code=400, detail=f"Could not parse file: {exc}") from exc
 
     if df.empty:
@@ -288,6 +321,13 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
         "primary_metric": primary_metric,
     }
     _ANALYSIS_RESULT_CACHE[analysis_id] = response
+    logger.info(
+        "Analysis completed: analysis_id={analysis_id} filename={filename} rows={rows} domain={domain}",
+        analysis_id=analysis_id,
+        filename=filename,
+        rows=len(df),
+        domain=domain,
+    )
     return response
 
 
@@ -314,6 +354,7 @@ async def start_analyze_job(file: UploadFile) -> dict:
         except HTTPException as exc:
             job.fail(str(exc.detail))
         except Exception as exc:  # pragma: no cover - unexpected failure
+            logger.exception("Unexpected failure in analysis job {job_id}", job_id=job.id)
             job.fail(str(exc))
 
     asyncio.create_task(run())

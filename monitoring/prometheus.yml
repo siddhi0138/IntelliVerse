@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: intelliverse-backend
+    static_configs:
+      - targets: ["backend:8001"]

@@ -24,3 +24,5 @@ python-pptx==1.0.2
 websockets==16.1.1
 python-jose[cryptography]==3.5.0
 bcrypt==5.0.0
+loguru==0.7.3
+prometheus-fastapi-instrumentator==7.1.0
