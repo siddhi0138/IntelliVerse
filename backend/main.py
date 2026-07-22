@@ -12,9 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
+from anomalies_ml import detect_multivariate_anomalies
 import catalog
+from distributions import analyze_distributions
 from forecasting import check_forecast_eligibility, select_and_forecast
 from graph_builder import build_knowledge_graph
+from insight_ranking import build_ranked_findings
+from insight_timeline import build_insight_timeline
 from insights import InsightsUnavailable, generate_dataset_summary, generate_insights, generate_simulation_explanation
 from profiling import build_quality_report
 from qa import answer_question
@@ -106,6 +110,7 @@ async def analyze(file: UploadFile) -> dict:
             forecast["column"] = numeric_cols[0].semantic_label
 
     anomalies = detect_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
+    multivariate_anomalies = detect_multivariate_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
     time_series_spikes = detect_time_series_spikes(monthly) if monthly else []
     seasonality = detect_seasonality(monthly) if monthly else {"detected": False, "reason": "no_time_series"}
     period_comparison = period_over_period(monthly) if monthly else None
@@ -114,6 +119,12 @@ async def analyze(file: UploadFile) -> dict:
     correlations = numeric_correlations(df, schema)
     associations = categorical_associations(df, schema)
     root_cause = root_cause_breakdown(df, schema, primary_metric) if primary_metric else None
+    distributions = analyze_distributions(df, schema)
+
+    # v2: unified ranked findings + insight timeline, both grounded in the
+    # deterministic computations above rather than LLM-scored prose
+    ranked_findings = build_ranked_findings(correlations, associations, root_cause, anomalies)
+    insight_timeline = build_insight_timeline(monthly, time_series_spikes) if monthly else []
 
     # v3 backfill: deterministic risk alerts from the forecast + root cause
     risk_alerts = generate_risk_alerts(forecast, root_cause)
@@ -146,12 +157,16 @@ async def analyze(file: UploadFile) -> dict:
         "forecast": forecast,
         "forecast_eligibility": forecast_eligibility,
         "anomalies": anomalies,
+        "multivariate_anomalies": multivariate_anomalies,
         "time_series_spikes": time_series_spikes,
         "seasonality": seasonality,
         "period_comparison": period_comparison,
         "correlations": [asdict(c) for c in correlations],
         "associations": [asdict(a) for a in associations],
         "root_cause": asdict(root_cause) if root_cause else None,
+        "distributions": distributions,
+        "ranked_findings": ranked_findings,
+        "insight_timeline": insight_timeline,
         "risk_alerts": risk_alerts,
         "decisions": build_decision_actions(schema),
         "primary_metric": primary_metric,

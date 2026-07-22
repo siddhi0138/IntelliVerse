@@ -39,6 +39,10 @@ export function RootCausePanel({ rootCause }: { rootCause: RootCauseAnalysis | n
                 </>
               )}
             </p>
+            <p className="text-xs text-slate-500">
+              {d.test_used === "anova" ? "ANOVA" : "Kruskal-Wallis"}: statistic={d.test_statistic}, p=
+              {d.p_value} {d.significant ? "(significant)" : "(not significant)"}
+            </p>
           </li>
         ))}
       </ul>

@@ -1,7 +1,9 @@
-"""Anomaly detection: row-level IQR outliers, plus time-series-aware checks
-(sudden period-over-period spikes and lag-based seasonality) over the same
-monthly-aggregated series used for forecasting. Forecasting itself lives
-in forecasting.py.
+"""Anomaly detection: per-column univariate outliers (IQR or Z-score,
+chosen by distribution shape), plus time-series-aware checks (sudden
+period-over-period spikes and lag-based seasonality) over the same
+monthly-aggregated series used for forecasting. Multivariate anomalies
+(unusual combinations of values, not just single-column outliers) live in
+anomalies_ml.py. Forecasting itself lives in forecasting.py.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 
 from schema_inference import ColumnSchema
 
@@ -19,6 +22,22 @@ def _coerce_numeric(df: pd.DataFrame, col: str) -> pd.Series:
     if series.dtype == object:
         return pd.to_numeric(series.astype(str).str.replace(r"[,$%]", "", regex=True), errors="coerce")
     return pd.to_numeric(series, errors="coerce")
+
+
+def _iqr_bounds(valid: pd.Series) -> tuple[float, float] | None:
+    q1, q3 = valid.quantile(0.25), valid.quantile(0.75)
+    iqr = q3 - q1
+    if iqr == 0:
+        return None
+    return float(q1 - 1.5 * iqr), float(q3 + 1.5 * iqr)
+
+
+def _zscore_bounds(valid: pd.Series, threshold: float = 3.0) -> tuple[float, float] | None:
+    if valid.std() == 0:
+        return None
+    mean = float(valid.mean())
+    std = float(valid.std())
+    return mean - threshold * std, mean + threshold * std
 
 
 def detect_anomalies(
@@ -37,13 +56,15 @@ def detect_anomalies(
         if len(valid) < 5:
             continue
 
-        q1, q3 = valid.quantile(0.25), valid.quantile(0.75)
-        iqr = q3 - q1
-        if iqr == 0:
+        # Z-score assumes roughly-normal data; fall back to the
+        # distribution-free IQR test when the column is heavily skewed.
+        skewed = valid.std() > 0 and abs(scipy_stats.skew(valid)) > 1.0
+        method = "iqr" if skewed else "zscore"
+        bounds = _iqr_bounds(valid) if method == "iqr" else _zscore_bounds(valid)
+        if bounds is None:
             continue
+        lower_bound, upper_bound = bounds
 
-        lower_bound = q1 - 1.5 * iqr
-        upper_bound = q3 + 1.5 * iqr
         outlier_mask = (series < lower_bound) | (series > upper_bound)
 
         for idx in series[outlier_mask].index:
@@ -58,6 +79,7 @@ def detect_anomalies(
                     "row": identifier,
                     "value": value,
                     "direction": direction,
+                    "method": method,
                     "bounds": {"lower": float(lower_bound), "upper": float(upper_bound)},
                     "_deviation": abs(value - bound),
                 }

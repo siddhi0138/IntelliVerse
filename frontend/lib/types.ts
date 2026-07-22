@@ -103,6 +103,7 @@ export interface Anomaly {
   row: string;
   value: number;
   direction: "above" | "below";
+  method: "iqr" | "zscore";
   bounds: { lower: number; upper: number };
 }
 
@@ -143,6 +144,9 @@ export interface NumericCorrelation {
   label_a: string;
   label_b: string;
   r: number;
+  p_value: number;
+  method: "pearson" | "spearman";
+  significant: boolean;
   strength: "strong" | "moderate" | "weak";
   direction: "positive" | "negative";
 }
@@ -162,6 +166,10 @@ export interface RootCauseDimension {
   variance_explained_pct: number;
   top_segment: string;
   top_segment_deviation_pct: number | null;
+  test_used: "anova" | "kruskal_wallis";
+  test_statistic: number;
+  p_value: number;
+  significant: boolean;
 }
 
 export interface RootCauseAnalysis {
@@ -169,6 +177,38 @@ export interface RootCauseAnalysis {
   metric_label: string;
   dimensions: RootCauseDimension[];
   note: string;
+}
+
+export interface Distribution {
+  mean: number;
+  median: number;
+  mode: number | null;
+  variance: number;
+  std: number;
+  skewness: number;
+  excess_kurtosis: number;
+  percentiles: { p10: number; p25: number; p50: number; p75: number; p90: number };
+  shape: "approximately_normal" | "right_skewed" | "left_skewed" | "heavy_tailed";
+}
+
+export interface RankedFinding {
+  kind: "correlation" | "association" | "root_cause" | "anomaly";
+  headline: string;
+  score: number;
+  evidence: Record<string, unknown>;
+}
+
+export interface InsightTimelineEntry {
+  period: string;
+  value: number;
+  notes: string[];
+}
+
+export interface MultivariateAnomaly {
+  row: string;
+  anomaly_score: number;
+  values: Record<string, number>;
+  method: string;
 }
 
 export interface AnalyzeResponse {
@@ -185,12 +225,16 @@ export interface AnalyzeResponse {
   forecast: Forecast | null;
   forecast_eligibility: ForecastEligibility;
   anomalies: Anomaly[];
+  multivariate_anomalies: MultivariateAnomaly[];
   time_series_spikes: TimeSeriesSpike[];
   seasonality: Seasonality;
   period_comparison: PeriodComparison | null;
   correlations: NumericCorrelation[];
   associations: CategoricalAssociation[];
   root_cause: RootCauseAnalysis | null;
+  distributions: Record<string, Distribution>;
+  ranked_findings: RankedFinding[];
+  insight_timeline: InsightTimelineEntry[];
   risk_alerts: RiskAlert[];
   decisions: DecisionAction[];
   primary_metric: string | null;

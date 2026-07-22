@@ -234,3 +234,52 @@ A third, still-more-detailed spec pass surfaced a few more gaps, closed here:
   quality score, what kind of analysis the columns support), distinct
   from the bullet-point insights list — same "compute first, LLM
   narrates only what's given" rule as everywhere else.
+
+## v2 upgrade: rigorous statistics (`backend/relationships.py`, `distributions.py`, `anomalies_ml.py`, `insight_ranking.py`, `insight_timeline.py`)
+
+A fourth spec pass asked for real statistical rigor rather than plain
+correlation coefficients and effect sizes. Kendall correlation and DBSCAN
+were explicitly marked optional in that spec and are skipped; everything
+else is implemented:
+
+- **Correlation method selection** — Pearson by default, switching to
+  Spearman (rank-based, no linearity/normality assumption) when either
+  column is heavily skewed (`|skew| > 1`). Every reported correlation now
+  carries a p-value and a `significant` flag (p < 0.05), not just `r`.
+- **Root cause significance testing** — `root_cause_breakdown()` now runs
+  a real one-way ANOVA when the metric looks roughly normal within
+  groups, or Kruskal-Wallis (rank-based) when it's skewed, alongside the
+  existing eta-squared effect size. Both the test statistic and p-value
+  are reported per dimension.
+- **Distribution analysis** (`backend/distributions.py`) — mean, median,
+  mode, variance, std, skewness, excess kurtosis (Fisher definition),
+  and percentiles (p10/p25/p50/p75/p90) for every numeric column, plus a
+  simple threshold-based shape classification (`approximately_normal` /
+  `right_skewed` / `left_skewed` / `heavy_tailed`).
+- **Anomaly method selection** — the existing per-column check now picks
+  Z-score (assumes normality, 3σ threshold) for roughly-normal columns
+  and falls back to the distribution-free IQR test for skewed ones,
+  tagging each anomaly with which method flagged it.
+- **Multivariate anomalies** (`backend/anomalies_ml.py`) — Isolation
+  Forest across all numeric columns at once, catching rows that are
+  unremarkable in any single column but unusual in combination (e.g.
+  high revenue paired with an unusually low order count). Requires at
+  least 15 rows and 2 numeric columns; returns nothing below that rather
+  than running an unreliable model on too little data.
+- **Ranked findings / Insight Explorer** (`backend/insight_ranking.py`) —
+  rather than asking an LLM to rank its own prose, this assembles the
+  deterministic findings above (correlations, associations, root-cause
+  dimensions, anomalies) into one list scored by a documented composite
+  of magnitude and significance. The frontend's Insight Explorer renders
+  each as a clickable row that expands to the full evidence JSON — no
+  black-box ranking.
+- **Insight timeline** (`backend/insight_timeline.py`) — one entry per
+  time period, but only when something is actually notable there (a
+  detected spike, or a ≥15% swing vs. the prior period). Deliberately
+  sparse: a quiet month gets no entry rather than a fabricated one.
+
+Natural-language questions like "why is revenue decreasing?" or "which
+region performs best?" were already covered by the `POST /api/ask`
+pipeline built in the earlier v2 backfill (classify intent → compute
+deterministically → narrate only the computed result) — no new work was
+needed there.

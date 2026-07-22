@@ -18,6 +18,10 @@ import { RootCausePanel } from "@/components/RootCausePanel";
 import { RiskAlertsPanel } from "@/components/RiskAlertsPanel";
 import { AskNexus } from "@/components/AskNexus";
 import { DatasetSummaryPanel } from "@/components/DatasetSummaryPanel";
+import { RankedFindingsPanel } from "@/components/RankedFindingsPanel";
+import { InsightTimelinePanel } from "@/components/InsightTimelinePanel";
+import { MultivariateAnomaliesPanel } from "@/components/MultivariateAnomaliesPanel";
+import { DistributionPanel } from "@/components/DistributionPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -171,6 +175,8 @@ export default function Home() {
 
           <AskNexus analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
 
+          <RankedFindingsPanel findings={result.ranked_findings} />
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {result.charts
               .filter((c) => c.chart_type !== "kpi")
@@ -184,7 +190,11 @@ export default function Home() {
             <DataQualityPanel quality={result.quality} />
             <RelationshipsPanel correlations={result.correlations} associations={result.associations} />
             <RootCausePanel rootCause={result.root_cause} />
+            <DistributionPanel distributions={result.distributions} />
+            <MultivariateAnomaliesPanel anomalies={result.multivariate_anomalies} />
           </div>
+
+          <InsightTimelinePanel timeline={result.insight_timeline} />
 
           <div>
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Knowledge graph</h3>

@@ -29,6 +29,10 @@ export function RelationshipsPanel({
               <li key={i} className="flex items-center justify-between text-sm gap-2">
                 <span>
                   {c.label_a} &harr; {c.label_b}
+                  <span className="text-xs text-slate-500 ml-1">
+                    ({c.method}, p={c.p_value}
+                    {c.significant ? "" : ", n.s."})
+                  </span>
                 </span>
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STRENGTH_COLORS[c.strength]}`}>
                   r={c.r} ({c.direction})

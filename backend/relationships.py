@@ -1,11 +1,14 @@
-"""V2 backfill: relationship discovery and root cause exploration.
+"""V2: relationship discovery and root cause exploration.
 
-All of this is descriptive statistics over the uploaded table — Pearson
-correlation between numeric columns, Cramer's V between categorical
-columns (computed manually via a contingency table, no scipy dependency),
-and an eta-squared variance decomposition for "which dimension explains
-the change in this metric." Everything here is an *association*, and is
-labeled as such — nothing here claims causation.
+Numeric relationships use Pearson correlation by default, switching to
+Spearman (rank-based, no linearity/normality assumption) when either
+column is heavily skewed — with the p-value from whichever test was
+actually run, so "significant" means something. Categorical associations
+use Cramer's V from a contingency table (no scipy needed there). Root
+cause uses an eta-squared effect size plus a real significance test —
+one-way ANOVA when the metric looks roughly normal within groups,
+Kruskal-Wallis (rank-based, no normality assumption) otherwise. Everything
+here is an *association*, labeled as such — nothing here claims causation.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ from itertools import combinations
 
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 
 from schema_inference import ColumnSchema
 
@@ -34,6 +38,12 @@ def _strength_label(abs_value: float) -> str:
     return "weak"
 
 
+def _looks_skewed(values: pd.Series, threshold: float = 1.0) -> bool:
+    if values.std() == 0 or len(values) < 8:
+        return False
+    return bool(abs(scipy_stats.skew(values)) > threshold)
+
+
 @dataclass
 class NumericCorrelation:
     column_a: str
@@ -41,6 +51,9 @@ class NumericCorrelation:
     label_a: str
     label_b: str
     r: float
+    p_value: float
+    method: str  # "pearson" | "spearman"
+    significant: bool  # p < 0.05
     strength: str
     direction: str  # "positive" | "negative"
 
@@ -58,7 +71,14 @@ def numeric_correlations(
         if len(paired) < min_rows or paired["a"].std() == 0 or paired["b"].std() == 0:
             continue
 
-        r = float(np.corrcoef(paired["a"], paired["b"])[0, 1])
+        if _looks_skewed(paired["a"]) or _looks_skewed(paired["b"]):
+            method = "spearman"
+            r, p_value = scipy_stats.spearmanr(paired["a"], paired["b"])
+        else:
+            method = "pearson"
+            r, p_value = scipy_stats.pearsonr(paired["a"], paired["b"])
+
+        r, p_value = float(r), float(p_value)
         if np.isnan(r) or abs(r) < min_abs_r:
             continue
 
@@ -69,6 +89,9 @@ def numeric_correlations(
                 label_a=col_a.semantic_label,
                 label_b=col_b.semantic_label,
                 r=round(r, 3),
+                p_value=round(p_value, 4),
+                method=method,
+                significant=p_value < 0.05,
                 strength=_strength_label(abs(r)),
                 direction="positive" if r > 0 else "negative",
             )
@@ -144,6 +167,10 @@ class RootCauseDimension:
     variance_explained_pct: float
     top_segment: str
     top_segment_deviation_pct: float | None
+    test_used: str  # "anova" | "kruskal_wallis"
+    test_statistic: float
+    p_value: float
+    significant: bool  # p < 0.05
 
 
 @dataclass
@@ -176,12 +203,24 @@ def root_cause_breakdown(
 
     dim_cols = [c for c in schema if c.type == "categorical" and c.name != metric_column]
     dimensions: list[RootCauseDimension] = []
+    metric_is_skewed = _looks_skewed(values.dropna())
 
     for dim in dim_cols:
         paired = pd.DataFrame({"group": df[dim.name], "value": values}).dropna()
         group_sizes = paired.groupby("group").size()
-        if (group_sizes >= min_group_rows).sum() < 2:
+        eligible_groups = group_sizes[group_sizes >= min_group_rows].index
+        if len(eligible_groups) < 2:
             continue
+
+        groups = [paired.loc[paired["group"] == g, "value"] for g in eligible_groups]
+
+        if metric_is_skewed:
+            test_used = "kruskal_wallis"
+            statistic, p_value = scipy_stats.kruskal(*groups)
+        else:
+            test_used = "anova"
+            statistic, p_value = scipy_stats.f_oneway(*groups)
+        statistic, p_value = float(statistic), float(p_value)
 
         group_means = paired.groupby("group")["value"].mean()
         between_ss = float((group_sizes * (group_means - overall_mean) ** 2).sum())
@@ -199,6 +238,10 @@ def root_cause_breakdown(
                 variance_explained_pct=round(variance_explained * 100, 1),
                 top_segment=str(top_group),
                 top_segment_deviation_pct=top_deviation_pct,
+                test_used=test_used,
+                test_statistic=round(statistic, 3) if not np.isnan(statistic) else 0.0,
+                p_value=round(p_value, 4) if not np.isnan(p_value) else 1.0,
+                significant=(not np.isnan(p_value)) and p_value < 0.05,
             )
         )
 
