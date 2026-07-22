@@ -186,6 +186,15 @@ export async function deleteDataset(analysisId: string): Promise<void> {
   await unwrap<{ deleted: boolean }>(res);
 }
 
+export async function deleteAllDatasets(): Promise<number> {
+  const res = await fetch(`${API_BASE}/api/datasets`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ deleted_count: number }>(res);
+  return body.deleted_count;
+}
+
 export async function saveForecast(analysisId: string, label: string, forecast: Forecast): Promise<void> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts`, {
     method: "POST",

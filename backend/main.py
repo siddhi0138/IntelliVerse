@@ -555,6 +555,25 @@ def list_datasets(current_user: str = Depends(get_current_user)) -> dict:
     return {"datasets": catalog.list_datasets(current_user)}
 
 
+@protected.delete("/api/datasets")
+def delete_all_datasets(current_user: str = Depends(get_current_user)) -> dict:
+    removed_ids = catalog.delete_all_datasets(current_user)
+
+    # Same reasoning as the single-dataset delete: don't leave in-memory
+    # sessions pointing at data the catalog no longer has. The caches
+    # aren't scoped by user, so only evict exactly the IDs just deleted —
+    # not anything else that happens to be cached.
+    for aid in removed_ids:
+        _ANALYSIS_DF_CACHE.pop(aid, None)
+        _ANALYSIS_SCHEMA_CACHE.pop(aid, None)
+        _ANALYSIS_RESULT_CACHE.pop(aid, None)
+
+    logger.info(
+        "Catalog emptied: username={username} count={count}", username=current_user, count=len(removed_ids)
+    )
+    return {"deleted_count": len(removed_ids)}
+
+
 @protected.get("/api/datasets/{analysis_id}")
 def get_dataset(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
     record = catalog.get_dataset(analysis_id, current_user)

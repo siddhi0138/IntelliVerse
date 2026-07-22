@@ -118,7 +118,8 @@ export default function Home() {
 
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key === "nexus_dataset_deleted" && e.newValue && e.newValue === result?.analysis_id) {
+      if (e.key !== "nexus_dataset_deleted" || !e.newValue) return;
+      if (e.newValue === "ALL" || e.newValue === result?.analysis_id) {
         resetView();
       }
     }
@@ -183,19 +184,19 @@ export default function Home() {
         <nav className="flex gap-2">
           <Link
             href="/workspace"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5"
           >
             Multi-table workspace
           </Link>
           <Link
             href="/catalog"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5"
           >
             Dataset catalog
           </Link>
           <Link
             href="/knowledge"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5"
           >
             Knowledge Assistant
           </Link>
@@ -340,7 +341,7 @@ export default function Home() {
 
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">Knowledge graph</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Knowledge graph</h3>
               <div className="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-xs">
                 <button
                   onClick={() => setGraphView("2d")}
@@ -376,7 +377,7 @@ export default function Home() {
           <SqlQueryPanel key={`sql-${result.analysis_id}`} analysisId={result.analysis_id} />
 
           <div>
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Detected schema</h3>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Detected schema</h3>
             <SchemaTable key={result.analysis_id} schema={result.schema} analysisId={result.analysis_id} />
           </div>
         </div>

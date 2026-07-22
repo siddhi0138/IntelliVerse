@@ -180,6 +180,20 @@ def delete_dataset(analysis_id: str, username: str) -> bool:
         return cur.rowcount > 0
 
 
+def delete_all_datasets(username: str) -> list[str]:
+    """Empties the catalog for one user. Returns the analysis_ids removed,
+    so callers can also evict exactly those (and no one else's) entries
+    from any in-memory, non-user-scoped caches keyed by analysis_id."""
+    with _connect() as conn:
+        rows = conn.execute("SELECT analysis_id FROM datasets WHERE username = ?", (username,)).fetchall()
+        analysis_ids = [r["analysis_id"] for r in rows]
+        conn.execute("DELETE FROM datasets WHERE username = ?", (username,))
+        conn.execute("DELETE FROM saved_forecasts WHERE username = ?", (username,))
+        conn.execute("DELETE FROM saved_simulations WHERE username = ?", (username,))
+        conn.commit()
+        return analysis_ids
+
+
 def update_semantic_label(analysis_id: str, username: str, column_name: str, new_label: str) -> bool:
     with _connect() as conn:
         row = conn.execute(

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { listDatasets } from "@/lib/api";
+import { deleteAllDatasets, listDatasets } from "@/lib/api";
 import type { CatalogEntry } from "@/lib/types";
 
 function scoreColor(score: number): string {
@@ -14,12 +14,37 @@ function scoreColor(score: number): string {
 export default function CatalogPage() {
   const [datasets, setDatasets] = useState<CatalogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [emptying, setEmptying] = useState(false);
 
   useEffect(() => {
     listDatasets()
       .then(setDatasets)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load the catalog."));
   }, []);
+
+  async function handleEmptyCatalog() {
+    if (!datasets || datasets.length === 0) return;
+    if (
+      !window.confirm(
+        `Permanently delete all ${datasets.length} dataset(s) in your catalog? This can't be undone.`
+      )
+    )
+      return;
+    setEmptying(true);
+    setError(null);
+    try {
+      await deleteAllDatasets();
+      setDatasets([]);
+      // Same cross-tab pattern as a single delete — any other open tab
+      // showing one of these (now-gone) datasets resets itself too.
+      localStorage.removeItem("nexus_last_analysis");
+      localStorage.setItem("nexus_dataset_deleted", "ALL");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not empty the catalog.");
+    } finally {
+      setEmptying(false);
+    }
+  }
 
   return (
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
@@ -32,15 +57,22 @@ export default function CatalogPage() {
             only the computed result is saved.
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full px-3 py-1.5 whitespace-nowrap"
-        >
-          &larr; Back to upload
-        </Link>
+        <div className="flex items-center gap-2">
+          {datasets && datasets.length > 0 && (
+            <button onClick={handleEmptyCatalog} disabled={emptying} className="btn-danger-ghost whitespace-nowrap">
+              {emptying ? "Emptying…" : "Empty catalog"}
+            </button>
+          )}
+          <Link
+            href="/"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5 whitespace-nowrap"
+          >
+            &larr; Back to upload
+          </Link>
+        </div>
       </header>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error}</p>}
 
       {datasets && datasets.length === 0 && (
         <div className="card text-center py-12">
@@ -49,10 +81,10 @@ export default function CatalogPage() {
       )}
 
       {datasets && datasets.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-x-auto shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 overflow-x-auto shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-600 text-left text-slate-500">
                 <th className="px-4 py-2 font-medium">Filename</th>
                 <th className="px-4 py-2 font-medium">Uploaded</th>
                 <th className="px-4 py-2 font-medium">Domain</th>
@@ -65,7 +97,7 @@ export default function CatalogPage() {
                 <tr
                   key={d.analysis_id}
                   onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
-                  className="border-b border-slate-100 dark:border-slate-700/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                  className="border-b border-slate-100 dark:border-slate-600/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40"
                 >
                   <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
                   <td className="px-4 py-2 text-slate-500">{new Date(d.uploaded_at).toLocaleString()}</td>
