@@ -616,7 +616,33 @@ that don't:
   connecting after the job already finished gets the full log replayed
   with no duplicates.
 
+- **Docker / Docker Compose** — `backend/Dockerfile` (`python:3.11-slim`,
+  with `build-essential`/`cmake` installed and `cmdstanpy.install_cmdstan()`
+  run at build time so Prophet's one-time cmdstan compile doesn't stall the
+  container's first forecast request) and `frontend/Dockerfile` (multi-stage,
+  using Next.js's `output: "standalone"` for a minimal runtime image). Root
+  `docker-compose.yml` wires up backend, frontend, Neo4j, and Postgres.
+  Neo4j gets a fresh containerized instance (`neo4j/nexuslocal`, overridden
+  in the `backend` service's `environment:` so it doesn't need your native
+  install's credentials); FreeLLMAPI keys/model still come from
+  `backend/.env` via `env_file:`, with `FREELLMAPI_BASE_URL` overridden to
+  `host.docker.internal` since FreeLLMAPI runs natively on the host, not in
+  the compose network. Postgres is included because the original tech
+  stack calls for it, but nothing in the app queries it yet — `catalog.py`
+  still uses SQLite — so it's present for whenever that migration happens,
+  not load-bearing today.
+
+  **Not yet verified end-to-end**: Docker isn't installed on this machine
+  (checked `docker --version` and the Docker Desktop install path — neither
+  present), so I wrote these from known Linux packaging requirements for
+  this dependency set rather than an actual `docker compose up`. Everything
+  *around* Docker was verified directly: the frontend's `next build` with
+  `output: "standalone"` succeeds and produces the expected
+  `.next/standalone/server.js`, and the `docker-compose.yml` YAML parses
+  and structures correctly. The highest-risk step on a real build is
+  Prophet/shap needing a source compile if no prebuilt wheel matches
+  `python:3.11-slim` — that's the first thing to check if a build fails.
+
 Still pending your decision: auth scope (full login wall vs. a lighter
 single API-token model), which determines whether every endpoint gets a
-`Depends()` auth check and the frontend gets a login screen. Docker/
-Docker Compose packaging is still outstanding too.
+`Depends()` auth check and the frontend gets a login screen.

@@ -1,0 +1,59 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Overrides for container networking — everything else (FreeLLMAPI
+      # key/model, etc.) still comes from backend/.env above.
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: nexuslocal
+      # FreeLLMAPI runs natively on the host, not in this compose network;
+      # host.docker.internal is Docker's DNS name for the host machine.
+      # Keep the same path suffix your backend/.env already uses after the
+      # port (e.g. /v1) if it differs from this default.
+      FREELLMAPI_BASE_URL: http://host.docker.internal:3001/v1
+    volumes:
+      - ./backend/data:/app/data
+    depends_on:
+      - neo4j
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  neo4j:
+    image: neo4j:5.26-community
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/nexuslocal
+    volumes:
+      - neo4j_data:/data
+
+  # Not yet queried by the app (catalog.py still uses SQLite) — included
+  # because the original tech stack calls for it and to make it available
+  # for whenever that migration happens.
+  postgres:
+    image: postgres:17
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: nexuslocal
+      POSTGRES_DB: nexus
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  neo4j_data:
+  postgres_data:
