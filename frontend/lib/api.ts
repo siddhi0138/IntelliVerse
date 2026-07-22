@@ -249,6 +249,10 @@ export async function generateActionPlan(
   return unwrap<ActionPlanResult>(res);
 }
 
+export function reportUrl(analysisId: string, format: "xlsx" | "pdf" | "pptx"): string {
+  return `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/report?format=${format}`;
+}
+
 export async function runSqlQuery(analysisId: string, sql: string): Promise<QueryResult> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/query`, {
     method: "POST",

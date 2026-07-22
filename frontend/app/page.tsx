@@ -26,6 +26,7 @@ import { ClusteringPanel } from "@/components/ClusteringPanel";
 import { GEValidationPanel } from "@/components/GEValidationPanel";
 import { ActionPlanPanel } from "@/components/ActionPlanPanel";
 import { SqlQueryPanel } from "@/components/SqlQueryPanel";
+import { ReportExportPanel } from "@/components/ReportExportPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -165,6 +166,8 @@ export default function Home() {
               {result.domain}
             </span>
           </div>
+
+          <ReportExportPanel key={`report-${result.analysis_id}`} analysisId={result.analysis_id} />
 
           <DatasetSummaryPanel
             domain={result.domain}

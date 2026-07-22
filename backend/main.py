@@ -12,6 +12,7 @@ import pandas as pd
 import polars as pl
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
@@ -41,6 +42,7 @@ from neo4j_client import get_driver
 from profiling import build_quality_report
 from qa import answer_question
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
+from report import build_excel_report, build_pdf_report, build_pptx_report
 from risk_alerts import generate_risk_alerts
 from schema_inference import ColumnSchema, build_schema, guess_domain, monthly_series, suggest_charts
 from simulation import CorrelationRegressionEngine, build_decision_actions
@@ -59,6 +61,9 @@ app.add_middleware(
 # tool; lost on restart, unbounded growth is not a concern at this scale.
 _ANALYSIS_DF_CACHE: dict[str, pd.DataFrame] = {}
 _ANALYSIS_SCHEMA_CACHE: dict[str, list[ColumnSchema]] = {}
+# Full /api/analyze response, kept so /report can format already-computed
+# results instead of re-running analysis.
+_ANALYSIS_RESULT_CACHE: dict[str, dict] = {}
 
 # V5: multi-table workspaces (distinct from the single-table analysis cache
 # above). Tables/schemas are the source of truth for re-running relationship
@@ -192,7 +197,7 @@ async def analyze(file: UploadFile) -> dict:
         schema=schema,
     )
 
-    return {
+    response = {
         "analysis_id": analysis_id,
         "filename": file.filename,
         "row_count": len(df),
@@ -223,6 +228,8 @@ async def analyze(file: UploadFile) -> dict:
         "decisions": build_decision_actions(schema),
         "primary_metric": primary_metric,
     }
+    _ANALYSIS_RESULT_CACHE[analysis_id] = response
+    return response
 
 
 class InsightsRequest(BaseModel):
@@ -646,3 +653,37 @@ def query_dataset(analysis_id: str, req: QueryRequest) -> dict:
         return run_query(df, req.sql)
     except UnsafeQueryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+_REPORT_CONTENT_TYPES = {
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "pdf": "application/pdf",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+
+@app.get("/api/analyze/{analysis_id}/report")
+def export_report(analysis_id: str, format: str = "pdf") -> Response:
+    if format not in _REPORT_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="format must be one of: xlsx, pdf, pptx")
+
+    result = _ANALYSIS_RESULT_CACHE.get(analysis_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+
+    if format == "xlsx":
+        df = _ANALYSIS_DF_CACHE.get(analysis_id)
+        if df is None:
+            raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+        content = build_excel_report(result, df)
+    elif format == "pptx":
+        content = build_pptx_report(result)
+    else:
+        content = build_pdf_report(result)
+
+    filename = f"nexus-report-{analysis_id[:8]}.{format}"
+    return Response(
+        content=content,
+        media_type=_REPORT_CONTENT_TYPES[format],
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

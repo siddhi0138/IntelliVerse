@@ -18,3 +18,6 @@ great_expectations==1.19.0
 duckdb==1.5.5
 polars==1.43.0
 pyarrow==25.0.0
+openpyxl==3.1.5
+reportlab==4.4.4
+python-pptx==1.0.2
