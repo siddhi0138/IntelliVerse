@@ -31,6 +31,7 @@ from insights import (
     generate_insights,
     generate_simulation_explanation,
 )
+from digital_twin import simulate_entity_impact
 from knowledge_graph_builder import build_graph
 from multi_table import RelationshipCandidate, discover_relationships
 from neo4j_client import get_driver
@@ -551,3 +552,22 @@ def get_entity_profile(workspace_id: str, table: str, key: str) -> dict:
         ]
 
     return {"table": table, "key": key, "properties": properties, "neighbors": neighbor_list}
+
+
+class EntityImpactRequest(BaseModel):
+    table: str
+    key: str
+    pct_change: float
+
+
+@app.post("/api/workspace/{workspace_id}/simulate-entity")
+def simulate_entity(workspace_id: str, req: EntityImpactRequest) -> dict:
+    graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
+    if graph is None:
+        raise HTTPException(status_code=404, detail="No confirmed graph for this workspace yet.")
+
+    source_node = f"{req.table}:{req.key}"
+    result = simulate_entity_impact(graph, source_node, req.pct_change)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Entity not found in the graph.")
+    return result

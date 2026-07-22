@@ -449,3 +449,21 @@ export interface EntityProfile {
   properties: Record<string, unknown>;
   neighbors: EntityNeighbor[];
 }
+
+// --- V6: graph-based impact propagation (digital twin) ---------------------
+
+export interface EntityImpactEffect {
+  node: string;
+  table: string;
+  key: string;
+  hops: 1 | 2;
+  contribution_share: number;
+  estimated_delta_pct: number;
+}
+
+export interface EntityImpactResult {
+  source: string;
+  pct_change: number;
+  affected_entities: EntityImpactEffect[];
+  note: string;
+}

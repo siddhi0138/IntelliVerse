@@ -18,6 +18,7 @@ import { RelationshipReviewPanel } from "@/components/RelationshipReviewPanel";
 import { WorkspaceGraphExplorer } from "@/components/WorkspaceGraphExplorer";
 import { GraphAnalyticsPanel } from "@/components/GraphAnalyticsPanel";
 import { EntityProfilePanel } from "@/components/EntityProfilePanel";
+import { EntityImpactPanel } from "@/components/EntityImpactPanel";
 
 export default function WorkspacePage() {
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
@@ -157,6 +158,14 @@ export default function WorkspacePage() {
                 </div>
                 <EntityProfilePanel profile={entityProfile} onNavigate={handleNodeClick} />
               </div>
+
+              {entityProfile && (
+                <EntityImpactPanel
+                  workspaceId={workspace.workspace_id}
+                  table={entityProfile.table}
+                  entityKey={entityProfile.key}
+                />
+              )}
 
               <GraphAnalyticsPanel analytics={graphResult.analytics} />
             </div>

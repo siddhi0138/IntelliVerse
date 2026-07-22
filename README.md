@@ -462,3 +462,38 @@ reformatted old ones:
 Frontend gains `ClusteringPanel`, `GEValidationPanel`, and
 `MultivariateAnomaliesPanel` now shows consensus + SHAP feature impacts;
 `ForecastComparisonTable`/`ForecastChart` know about the LightGBM label.
+
+## v6 (lean): graph-based impact propagation
+
+Scoped deliberately narrow — the full spec (Entity/State/Dependency/
+Event engines, a temporal graph, Three.js visualization) was cut down to
+the one piece that's genuinely buildable without fabricating data this
+project doesn't have: **cascading impact through the real v5 graph**.
+Three.js/React Three Fiber and a full event/temporal engine were skipped
+(visual polish and time-series-per-entity data most CSVs won't have,
+respectively).
+
+`backend/digital_twin.py`'s `simulate_entity_impact()` extends v4's
+decision-simulation idea from flat column correlations to actual graph
+structure: pick an entity (say, a specific customer), propose a % change,
+and it propagates the effect to that entity's real 1-hop and 2-hop
+neighbors — weighted by **contribution share** (this entity's fraction
+of each neighbor's total connections), not a regression fit. That's a
+deliberately different, more honest kind of estimate than v4's
+correlation engine: it's a structural bottom-up computation over
+confirmed relationships, not a statistical association, and it can only
+ever propagate along edges that were confirmed during v5's review.
+
+Verified by hand against the Sales/Customers/Products sample: simulating
++20% on Customer C001 (who has 3 orders, each linking to one product)
+correctly computed each order's contribution share as 1/2 (each order
+node has degree 2: one customer edge, one product edge) and each
+2-hop product's share as connecting-orders ÷ product's total order
+count — e.g. Product P001, referenced by 3 orders total with only 1 from
+C001, got exactly a 1/3 share and a +6.67% estimate (20% × 1/3),
+matching the arithmetic exactly.
+
+`POST /api/workspace/{id}/simulate-entity` exposes this; the frontend's
+`EntityImpactPanel` appears once an entity is selected in `/workspace`,
+with a slider for the % change and a list of affected entities annotated
+with hop count, contribution share, and the estimated delta.

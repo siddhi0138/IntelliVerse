@@ -6,6 +6,7 @@ import type {
   ColumnSchema,
   ConfirmRelationshipsResponse,
   DataQualityReport,
+  EntityImpactResult,
   EntityProfile,
   Forecast,
   Insight,
@@ -203,4 +204,18 @@ export async function fetchEntityProfile(workspaceId: string, table: string, key
     `${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/entity/${encodeURIComponent(table)}/${encodeURIComponent(key)}`
   );
   return unwrap<EntityProfile>(res);
+}
+
+export async function simulateEntityImpact(
+  workspaceId: string,
+  table: string,
+  key: string,
+  pctChange: number
+): Promise<EntityImpactResult> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/simulate-entity`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ table, key, pct_change: pctChange }),
+  });
+  return unwrap<EntityImpactResult>(res);
 }
