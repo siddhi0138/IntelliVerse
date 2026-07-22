@@ -1,9 +1,10 @@
 # backend
 backend/venv/
-backend/__pycache__/
+**/__pycache__/
 backend/*.log
 backend/.env
 backend/data/
+backend/.pytest_cache/
 
 # frontend
 frontend/node_modules/

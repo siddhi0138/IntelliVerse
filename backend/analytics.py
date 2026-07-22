@@ -121,7 +121,15 @@ def detect_time_series_spikes(series: list[dict[str, Any]], threshold_std: float
     predicted = slope * x + intercept
     residuals = values - predicted
     std = float(residuals.std())
-    if std == 0:
+
+    # Guard against floating-point noise, not just an exact zero: a
+    # near-perfectly-linear series can have residuals on the order of
+    # 1e-14 with an equally tiny std, and dividing noise by noise produces
+    # "z-scores" that look like real numbers but are meaningless. Treat
+    # residual spread below 1e-9 relative to the series' own scale as no
+    # real variation at all.
+    scale = float(np.abs(values).mean()) or 1.0
+    if std / scale < 1e-9:
         return []
 
     spikes = []
