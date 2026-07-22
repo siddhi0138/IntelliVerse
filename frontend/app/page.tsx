@@ -66,6 +66,10 @@ export default function Home() {
     try {
       const data = await analyzeFileWithProgress(file, setProgressStep);
       setResult(data);
+      // Reflect the analysis in the URL so a refresh (or sharing the link)
+      // reopens the same dataset instead of landing back on a blank upload
+      // screen — reuses the same `reopen` flow the catalog page's rows use.
+      window.history.replaceState(null, "", `/?reopen=${data.analysis_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
