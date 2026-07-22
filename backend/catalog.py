@@ -79,6 +79,17 @@ def _init_db(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS documents (
+            doc_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            uploaded_at TEXT NOT NULL,
+            chunk_count INTEGER NOT NULL
+        )
+        """
+    )
     conn.commit()
 
 
@@ -227,3 +238,28 @@ def list_saved_simulations(analysis_id: str, username: str) -> list[dict]:
             d["simulation"] = json.loads(d.pop("simulation_json"))
             out.append(d)
         return out
+
+
+def save_document(doc_id: str, username: str, filename: str, chunk_count: int) -> None:
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO documents (doc_id, username, filename, uploaded_at, chunk_count) VALUES (?, ?, ?, ?, ?)",
+            (doc_id, username, filename, datetime.now(timezone.utc).isoformat(), chunk_count),
+        )
+        conn.commit()
+
+
+def list_documents(username: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT doc_id, filename, uploaded_at, chunk_count FROM documents WHERE username = ? ORDER BY uploaded_at DESC",
+            (username,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_document_record(doc_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM documents WHERE doc_id = ? AND username = ?", (doc_id, username))
+        conn.commit()
+        return cur.rowcount > 0

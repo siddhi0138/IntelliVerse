@@ -137,6 +137,9 @@ export default function Home() {
           <Link href="/catalog" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
             Dataset catalog &rarr;
           </Link>
+          <Link href="/knowledge" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+            Knowledge Assistant &rarr;
+          </Link>
         </div>
       </header>
 

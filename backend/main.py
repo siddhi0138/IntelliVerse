@@ -45,6 +45,9 @@ from insights import (
 )
 from autonomous_analyst import generate_action_plan
 from digital_twin import simulate_entity_impact
+import document_intelligence
+from document_intelligence import UnsupportedDocumentError
+from document_qa import answer_with_documents
 from duckdb_query import UnsafeQueryError, run_query
 from knowledge_graph_builder import build_graph
 from multi_table import RelationshipCandidate, discover_relationships
@@ -896,6 +899,70 @@ def export_report(analysis_id: str, format: str = "pdf") -> Response:
         media_type=_REPORT_CONTENT_TYPES[format],
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# --- Document intelligence: RAG over uploaded documents -----------------------
+
+
+@protected.post("/api/documents")
+async def upload_documents(
+    files: list[UploadFile], current_user: str = Depends(get_current_user)
+) -> dict:
+    uploaded = []
+    for file in files:
+        content = await file.read()
+        filename = file.filename or "document"
+        doc_id = str(uuid.uuid4())
+        try:
+            chunk_count = document_intelligence.ingest_document(current_user, doc_id, filename, content)
+        except UnsupportedDocumentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if chunk_count == 0:
+            raise HTTPException(status_code=400, detail=f"'{filename}' contained no extractable text.")
+        catalog.save_document(doc_id, current_user, filename, chunk_count)
+        logger.info(
+            "Document ingested: filename={filename} chunks={chunks} username={username}",
+            filename=filename,
+            chunks=chunk_count,
+            username=current_user,
+        )
+        uploaded.append({"doc_id": doc_id, "filename": filename, "chunk_count": chunk_count})
+    return {"documents": uploaded}
+
+
+@protected.get("/api/documents")
+def list_documents(current_user: str = Depends(get_current_user)) -> dict:
+    return {"documents": catalog.list_documents(current_user)}
+
+
+@protected.delete("/api/documents/{doc_id}")
+def delete_document(doc_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_document_record(doc_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    document_intelligence.delete_document(current_user, doc_id)
+    return {"deleted": True}
+
+
+class AskDocumentsRequest(BaseModel):
+    question: str
+    analysis_id: str | None = None
+
+
+@protected.post("/api/ask-documents")
+async def ask_documents(req: AskDocumentsRequest, current_user: str = Depends(get_current_user)) -> dict:
+    structured_context = None
+    if req.analysis_id:
+        result = _ANALYSIS_RESULT_CACHE.get(req.analysis_id)
+        if result:
+            findings = result.get("ranked_findings", [])[:8]
+            if findings:
+                structured_context = "\n".join(f"- {f.get('headline', '')}" for f in findings)
+
+    try:
+        return await answer_with_documents(current_user, req.question, structured_context)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 app.include_router(protected)

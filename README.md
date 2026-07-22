@@ -101,6 +101,15 @@ apply, IntelliVerse says so explicitly instead of asking the LLM to fill the gap
 - Explicitly saved forecasts and simulations, one click each, listed and
   reloadable per dataset
 
+**Knowledge Assistant (document intelligence)**
+- Upload PDF/DOCX/PPTX/TXT documents; ask questions across them and get an
+  answer grounded only in retrieved excerpts, cited by filename
+- Retrieval runs locally: sentence-transformers for embeddings (no
+  external API key), Qdrant in on-disk mode (no separate server process)
+  — this is the one place in the app Qdrant earns its keep, since every
+  other "knowledge base" here is already structured JSON with nothing
+  for a vector database to index
+
 ## Tech stack
 
 | Layer | Technology |
@@ -108,7 +117,8 @@ apply, IntelliVerse says so explicitly instead of asking the LLM to fill the gap
 | Backend | FastAPI, Python 3.12+ |
 | Data processing | pandas, NumPy, DuckDB, Polars + PyArrow (large-file fast path) |
 | Statistics/ML | SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet, SHAP |
-| Databases | PostgreSQL 17 (auth), Neo4j 5.26 (knowledge graph), SQLite (metadata catalog) |
+| Databases | PostgreSQL 17 (auth), Neo4j 5.26 (knowledge graph), SQLite (metadata catalog), Qdrant (document embeddings, on-disk) |
+| Document intelligence | sentence-transformers (local embeddings), pypdf, python-docx, python-pptx |
 | Validation | Great Expectations |
 | Reports | openpyxl, ReportLab, python-pptx |
 | Auth | bcrypt, python-jose (JWT) |
@@ -280,11 +290,14 @@ backend/
   report.py                PDF/Excel/PPTX export
   progress_jobs.py         WebSocket progress streaming
   auth.py                  Users, JWT, bcrypt
-  catalog.py               SQLite dataset metadata store
+  catalog.py               SQLite dataset/document metadata store
+  document_intelligence.py Document chunking, embedding, Qdrant storage/search
+  document_qa.py           Retrieval-then-narrate over documents + structured findings
+  logging_config.py        Loguru setup, stdlib logging interception
   tests/                   Pytest suite
 
 frontend/
-  app/                     Next.js App Router pages (/, /login, /workspace, /catalog)
+  app/                     Next.js App Router pages (/, /login, /workspace, /catalog, /knowledge)
   components/              Dashboard panels, charts, graph explorer
   lib/                     API client, auth helpers, types
 ```
@@ -296,11 +309,21 @@ Deliberately unbuilt, stated plainly rather than silently dropped:
 - Kendall correlation, DBSCAN, community detection beyond connected
   components, a relationship timeline
 - Text-to-Cypher / natural-language graph queries
-- Three.js/React Three Fiber visualization, a full temporal event engine
-- Qdrant/LlamaIndex/GraphRAG (there's no unstructured document corpus in
-  this app to justify a vector database)
-- Hosted deployment, CI/CD, and observability (Sentry/Langfuse/
-  Prometheus+Grafana) — meaningful only once something is actually deployed
-  somewhere
-- Docker Compose is written but not yet verified with a real build (see
-  [Docker](#docker) above)
+- A full temporal event engine (beyond the graph-based impact propagation
+  in the digital twin)
+- **LangGraph**: the Knowledge Assistant's retrieval pipeline
+  (`document_qa.py`) and every other multi-step LLM pipeline in this
+  backend (`qa.py`, `autonomous_analyst.py`) are plain async functions
+  chaining a fixed sequence of steps — retrieve/compute, then one LLM
+  call narrates. None of them have the dynamic branching or multi-agent
+  handoff that would make LangGraph's orchestration model earn its
+  complexity over a function call; adopting it now would be the same
+  "framework for its own sake" pattern already declined once for the
+  same reason.
+- Real deployment (Vercel/Railway) — documented under
+  [Deployment](#deployment), not executed, since it needs your own
+  cloud accounts
+- Hosted observability (Sentry/Langfuse) — the self-hosted
+  Prometheus+Grafana stack already covers metrics/logging without
+  needing a third-party account; only worth adding on top if you
+  specifically want SaaS crash reporting or LLM-call tracing

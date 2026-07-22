@@ -1,0 +1,180 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { askDocuments, deleteDocument, listDocuments, uploadDocuments } from "@/lib/api";
+import type { AskDocumentsResponse, DocumentEntry } from "@/lib/types";
+
+export default function KnowledgePage() {
+  const [documents, setDocuments] = useState<DocumentEntry[] | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [answer, setAnswer] = useState<AskDocumentsResponse | null>(null);
+  const [askError, setAskError] = useState<string | null>(null);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const refresh = useCallback(() => {
+    listDocuments()
+      .then(setDocuments)
+      .catch((err) => setUploadError(err instanceof Error ? err.message : "Could not load documents."));
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  async function handleFiles(files: FileList | File[]) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      await uploadDocuments(Array.from(files));
+      refresh();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleDelete(docId: string) {
+    await deleteDocument(docId);
+    refresh();
+  }
+
+  async function handleAsk() {
+    if (!question.trim()) return;
+    setAsking(true);
+    setAskError(null);
+    setAnswer(null);
+    try {
+      const result = await askDocuments(question.trim());
+      setAnswer(result);
+    } catch (err) {
+      setAskError(err instanceof Error ? err.message : "Could not answer that question.");
+    } finally {
+      setAsking(false);
+    }
+  }
+
+  return (
+    <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
+      <header className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Knowledge Assistant</h1>
+          <p className="text-slate-500 mt-1 text-sm">
+            Upload PDFs, Word docs, or PowerPoint decks and ask questions across them — retrieval-then-narrate, same
+            as everywhere else: the answer is grounded only in what was actually retrieved, cited by filename.
+          </p>
+        </div>
+        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
+          &larr; Back to upload
+        </Link>
+      </header>
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={() => setDragActive(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragActive(false);
+          if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+        }}
+        onClick={() => inputRef.current?.click()}
+        className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors mb-6 ${
+          dragActive
+            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
+            : "border-slate-300 dark:border-slate-700 hover:border-indigo-400"
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept=".pdf,.docx,.pptx,.txt"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.length) handleFiles(e.target.files);
+          }}
+        />
+        <p className="text-slate-600 dark:text-slate-400 text-sm">
+          {uploading ? "Uploading and indexing…" : "Drop PDF, DOCX, PPTX, or TXT files here, or click to browse"}
+        </p>
+      </div>
+
+      {uploadError && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{uploadError}</p>}
+
+      {documents && documents.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 mb-8">
+          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Uploaded documents</h3>
+          <ul className="space-y-2">
+            {documents.map((d) => (
+              <li key={d.doc_id} className="flex items-center justify-between text-sm">
+                <span>
+                  {d.filename}{" "}
+                  <span className="text-slate-500 text-xs">
+                    ({d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}, {new Date(d.uploaded_at).toLocaleString()})
+                  </span>
+                </span>
+                <button
+                  onClick={() => handleDelete(d.doc_id)}
+                  className="text-red-600 dark:text-red-400 hover:underline text-xs"
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {documents && documents.length === 0 && (
+        <p className="text-sm text-slate-500 mb-8">No documents uploaded yet.</p>
+      )}
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+        <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Ask across your documents</h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAsk()}
+            placeholder="e.g. Why did revenue decrease last quarter?"
+            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-1.5 text-sm"
+          />
+          <button
+            onClick={handleAsk}
+            disabled={asking || !question.trim()}
+            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
+          >
+            {asking ? "Thinking…" : "Ask"}
+          </button>
+        </div>
+
+        {askError && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{askError}</p>}
+
+        {answer && (
+          <div className="mt-4 text-sm text-slate-700 dark:text-slate-300">
+            <p>{answer.answer}</p>
+            {answer.citations.length > 0 && (
+              <p className="text-xs text-slate-500 mt-2">Sources: {answer.citations.join(", ")}</p>
+            )}
+            {answer.chunks_used.length === 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                No document excerpts were retrieved for this question — upload a relevant document first.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

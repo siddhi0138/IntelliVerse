@@ -2,12 +2,14 @@ import type {
   ActionPlanResult,
   AnalyzeResponse,
   Anomaly,
+  AskDocumentsResponse,
   AskResponse,
   CatalogDetail,
   CatalogEntry,
   ColumnSchema,
   ConfirmRelationshipsResponse,
   DataQualityReport,
+  DocumentEntry,
   EntityImpactResult,
   EntityProfile,
   Forecast,
@@ -335,4 +337,39 @@ export async function runSqlQuery(analysisId: string, sql: string): Promise<Quer
     body: JSON.stringify({ sql }),
   });
   return unwrap<QueryResult>(res);
+}
+
+export async function uploadDocuments(files: File[]): Promise<{ documents: DocumentEntry[] }> {
+  const formData = new FormData();
+  for (const file of files) formData.append("files", file);
+
+  const res = await fetch(`${API_BASE}/api/documents`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: formData,
+  });
+  return unwrap<{ documents: DocumentEntry[] }>(res);
+}
+
+export async function listDocuments(): Promise<DocumentEntry[]> {
+  const res = await fetch(`${API_BASE}/api/documents`, { headers: authHeaders() });
+  const body = await unwrap<{ documents: DocumentEntry[] }>(res);
+  return body.documents;
+}
+
+export async function deleteDocument(docId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/documents/${encodeURIComponent(docId)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await unwrap<{ deleted: boolean }>(res);
+}
+
+export async function askDocuments(question: string, analysisId?: string): Promise<AskDocumentsResponse> {
+  const res = await fetch(`${API_BASE}/api/ask-documents`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ question, analysis_id: analysisId ?? null }),
+  });
+  return unwrap<AskDocumentsResponse>(res);
 }

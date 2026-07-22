@@ -511,3 +511,25 @@ export interface QueryResult {
   row_count: number;
   truncated: boolean;
 }
+
+// --- Document intelligence: RAG over uploaded documents ---------------------
+
+export interface DocumentEntry {
+  doc_id: string;
+  filename: string;
+  uploaded_at: string;
+  chunk_count: number;
+}
+
+export interface DocumentChunk {
+  filename: string;
+  chunk_index: number;
+  text: string;
+  score: number;
+}
+
+export interface AskDocumentsResponse {
+  answer: string;
+  citations: string[];
+  chunks_used: DocumentChunk[];
+}

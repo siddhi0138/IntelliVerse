@@ -26,3 +26,7 @@ python-jose[cryptography]==3.5.0
 bcrypt==5.0.0
 loguru==0.7.3
 prometheus-fastapi-instrumentator==7.1.0
+qdrant-client==1.16.1
+sentence-transformers==5.1.2
+pypdf==6.4.0
+python-docx==1.2.0
