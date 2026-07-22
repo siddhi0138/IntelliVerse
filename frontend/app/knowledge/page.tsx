@@ -7,6 +7,7 @@ import type { AskDocumentsResponse, CatalogEntry, DocumentEntry } from "@/lib/ty
 
 export default function KnowledgePage() {
   const [documents, setDocuments] = useState<DocumentEntry[] | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -34,11 +35,26 @@ export default function KnowledgePage() {
       .catch(() => {});
   }, [refresh]);
 
-  async function handleFiles(files: FileList | File[]) {
+  function addPendingFiles(files: FileList | File[]) {
+    setUploadError(null);
+    setPendingFiles((prev) => {
+      const existingKeys = new Set(prev.map((f) => `${f.name}-${f.size}`));
+      const additions = Array.from(files).filter((f) => !existingKeys.has(`${f.name}-${f.size}`));
+      return [...prev, ...additions];
+    });
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function confirmUpload() {
+    if (pendingFiles.length === 0) return;
     setUploading(true);
     setUploadError(null);
     try {
-      await uploadDocuments(Array.from(files));
+      await uploadDocuments(pendingFiles);
+      setPendingFiles([]);
       refresh();
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
@@ -91,7 +107,7 @@ export default function KnowledgePage() {
         onDrop={(e) => {
           e.preventDefault();
           setDragActive(false);
-          if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+          if (e.dataTransfer.files.length) addPendingFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
         className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors mb-6 ${
@@ -107,13 +123,46 @@ export default function KnowledgePage() {
           accept=".pdf,.docx,.pptx,.txt"
           className="hidden"
           onChange={(e) => {
-            if (e.target.files?.length) handleFiles(e.target.files);
+            if (e.target.files?.length) addPendingFiles(e.target.files);
+            e.target.value = "";
           }}
         />
         <p className="text-slate-600 dark:text-slate-400 text-sm">
           {uploading ? "Uploading and indexing…" : "Drop PDF, DOCX, PPTX, or TXT files here, or click to browse"}
         </p>
       </div>
+
+      {pendingFiles.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 mb-6">
+          <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+            Selected — not uploaded yet
+          </h3>
+          <ul className="space-y-2 mb-3">
+            {pendingFiles.map((f, i) => (
+              <li key={`${f.name}-${f.size}-${i}`} className="flex items-center justify-between text-sm">
+                <span>
+                  {f.name} <span className="text-slate-500 text-xs">({Math.ceil(f.size / 1024)} KB)</span>
+                </span>
+                <button
+                  onClick={() => removePendingFile(i)}
+                  title="Remove this file"
+                  aria-label={`Remove ${f.name}`}
+                  className="text-slate-500 hover:text-red-600 dark:hover:text-red-400 text-xs"
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            onClick={confirmUpload}
+            disabled={uploading}
+            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
+          >
+            {uploading ? "Uploading and indexing…" : `Upload ${pendingFiles.length} file${pendingFiles.length === 1 ? "" : "s"}`}
+          </button>
+        </div>
+      )}
 
       {uploadError && <p className="text-sm text-red-600 dark:text-red-400 mb-4">{uploadError}</p>}
 
