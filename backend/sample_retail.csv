@@ -1,0 +1,11 @@
+Cust_ID,Purchase_Date,Amt,Region,Category
+C001,2024-01-05,120.50,North,Electronics
+C002,2024-01-12,45.00,South,Clothing
+C003,2024-02-02,300.00,North,Electronics
+C004,2024-02-15,15.75,East,Groceries
+C005,2024-03-01,89.99,West,Clothing
+C006,2024-03-10,220.00,North,Electronics
+C007,2024-03-22,60.00,South,Groceries
+C008,2024-04-02,150.00,East,Clothing
+C009,2024-04-18,500.00,North,Electronics
+C010,2024-05-05,25.00,West,Groceries
