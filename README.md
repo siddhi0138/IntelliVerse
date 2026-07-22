@@ -1,3 +1,5 @@
+<div align="center">
+
 # 🧠 IntelliVerse
 
 **Upload anything. Understand everything.**
@@ -16,6 +18,8 @@ mapping.
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![Neo4j](https://img.shields.io/badge/Neo4j-018bff?logo=neo4j&logoColor=white)
 
+</div>
+
 ## 📚 Contents
 
 - [🎯 Design principle](#design-principle-compute-first-narrate-second)
@@ -27,7 +31,7 @@ mapping.
 - [☁️ Deployment](#deployment)
 - [🧪 Testing](#testing)
 - [📁 Project structure](#project-structure)
-- [🚧 Known limitations](#known-limitations)
+- [🤝 Contributing](#contributing)
 
 ## Design principle: compute first, narrate second
 
@@ -258,19 +262,19 @@ frontend/
   lib/            API client, auth helpers, types
 ```
 
-## Known limitations
+## Contributing
 
-Deliberately unbuilt, stated plainly rather than silently dropped:
+Contributions are welcome — this is an active, evolving project.
 
-- Kendall correlation, DBSCAN, community detection beyond connected components,
-  a relationship timeline
-- Text-to-Cypher / natural-language graph queries
-- A full temporal event engine (beyond the digital twin's graph propagation)
-- **LangGraph** — every multi-step LLM pipeline here (`qa.py`,
-  `autonomous_analyst.py`, `document_qa.py`) is a plain async function chaining
-  a fixed sequence of steps. None branch dynamically or hand off between
-  agents, so there's nothing for LangGraph's orchestration to actually do here.
-- Real deployment — documented above, not executed, since it needs your own
-  cloud accounts
-- Hosted observability (Sentry/Langfuse) — the self-hosted Prometheus+Grafana
-  stack already covers this without a third-party account
+1. Fork the repo and create a branch off `master`.
+2. Make your change, following the patterns already in the codebase (compute
+   deterministically first, let the LLM narrate second — see
+   [Design principle](#design-principle-compute-first-narrate-second)).
+3. Run the checks before opening a PR:
+   ```bash
+   cd backend && pytest
+   cd frontend && npx tsc --noEmit && npx eslint .
+   ```
+4. Open a pull request describing what changed and why.
+
+Bug reports and feature requests are just as welcome as code — open an issue.
