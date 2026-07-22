@@ -69,17 +69,15 @@ export default function KnowledgePage() {
 
   return (
     <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
-      <header className="mb-8 flex items-center justify-between">
+      <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Knowledge Assistant</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Upload PDFs, Word docs, or PowerPoint decks and ask questions across them — optionally combined with a
-            dataset&apos;s findings below. Retrieval-then-narrate, same as everywhere else: the answer is grounded
-            only in what was actually retrieved, cited by filename. This is separate from the dataset upload on the
-            main page — that&apos;s for structured CSV/Excel analysis, this is for unstructured documents.
+            Ask questions across uploaded PDFs, Word docs, and PowerPoint decks — grounded only in what&apos;s
+            retrieved, cited by filename. Optionally combine with a dataset&apos;s findings below.
           </p>
         </div>
-        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap">
+        <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline whitespace-nowrap mt-1">
           &larr; Back to upload
         </Link>
       </header>
@@ -155,18 +153,30 @@ export default function KnowledgePage() {
             <label className="block text-xs text-slate-500 mb-1">
               Also consider this dataset&apos;s findings (optional)
             </label>
-            <select
-              value={selectedDataset}
-              onChange={(e) => setSelectedDataset(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-1.5 text-sm"
-            >
-              <option value="">Documents only</option>
-              {datasets.map((d) => (
-                <option key={d.analysis_id} value={d.analysis_id}>
-                  {d.filename} ({d.domain})
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select
+                value={selectedDataset}
+                onChange={(e) => setSelectedDataset(e.target.value)}
+                className="flex-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent px-3 py-1.5 text-sm"
+              >
+                <option value="">Documents only</option>
+                {datasets.map((d) => (
+                  <option key={d.analysis_id} value={d.analysis_id}>
+                    {d.filename} ({d.domain})
+                  </option>
+                ))}
+              </select>
+              {selectedDataset && (
+                <button
+                  onClick={() => setSelectedDataset("")}
+                  title="Remove attached dataset"
+                  aria-label="Remove attached dataset"
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-sm text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
         )}
 
