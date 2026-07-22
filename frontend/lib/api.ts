@@ -1,10 +1,14 @@
 import type {
   AnalyzeResponse,
   Anomaly,
+  AskResponse,
   ColumnSchema,
+  DataQualityReport,
   Forecast,
   Insight,
+  PeriodComparison,
   Recommendation,
+  RootCauseAnalysis,
   SimulationExplanation,
   SimulationResult,
 } from "./types";
@@ -41,7 +45,10 @@ export async function fetchInsights(
   rowCount: number,
   schema: ColumnSchema[],
   anomalies: Anomaly[],
-  forecast: Forecast | null
+  forecast: Forecast | null,
+  quality: DataQualityReport | null,
+  rootCause: RootCauseAnalysis | null,
+  periodComparison: PeriodComparison | null
 ): Promise<InsightsResult> {
   const res = await fetch(`${API_BASE}/api/insights`, {
     method: "POST",
@@ -52,10 +59,28 @@ export async function fetchInsights(
       columns: schema,
       anomalies,
       forecast,
+      quality,
+      root_cause: rootCause,
+      period_comparison: periodComparison,
     }),
   });
 
   return unwrap<InsightsResult>(res);
+}
+
+export async function askQuestion(
+  analysisId: string,
+  domain: string,
+  question: string,
+  primaryMetric: string | null
+): Promise<AskResponse> {
+  const res = await fetch(`${API_BASE}/api/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_id: analysisId, domain, question, primary_metric: primaryMetric }),
+  });
+
+  return unwrap<AskResponse>(res);
 }
 
 export async function runSimulation(

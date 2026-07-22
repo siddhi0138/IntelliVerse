@@ -1,12 +1,7 @@
-"""v3: anomaly detection and forecasting.
-
-Both are deliberately simple, explainable statistics rather than trained
-models — an IQR outlier test per numeric column, and an ordinary-least-
--squares linear trend for forecasting with a residual-based uncertainty
-band. Good enough to be genuinely useful on small/medium tables, and the
-result shape (a point forecast + lower/upper bounds) is the same shape a
-fancier model (Prophet, a real ARIMA fit) would produce later without
-touching the API or frontend.
+"""Anomaly detection: row-level IQR outliers, plus time-series-aware checks
+(sudden period-over-period spikes and lag-based seasonality) over the same
+monthly-aggregated series used for forecasting. Forecasting itself lives
+in forecasting.py.
 """
 
 from __future__ import annotations
@@ -74,33 +69,67 @@ def detect_anomalies(
     return anomalies[:max_anomalies]
 
 
-def forecast_next_periods(series: list[dict[str, Any]], periods_ahead: int = 3) -> dict[str, Any]:
-    if len(series) < 3:
-        return {"history": series, "forecast": [], "method": "insufficient_data"}
+def period_over_period(series: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Compares the most recent period to the one before it."""
+    if len(series) < 2:
+        return None
+    current, previous = series[-1], series[-2]
+    delta_pct = None
+    if previous["value"] != 0:
+        delta_pct = round((current["value"] - previous["value"]) / abs(previous["value"]) * 100, 2)
+    return {
+        "current_period": current["period"],
+        "previous_period": previous["period"],
+        "current_value": current["value"],
+        "previous_value": previous["value"],
+        "delta_pct": delta_pct,
+    }
+
+
+def detect_time_series_spikes(series: list[dict[str, Any]], threshold_std: float = 2.0) -> list[dict[str, Any]]:
+    """Flags periods whose value deviates from the linear trend line by more
+    than `threshold_std` residual standard deviations — a "sudden spike"
+    check distinct from the row-level IQR test above."""
+    if len(series) < 4:
+        return []
 
     values = np.array([p["value"] for p in series], dtype=float)
     x = np.arange(len(values))
     slope, intercept = np.polyfit(x, values, 1)
     predicted = slope * x + intercept
     residuals = values - predicted
-    std = float(residuals.std()) if len(residuals) > 1 else 0.0
+    std = float(residuals.std())
+    if std == 0:
+        return []
 
-    last_period = pd.Period(series[-1]["period"], freq="M")
-    forecast = []
-    for i in range(1, periods_ahead + 1):
-        future_x = len(values) - 1 + i
-        predicted_value = float(slope * future_x + intercept)
-        forecast.append(
-            {
-                "period": str(last_period + i),
-                "value": round(predicted_value, 2),
-                "lower": round(predicted_value - 1.96 * std, 2),
-                "upper": round(predicted_value + 1.96 * std, 2),
-            }
-        )
+    spikes = []
+    for i, p in enumerate(series):
+        z = residuals[i] / std
+        if abs(z) >= threshold_std:
+            spikes.append(
+                {
+                    "period": p["period"],
+                    "value": p["value"],
+                    "expected": round(float(predicted[i]), 2),
+                    "deviation_std": round(float(z), 2),
+                    "direction": "above" if z > 0 else "below",
+                }
+            )
+    return spikes
 
-    trend = "flat"
-    if abs(slope) > 1e-9:
-        trend = "up" if slope > 0 else "down"
 
-    return {"history": series, "forecast": forecast, "method": "linear_trend", "trend": trend}
+def detect_seasonality(series: list[dict[str, Any]], lag: int = 12) -> dict[str, Any]:
+    """Lag-`lag` autocorrelation on the monthly series (default: yearly
+    seasonality). Honestly reports insufficient data rather than guessing
+    when there isn't at least two full cycles to compare."""
+    if len(series) < lag * 2:
+        return {"detected": False, "reason": "insufficient_data", "periods_available": len(series), "periods_required": lag * 2}
+
+    values = np.array([p["value"] for p in series], dtype=float)
+    a, b = values[:-lag], values[lag:]
+    if a.std() == 0 or b.std() == 0:
+        return {"detected": False, "reason": "no_variance"}
+
+    corr = float(np.corrcoef(a, b)[0, 1])
+    detected = not np.isnan(corr) and abs(corr) >= 0.5
+    return {"detected": detected, "lag": lag, "autocorrelation": round(corr, 3)}

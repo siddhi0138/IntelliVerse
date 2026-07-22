@@ -11,6 +11,11 @@ import { ForecastChart } from "@/components/ForecastChart";
 import { AnomaliesPanel } from "@/components/AnomaliesPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { DecisionSimulator } from "@/components/DecisionSimulator";
+import { DataQualityPanel } from "@/components/DataQualityPanel";
+import { RelationshipsPanel } from "@/components/RelationshipsPanel";
+import { RootCausePanel } from "@/components/RootCausePanel";
+import { RiskAlertsPanel } from "@/components/RiskAlertsPanel";
+import { AskNexus } from "@/components/AskNexus";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -51,7 +56,16 @@ export default function Home() {
       setInsightsLoading(true);
       setInsightsError(null);
       try {
-        const data = await fetchInsights(result.domain, result.row_count, result.schema, result.anomalies, result.forecast);
+        const data = await fetchInsights(
+          result.domain,
+          result.row_count,
+          result.schema,
+          result.anomalies,
+          result.forecast,
+          result.quality,
+          result.root_cause,
+          result.period_comparison
+        );
         if (!cancelled) {
           setInsights(data.insights);
           setRecommendations(data.recommendations);
@@ -132,11 +146,15 @@ export default function Home() {
             </span>
           </div>
 
+          <RiskAlertsPanel alerts={result.risk_alerts} />
+
           {result.charts
             .filter((c) => c.chart_type === "kpi")
             .map((chart) => (
               <KpiRow key={chart.id} chart={chart} />
             ))}
+
+          <AskNexus analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {result.charts
@@ -144,10 +162,13 @@ export default function Home() {
               .map((chart) => (
                 <ChartCard key={chart.id} chart={chart} />
               ))}
-            {result.forecast && <ForecastChart forecast={result.forecast} />}
+            <ForecastChart forecast={result.forecast} eligibility={result.forecast_eligibility} />
             <InsightsPanel insights={insights} loading={insightsLoading} error={insightsError} />
             <AnomaliesPanel anomalies={result.anomalies} />
             <RecommendationsPanel recommendations={recommendations} loading={insightsLoading} />
+            <DataQualityPanel quality={result.quality} />
+            <RelationshipsPanel correlations={result.correlations} associations={result.associations} />
+            <RootCausePanel rootCause={result.root_cause} />
           </div>
 
           <div>

@@ -5,3 +5,4 @@ python-multipart==0.0.20
 numpy==2.2.1
 httpx==0.28.1
 python-dotenv==1.0.1
+statsmodels==0.14.4

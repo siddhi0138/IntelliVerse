@@ -19,30 +19,37 @@ import pandas as pd
 # --- semantic label heuristics -------------------------------------------------
 
 _SEMANTIC_PATTERNS: list[tuple[str, str]] = [
-    (r"cust(omer)?[_ ]?id", "Customer ID"),
+    (r"cust(omer)?[_ ]?(id|number|no|num)?$|client[_ ]?(id|number|no)", "Customer ID"),
     (r"patient[_ ]?id", "Patient ID"),
     (r"order[_ ]?id", "Order ID"),
     (r"product[_ ]?id", "Product ID"),
-    (r"employee[_ ]?id", "Employee ID"),
+    (r"employee[_ ]?id|emp[_ ]?id|staff[_ ]?id", "Employee ID"),
     (r"student[_ ]?id", "Student ID"),
-    (r"transaction[_ ]?id", "Transaction ID"),
+    (r"transaction[_ ]?id|txn[_ ]?id", "Transaction ID"),
+    (r"invoice[_ ]?(id|number|no|num)", "Invoice ID"),
     (r"^id$|_id$|^id_", "Identifier"),
-    (r"(purchase|order|sale|created|txn|transaction)[_ ]?(date|time|at)?$", "Transaction Date"),
+    (
+        r"(purchase|order|sale|created|txn|transaction|invoice)[_ ]?(date|time|at)?$",
+        "Transaction Date",
+    ),
     (r"(admission|admit)[_ ]?date", "Admission Date"),
-    (r"^date$|_date$|date_", "Date"),
-    (r"(amt|amount|revenue|price|cost|total|fare|fee)", "Monetary Amount"),
+    (r"^date$|_date$|date_|dob|birth[_ ]?date", "Date"),
+    (r"(amt|amount|revenue|price|cost|total|fare|fee|sales|salary|wage)", "Monetary Amount"),
     (r"(margin|profit)", "Profit / Margin"),
-    (r"(region|state|country|city|geo|location)", "Geography"),
-    (r"(category|type|segment|class)$", "Category"),
+    (r"(region|state|country|city|geo|location|province|zip|postal)", "Geography"),
+    (r"(category|type|segment|class|genre)$", "Category"),
     (r"(product|item|sku)$", "Product"),
     (r"(diagnosis|condition)", "Medical Diagnosis"),
     (r"(doctor|physician)", "Care Provider"),
     (r"(department|dept)", "Department"),
-    (r"(quantity|qty|units)", "Quantity"),
-    (r"(email)", "Email"),
+    (r"(quantity|qty|units|stock|inventory)", "Quantity"),
+    (r"(email|e-mail)", "Email"),
+    (r"(phone|mobile|contact[_ ]?number)", "Phone Number"),
     (r"(name)$", "Name"),
     (r"(status)$", "Status"),
-    (r"(rating|score|satisfaction)", "Score / Rating"),
+    (r"(rating|score|satisfaction|nps)", "Score / Rating"),
+    (r"(age)$", "Age"),
+    (r"(gender|sex)$", "Gender"),
 ]
 
 # domain scoring: keyword -> industry, used as a simple weighted vote
@@ -136,11 +143,25 @@ class ColumnSchema:
     stats: dict[str, Any] = field(default_factory=dict)
 
 
+def _cardinality_label(unique_count: int, row_count: int) -> str:
+    if row_count == 0:
+        return "unknown"
+    ratio = unique_count / row_count
+    if ratio > 0.95:
+        return "unique"
+    if ratio > 0.5:
+        return "high"
+    if ratio > 0.05:
+        return "medium"
+    return "low"
+
+
 def _column_stats(series: pd.Series, col_type: ColumnType) -> dict[str, Any]:
     non_null = series.dropna()
     stats: dict[str, Any] = {
         "null_count": int(series.isna().sum()),
         "unique_count": int(non_null.nunique()),
+        "cardinality": _cardinality_label(non_null.nunique(), len(series)),
     }
 
     if col_type == "numeric":
@@ -218,12 +239,21 @@ def suggest_charts(df: pd.DataFrame, schema: list[ColumnSchema]) -> list[ChartSp
     numeric_cols = [c for c in schema if c.type == "numeric"]
     categorical_cols = [c for c in schema if c.type == "categorical"]
     date_cols = [c for c in schema if c.type == "date"]
+    id_cols = [c for c in schema if c.type == "id"]
 
-    # KPI row: row count + sum/mean of first few numeric columns
+    # KPI row: row count, unique-entity count (only if an id column exists),
+    # and sum/average of the first couple of numeric columns. Every KPI here
+    # is only emitted because a matching column was actually detected —
+    # never invented for a domain the data doesn't support.
     kpi_data = [{"label": "Rows", "value": len(df)}]
-    for col in numeric_cols[:3]:
+    if id_cols:
+        primary_id = id_cols[0]
+        kpi_data.append({"label": f"Unique {primary_id.semantic_label}s", "value": primary_id.stats["unique_count"]})
+    for col in numeric_cols[:2]:
         if "sum" in col.stats:
             kpi_data.append({"label": f"Total {col.semantic_label}", "value": round(col.stats["sum"], 2)})
+        if "mean" in col.stats:
+            kpi_data.append({"label": f"Average {col.semantic_label}", "value": round(col.stats["mean"], 2)})
     charts.append(ChartSpec(id="kpi-overview", title="Overview", chart_type="kpi", data=kpi_data))
 
     # bar chart per categorical column (top values)

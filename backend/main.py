@@ -11,9 +11,14 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from analytics import detect_anomalies, forecast_next_periods
+from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
+from forecasting import check_forecast_eligibility, select_and_forecast
 from graph_builder import build_knowledge_graph
 from insights import InsightsUnavailable, generate_insights, generate_simulation_explanation
+from profiling import build_quality_report
+from qa import answer_question
+from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
+from risk_alerts import generate_risk_alerts
 from schema_inference import ColumnSchema, build_schema, guess_domain, monthly_series, suggest_charts
 from simulation import CorrelationRegressionEngine, build_decision_actions
 
@@ -76,15 +81,41 @@ async def analyze(file: UploadFile) -> dict:
     date_cols = [c for c in schema if c.type == "date"]
     numeric_cols = [c for c in schema if c.type == "numeric"]
     id_cols = [c for c in schema if c.type == "id"]
+    primary_metric = numeric_cols[0].name if numeric_cols else None
+
+    # v1 backfill: data quality profiling (duplicates, invalid values, score, recommendations)
+    quality = build_quality_report(df, schema)
+
+    # v3: forecast eligibility is always reported, even when there's no date
+    # column at all, so the frontend can explain *why* instead of just
+    # showing nothing.
+    forecast_eligibility = check_forecast_eligibility(
+        has_date_column=bool(date_cols),
+        has_numeric_column=bool(numeric_cols),
+        series_length=0,
+    )
 
     forecast = None
+    monthly = []
     if date_cols and numeric_cols:
-        series = monthly_series(df, date_cols[0].name, numeric_cols[0].name)
-        if series:
-            forecast = forecast_next_periods(series)
+        monthly = monthly_series(df, date_cols[0].name, numeric_cols[0].name)
+        forecast_eligibility = check_forecast_eligibility(True, True, len(monthly))
+        if forecast_eligibility["eligible"]:
+            forecast = select_and_forecast(monthly)
             forecast["column"] = numeric_cols[0].semantic_label
 
     anomalies = detect_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
+    time_series_spikes = detect_time_series_spikes(monthly) if monthly else []
+    seasonality = detect_seasonality(monthly) if monthly else {"detected": False, "reason": "no_time_series"}
+    period_comparison = period_over_period(monthly) if monthly else None
+
+    # v2 backfill: relationship discovery + root cause
+    correlations = numeric_correlations(df, schema)
+    associations = categorical_associations(df, schema)
+    root_cause = root_cause_breakdown(df, schema, primary_metric) if primary_metric else None
+
+    # v3 backfill: deterministic risk alerts from the forecast + root cause
+    risk_alerts = generate_risk_alerts(forecast, root_cause)
 
     analysis_id = str(uuid.uuid4())
     _ANALYSIS_DF_CACHE[analysis_id] = df
@@ -99,10 +130,19 @@ async def analyze(file: UploadFile) -> dict:
         "schema": [asdict(c) for c in schema],
         "charts": [asdict(c) for c in charts],
         "graph": asdict(graph),
+        "quality": asdict(quality),
         "forecast": forecast,
+        "forecast_eligibility": forecast_eligibility,
         "anomalies": anomalies,
+        "time_series_spikes": time_series_spikes,
+        "seasonality": seasonality,
+        "period_comparison": period_comparison,
+        "correlations": [asdict(c) for c in correlations],
+        "associations": [asdict(a) for a in associations],
+        "root_cause": asdict(root_cause) if root_cause else None,
+        "risk_alerts": risk_alerts,
         "decisions": build_decision_actions(schema),
-        "primary_metric": numeric_cols[0].name if numeric_cols else None,
+        "primary_metric": primary_metric,
     }
 
 
@@ -112,12 +152,45 @@ class InsightsRequest(BaseModel):
     columns: list[dict]
     anomalies: list[dict] = []
     forecast: dict | None = None
+    quality: dict | None = None
+    root_cause: dict | None = None
+    period_comparison: dict | None = None
 
 
 @app.post("/api/insights")
 async def insights(req: InsightsRequest) -> dict:
     try:
-        result = await generate_insights(req.domain, req.row_count, req.columns, req.anomalies, req.forecast)
+        result = await generate_insights(
+            req.domain,
+            req.row_count,
+            req.columns,
+            req.anomalies,
+            req.forecast,
+            req.quality,
+            req.root_cause,
+            req.period_comparison,
+        )
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return result
+
+
+class AskRequest(BaseModel):
+    analysis_id: str
+    domain: str
+    question: str
+    primary_metric: str | None = None
+
+
+@app.post("/api/ask")
+async def ask(req: AskRequest) -> dict:
+    df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
+    schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
+    if df is None or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+
+    try:
+        result = await answer_question(df, schema, req.domain, req.question, req.primary_metric)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result

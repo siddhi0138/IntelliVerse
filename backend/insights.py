@@ -40,6 +40,9 @@ def _summarize_for_prompt(
     schema: list[dict],
     anomalies: list[dict],
     forecast: dict | None,
+    quality: dict | None = None,
+    root_cause: dict | None = None,
+    period_comparison: dict | None = None,
 ) -> str:
     lines = [f"Domain guess: {domain}", f"Row count: {row_count}", "Columns:"]
     for col in schema:
@@ -59,17 +62,40 @@ def _summarize_for_prompt(
         stat_bits.append(f"nulls={stats.get('null_count', 0)}")
         lines.append(f"- {col['semantic_label']} ({col['name']}, {col['type']}): {', '.join(stat_bits)}")
 
+    if quality:
+        lines.append(
+            f"\nData quality score: {quality['score']}/100 "
+            f"({quality['duplicate_row_count']} duplicate rows, {len(quality.get('invalid_values', []))} invalid-value issues)."
+        )
+
+    if period_comparison and period_comparison.get("delta_pct") is not None:
+        lines.append(
+            f"\nMost recent period ({period_comparison['current_period']}) vs previous "
+            f"({period_comparison['previous_period']}): {period_comparison['delta_pct']}% change."
+        )
+
+    if root_cause and root_cause.get("dimensions"):
+        lines.append(f"\nRoot cause breakdown for {root_cause['metric_label']} (variance explained, association only):")
+        for d in root_cause["dimensions"][:3]:
+            lines.append(
+                f"- {d['dimension_label']} explains {d['variance_explained_pct']}% of variance "
+                f"(top segment: {d['top_segment']})"
+            )
+
     if anomalies:
         lines.append("\nDetected statistical outliers (IQR method):")
         for a in anomalies[:8]:
             lines.append(f"- {a['semantic_label']} = {a['value']} ({a['direction']} normal range, row {a['row']})")
 
     if forecast and forecast.get("forecast"):
-        lines.append(f"\nForecast for {forecast.get('column', 'primary metric')}: trending {forecast.get('trend')}.")
+        method = forecast.get("method", "linear_trend")
+        lines.append(f"\nForecast for {forecast.get('column', 'primary metric')}: trending {forecast.get('trend')} (model: {method}).")
         next_point = forecast["forecast"][0]
         lines.append(
             f"Next period projected at {next_point['value']} (range {next_point['lower']} to {next_point['upper']})."
         )
+        if forecast.get("validation"):
+            lines.append(f"Validation metrics: {forecast['validation']['metrics']}.")
 
     return "\n".join(lines)
 
@@ -78,7 +104,7 @@ class InsightsUnavailable(Exception):
     pass
 
 
-async def _call_llm_json(system_prompt: str, user_content: str) -> dict:
+async def call_llm_json(system_prompt: str, user_content: str) -> dict:
     if not LLM_API_KEY:
         raise InsightsUnavailable("No FREELLMAPI_API_KEY configured on the backend.")
 
@@ -117,9 +143,14 @@ async def generate_insights(
     schema: list[dict],
     anomalies: list[dict] | None = None,
     forecast: dict | None = None,
+    quality: dict | None = None,
+    root_cause: dict | None = None,
+    period_comparison: dict | None = None,
 ) -> dict:
-    summary = _summarize_for_prompt(domain, row_count, schema, anomalies or [], forecast)
-    parsed = await _call_llm_json(_SYSTEM_PROMPT, summary)
+    summary = _summarize_for_prompt(
+        domain, row_count, schema, anomalies or [], forecast, quality, root_cause, period_comparison
+    )
+    parsed = await call_llm_json(_SYSTEM_PROMPT, summary)
     return {
         "insights": parsed.get("insights", []),
         "recommendations": parsed.get("recommendations", []),
@@ -159,7 +190,7 @@ def _summarize_simulation_for_prompt(domain: str, simulation: dict) -> str:
 
 async def generate_simulation_explanation(domain: str, simulation: dict) -> dict:
     summary = _summarize_simulation_for_prompt(domain, simulation)
-    parsed = await _call_llm_json(_SIMULATION_SYSTEM_PROMPT, summary)
+    parsed = await call_llm_json(_SIMULATION_SYSTEM_PROMPT, summary)
     return {
         "summary": parsed.get("summary", ""),
         "assumptions": parsed.get("assumptions", []),
