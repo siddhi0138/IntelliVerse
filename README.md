@@ -643,6 +643,28 @@ that don't:
   Prophet/shap needing a source compile if no prebuilt wheel matches
   `python:3.11-slim` — that's the first thing to check if a build fails.
 
-Still pending your decision: auth scope (full login wall vs. a lighter
-single API-token model), which determines whether every endpoint gets a
-`Depends()` auth check and the frontend gets a login screen.
+- **Auth** (`backend/auth.py`) — full login wall, per your choice of
+  option 1: Postgres-backed `users` table, bcrypt-hashed passwords, JWT
+  bearer tokens. Every endpoint except `/api/health` and
+  `/api/auth/{register,login}` requires a valid token, enforced by a
+  single `APIRouter(dependencies=[Depends(get_current_user)])` rather
+  than decorating each endpoint individually. Frontend has a real
+  `/login` page (register + sign in) and an `AuthGuard` wrapping the
+  root layout that redirects unauthenticated visits. Dropped passlib in
+  favor of calling `bcrypt` directly after hitting a real incompatibility
+  (passlib 1.7.4's bcrypt backend reads an attribute bcrypt>=4.1 removed).
+  Verified with a real browser end-to-end: redirect-when-signed-out,
+  register, authenticated upload/analyze/report-download, sign-out,
+  re-lock — all confirmed via Playwright, plus direct HTTP/WS checks for
+  every 401 path. This is also Postgres's first real use in the app;
+  `docker-compose.yml`'s backend service now points `POSTGRES_DSN` at
+  the compose network's `postgres` service instead of leaving it unused.
+
+Nothing from the "build this now" list is outstanding. Declined-pending-
+external-accounts items are unchanged from before: Clerk vs. this custom
+auth (moot now), a real deployment target (Vercel/Railway/AWS — needs
+your own account), Qdrant/Sentry/Langfuse/Prometheus+Grafana (only
+meaningful once something is actually deployed), and the heavier V6/V7
+spec items (Three.js, LangGraph, full Qdrant/LlamaIndex/GraphRAG stack)
+that were explicitly scoped down to leaner equivalents at the time, with
+your sign-off, rather than left undone.
