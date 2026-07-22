@@ -16,6 +16,25 @@ export interface ChartSpec {
   data: Record<string, unknown>[];
 }
 
+export type GraphNodeType = "root" | "entity" | "dimension" | "time" | "measure";
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  node_type: GraphNodeType;
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+}
+
+export interface KnowledgeGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
 export interface AnalyzeResponse {
   filename: string;
   row_count: number;
@@ -23,4 +42,11 @@ export interface AnalyzeResponse {
   domain: string;
   schema: ColumnSchema[];
   charts: ChartSpec[];
+  graph: KnowledgeGraph;
+}
+
+export interface Insight {
+  title: string;
+  description: string;
+  confidence: "high" | "medium" | "low";
 }

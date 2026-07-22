@@ -1,21 +1,31 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { analyzeFile } from "@/lib/api";
-import type { AnalyzeResponse } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { analyzeFile, fetchInsights } from "@/lib/api";
+import type { AnalyzeResponse, Insight } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
+import { InsightsPanel } from "@/components/InsightsPanel";
+import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);
     setError(null);
+    setResult(null);
+    setInsights(null);
+    setInsightsError(null);
     try {
       const data = await analyzeFile(file);
       setResult(data);
@@ -25,6 +35,28 @@ export default function Home() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (!result) return;
+    let cancelled = false;
+    setInsightsLoading(true);
+    setInsightsError(null);
+    fetchInsights(result.domain, result.row_count, result.schema)
+      .then((data) => {
+        if (!cancelled) setInsights(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setInsightsError(err instanceof Error ? err.message : "Could not generate insights.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -99,6 +131,12 @@ export default function Home() {
               .map((chart) => (
                 <ChartCard key={chart.id} chart={chart} />
               ))}
+            <InsightsPanel insights={insights} loading={insightsLoading} error={insightsError} />
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Knowledge graph</h3>
+            <KnowledgeGraph graph={result.graph} />
           </div>
 
           <div>

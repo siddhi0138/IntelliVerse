@@ -1,10 +1,17 @@
 import io
 from dataclasses import asdict
 
+from dotenv import load_dotenv
+
+load_dotenv()  # must run before `insights` reads FREELLMAPI_* env vars at import time
+
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
+from graph_builder import build_knowledge_graph
+from insights import InsightsUnavailable, generate_insights
 from schema_inference import build_schema, guess_domain, suggest_charts
 
 app = FastAPI(title="NEXUS API", version="0.1.0")
@@ -53,6 +60,7 @@ async def analyze(file: UploadFile) -> dict:
     schema = build_schema(df)
     charts = suggest_charts(df, schema)
     domain = guess_domain(list(df.columns))
+    graph = build_knowledge_graph(schema, domain)
 
     return {
         "filename": file.filename,
@@ -61,4 +69,20 @@ async def analyze(file: UploadFile) -> dict:
         "domain": domain,
         "schema": [asdict(c) for c in schema],
         "charts": [asdict(c) for c in charts],
+        "graph": asdict(graph),
     }
+
+
+class InsightsRequest(BaseModel):
+    domain: str
+    row_count: int
+    columns: list[dict]
+
+
+@app.post("/api/insights")
+async def insights(req: InsightsRequest) -> dict:
+    try:
+        result = await generate_insights(req.domain, req.row_count, req.columns)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"insights": result}
