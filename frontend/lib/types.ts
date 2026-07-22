@@ -4,6 +4,7 @@ export interface ColumnSchema {
   name: string;
   type: ColumnType;
   semantic_label: string;
+  confidence: number;
   stats: Record<string, unknown>;
 }
 
@@ -175,6 +176,7 @@ export interface AnalyzeResponse {
   filename: string;
   row_count: number;
   column_count: number;
+  memory_usage_bytes: number;
   domain: string;
   schema: ColumnSchema[];
   charts: ChartSpec[];
@@ -236,4 +238,14 @@ export interface SimulationResult {
 export interface SimulationExplanation {
   summary: string;
   assumptions: string[];
+}
+
+export interface CatalogEntry {
+  analysis_id: string;
+  filename: string;
+  uploaded_at: string;
+  row_count: number;
+  column_count: number;
+  domain: string;
+  quality_score: number;
 }

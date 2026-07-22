@@ -2,6 +2,7 @@ import type {
   AnalyzeResponse,
   Anomaly,
   AskResponse,
+  CatalogEntry,
   ColumnSchema,
   DataQualityReport,
   Forecast,
@@ -105,4 +106,36 @@ export async function explainSimulation(domain: string, simulation: SimulationRe
   });
 
   return unwrap<SimulationExplanation>(res);
+}
+
+export async function fetchDatasetSummary(
+  domain: string,
+  rowCount: number,
+  columnCount: number,
+  schema: ColumnSchema[],
+  quality: DataQualityReport | null
+): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/summary`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, row_count: rowCount, column_count: columnCount, columns: schema, quality }),
+  });
+
+  const body = await unwrap<{ summary: string }>(res);
+  return body.summary;
+}
+
+export async function listDatasets(): Promise<CatalogEntry[]> {
+  const res = await fetch(`${API_BASE}/api/datasets`);
+  const body = await unwrap<{ datasets: CatalogEntry[] }>(res);
+  return body.datasets;
+}
+
+export async function updateSemanticLabel(analysisId: string, columnName: string, label: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(analysisId)}/columns/${encodeURIComponent(columnName)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label }),
+  });
+  await unwrap<{ updated: boolean }>(res);
 }

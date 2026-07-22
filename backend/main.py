@@ -12,9 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
+import catalog
 from forecasting import check_forecast_eligibility, select_and_forecast
 from graph_builder import build_knowledge_graph
-from insights import InsightsUnavailable, generate_insights, generate_simulation_explanation
+from insights import InsightsUnavailable, generate_dataset_summary, generate_insights, generate_simulation_explanation
 from profiling import build_quality_report
 from qa import answer_question
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
@@ -121,11 +122,22 @@ async def analyze(file: UploadFile) -> dict:
     _ANALYSIS_DF_CACHE[analysis_id] = df
     _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
 
+    catalog.save_dataset(
+        analysis_id=analysis_id,
+        filename=file.filename or "upload",
+        row_count=len(df),
+        column_count=len(df.columns),
+        domain=domain,
+        quality_score=quality.score,
+        schema=schema,
+    )
+
     return {
         "analysis_id": analysis_id,
         "filename": file.filename,
         "row_count": len(df),
         "column_count": len(df.columns),
+        "memory_usage_bytes": int(df.memory_usage(deep=True).sum()),
         "domain": domain,
         "schema": [asdict(c) for c in schema],
         "charts": [asdict(c) for c in charts],
@@ -227,3 +239,56 @@ async def explain_simulation(req: ExplainSimulationRequest) -> dict:
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result
+
+
+class SummaryRequest(BaseModel):
+    domain: str
+    row_count: int
+    column_count: int
+    columns: list[dict]
+    quality: dict | None = None
+
+
+@app.post("/api/summary")
+async def dataset_summary(req: SummaryRequest) -> dict:
+    try:
+        summary = await generate_dataset_summary(req.domain, req.row_count, req.column_count, req.columns, req.quality)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"summary": summary}
+
+
+@app.get("/api/datasets")
+def list_datasets() -> dict:
+    return {"datasets": catalog.list_datasets()}
+
+
+@app.get("/api/datasets/{analysis_id}")
+def get_dataset(analysis_id: str) -> dict:
+    record = catalog.get_dataset(analysis_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Dataset not found in catalog.")
+    return record
+
+
+class UpdateLabelRequest(BaseModel):
+    label: str
+
+
+@app.patch("/api/datasets/{analysis_id}/columns/{column_name}")
+def update_column_label(analysis_id: str, column_name: str, req: UpdateLabelRequest) -> dict:
+    updated = catalog.update_semantic_label(analysis_id, column_name, req.label)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Dataset or column not found.")
+
+    # keep the live in-memory session (if still cached) consistent with the
+    # correction, so simulate/insights/ask reflect it without a re-upload
+    schema = _ANALYSIS_SCHEMA_CACHE.get(analysis_id)
+    if schema:
+        for col in schema:
+            if col.name == column_name:
+                col.semantic_label = req.label
+                col.confidence = 1.0
+                break
+
+    return {"updated": True}

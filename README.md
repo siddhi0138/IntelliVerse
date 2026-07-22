@@ -201,3 +201,36 @@ gaps — closed here without changing anything already built:
   deterministically from the forecast trend and validation MAPE (turned
   into a confidence %), plus the root-cause breakdown for the same
   metric when available for a "primary driver." Not LLM-generated.
+
+## v1 backfill, round 2: confidence, catalog, dataset summary
+
+A third, still-more-detailed spec pass surfaced a few more gaps, closed here:
+
+- **Median and standard deviation** added to every numeric column's stats
+  (alongside the existing min/max/mean/sum), and a **"Percentage"**
+  semantic label for columns named like `discount_pct` / `growth_rate`.
+- **Confidence scores on semantic labels** — a regex pattern match is
+  0.9, a fallback to title-casing the raw column name (no pattern
+  matched) is 0.4. The label is a suggestion, not a fact, and the
+  frontend shows the confidence next to it.
+- **Editable semantic labels** — click any inferred label in the schema
+  table to correct it. `PATCH /api/datasets/{id}/columns/{name}` persists
+  the correction (confidence jumps to 1.0) and also patches the live
+  in-session cache, so simulate/insights/ask reflect it immediately
+  without a re-upload.
+- **Metadata Catalog** (`backend/catalog.py`) — the first real
+  persistence layer in NEXUS, using SQLite (stdlib, no extra service —
+  matches the local-first pattern everything else here follows). Stores
+  dataset metadata (filename, upload time, row/column count, domain,
+  quality score, full schema including any label corrections) so it
+  survives a restart. **Scope limit, stated plainly**: this stores
+  metadata, not the raw uploaded file or its DataFrame — the `/catalog`
+  page lets you review and correct past analyses, but re-running charts
+  or simulations against an old entry still requires re-uploading that
+  file, since the in-memory DataFrame cache (`_ANALYSIS_DF_CACHE`) is
+  separate and ephemeral by design.
+- **AI Dataset Summary** (`POST /api/summary`) — a single grounded
+  overview paragraph (what the data appears to contain, its size, the
+  quality score, what kind of analysis the columns support), distinct
+  from the bullet-point insights list — same "compute first, LLM
+  narrates only what's given" rule as everywhere else.

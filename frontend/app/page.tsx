@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { analyzeFile, fetchInsights } from "@/lib/api";
 import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
@@ -16,6 +17,7 @@ import { RelationshipsPanel } from "@/components/RelationshipsPanel";
 import { RootCausePanel } from "@/components/RootCausePanel";
 import { RiskAlertsPanel } from "@/components/RiskAlertsPanel";
 import { AskNexus } from "@/components/AskNexus";
+import { DatasetSummaryPanel } from "@/components/DatasetSummaryPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -94,9 +96,14 @@ export default function Home() {
 
   return (
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-10">
-        <h1 className="text-3xl font-semibold tracking-tight">NEXUS</h1>
-        <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
+      <header className="mb-10 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">NEXUS</h1>
+          <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
+        </div>
+        <Link href="/catalog" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
+          Dataset catalog &rarr;
+        </Link>
       </header>
 
       <div
@@ -146,6 +153,14 @@ export default function Home() {
             </span>
           </div>
 
+          <DatasetSummaryPanel
+            domain={result.domain}
+            rowCount={result.row_count}
+            columnCount={result.column_count}
+            schema={result.schema}
+            quality={result.quality}
+          />
+
           <RiskAlertsPanel alerts={result.risk_alerts} />
 
           {result.charts
@@ -192,7 +207,7 @@ export default function Home() {
 
           <div>
             <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">Detected schema</h3>
-            <SchemaTable schema={result.schema} />
+            <SchemaTable key={result.analysis_id} schema={result.schema} analysisId={result.analysis_id} />
           </div>
         </div>
       )}

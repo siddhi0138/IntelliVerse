@@ -50,6 +50,7 @@ _SEMANTIC_PATTERNS: list[tuple[str, str]] = [
     (r"(rating|score|satisfaction|nps)", "Score / Rating"),
     (r"(age)$", "Age"),
     (r"(gender|sex)$", "Gender"),
+    (r"(percent|pct|_rate$|ratio)", "Percentage"),
 ]
 
 # domain scoring: keyword -> industry, used as a simple weighted vote
@@ -63,12 +64,17 @@ _DOMAIN_KEYWORDS: dict[str, list[str]] = {
 }
 
 
-def _guess_semantic_label(col_name: str) -> str | None:
+def _guess_semantic_label(col_name: str) -> tuple[str | None, float]:
+    """Returns (label, confidence). A regex pattern match is a real,
+    reviewable guess (confidence 0.9); falling back to a title-cased raw
+    column name is not real understanding, just formatting (confidence 0.4)
+    — the label is a suggestion, not a fact, and the frontend surfaces this
+    so a user can correct it."""
     lowered = col_name.strip().lower()
     for pattern, label in _SEMANTIC_PATTERNS:
         if re.search(pattern, lowered):
-            return label
-    return None
+            return label, 0.9
+    return None, 0.4
 
 
 def guess_domain(columns: list[str]) -> str:
@@ -140,6 +146,7 @@ class ColumnSchema:
     name: str
     type: ColumnType
     semantic_label: str
+    confidence: float = 0.9
     stats: dict[str, Any] = field(default_factory=dict)
 
 
@@ -175,6 +182,8 @@ def _column_stats(series: pd.Series, col_type: ColumnType) -> dict[str, Any]:
                     "min": float(numeric.min()),
                     "max": float(numeric.max()),
                     "mean": float(numeric.mean()),
+                    "median": float(numeric.median()),
+                    "std": float(numeric.std()) if len(numeric) > 1 else 0.0,
                     "sum": float(numeric.sum()),
                 }
             )
@@ -198,9 +207,10 @@ def build_schema(df: pd.DataFrame) -> list[ColumnSchema]:
     schema: list[ColumnSchema] = []
     for col in df.columns:
         col_type = _infer_column_type(df[col], col)
-        semantic = _guess_semantic_label(col) or col.replace("_", " ").title()
+        guessed_label, confidence = _guess_semantic_label(col)
+        semantic = guessed_label or col.replace("_", " ").title()
         stats = _column_stats(df[col], col_type)
-        schema.append(ColumnSchema(name=col, type=col_type, semantic_label=semantic, stats=stats))
+        schema.append(ColumnSchema(name=col, type=col_type, semantic_label=semantic, confidence=confidence, stats=stats))
     return schema
 
 

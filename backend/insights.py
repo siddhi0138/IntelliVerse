@@ -195,3 +195,41 @@ async def generate_simulation_explanation(domain: str, simulation: dict) -> dict
         "summary": parsed.get("summary", ""),
         "assumptions": parsed.get("assumptions", []),
     }
+
+
+_DATASET_SUMMARY_SYSTEM_PROMPT = """You write a single concise overview paragraph (4-6 \
+sentences) describing an uploaded dataset, using ONLY the computed statistics given — never \
+invent facts, time ranges, or business context not present in the data. Mention: what the \
+data appears to contain, its size, the data quality score, the most notable quality issue (if \
+any), and what kind of analysis the detected columns support (e.g. time-series, segmentation).
+
+Respond with strict JSON only, no markdown fences: {"summary": "the paragraph"}"""
+
+
+def _summarize_dataset_for_prompt(
+    domain: str, row_count: int, column_count: int, schema: list[dict], quality: dict | None
+) -> str:
+    lines = [
+        f"Domain guess: {domain}",
+        f"Rows: {row_count}, Columns: {column_count}",
+        "Columns: " + ", ".join(f"{c['semantic_label']} ({c['type']})" for c in schema),
+    ]
+    date_cols = [c for c in schema if c["type"] == "date" and "min_date" in c.get("stats", {})]
+    if date_cols:
+        d = date_cols[0]["stats"]
+        lines.append(f"Date range ({date_cols[0]['semantic_label']}): {d['min_date']} to {d['max_date']}")
+    if quality:
+        lines.append(
+            f"Data quality score: {quality['score']}/100, "
+            f"{quality['duplicate_row_count']} duplicate rows, "
+            f"{len(quality.get('invalid_values', []))} invalid-value issue(s)."
+        )
+    return "\n".join(lines)
+
+
+async def generate_dataset_summary(
+    domain: str, row_count: int, column_count: int, schema: list[dict], quality: dict | None
+) -> str:
+    summary = _summarize_dataset_for_prompt(domain, row_count, column_count, schema, quality)
+    parsed = await call_llm_json(_DATASET_SUMMARY_SYSTEM_PROMPT, summary)
+    return parsed.get("summary", "")
