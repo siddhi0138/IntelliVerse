@@ -12,13 +12,14 @@ load_dotenv()  # must run before `insights` reads FREELLMAPI_* env vars at impor
 import networkx as nx
 import pandas as pd
 import polars as pl
-from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
 from anomalies_ml import detect_multivariate_anomalies
+from auth import AuthError, authenticate_user, create_access_token, create_user, decode_access_token
 import catalog
 from clustering import cluster_rows
 from distributions import analyze_distributions
@@ -58,6 +59,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_current_user(
+    authorization: str | None = Header(default=None),
+    token: str | None = Query(default=None),
+) -> str:
+    # `token` query param exists for the one endpoint a plain <a href>
+    # download link hits (/report) — browsers can't attach a custom header
+    # to a navigation-triggered download, same reasoning as the WS handshake.
+    bearer = None
+    if authorization and authorization.lower().startswith("bearer "):
+        bearer = authorization.split(" ", 1)[1]
+    elif token:
+        bearer = token
+    if not bearer:
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header.")
+    try:
+        return decode_access_token(bearer)
+    except AuthError as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+
+# Every data-bearing endpoint requires a valid JWT; only /api/health and
+# /api/auth/* stay on the bare `app` router, unauthenticated.
+protected = APIRouter(dependencies=[Depends(get_current_user)])
 
 # In-memory, single-process cache so /api/simulate can re-use the parsed
 # DataFrame without re-uploading the file. Fine for a local single-user dev
@@ -106,6 +132,29 @@ def _read_dataframe(filename: str, content: bytes) -> pd.DataFrame:
 @app.get("/api/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+class AuthRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/api/auth/register")
+def register(req: AuthRequest) -> dict:
+    if len(req.username.strip()) < 3 or len(req.password) < 8:
+        raise HTTPException(status_code=400, detail="Username must be 3+ chars, password 8+ chars.")
+    try:
+        create_user(req.username.strip(), req.password)
+    except AuthError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
+
+
+@app.post("/api/auth/login")
+def login(req: AuthRequest) -> dict:
+    if not authenticate_user(req.username.strip(), req.password):
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
 
 
 def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None] = lambda step: None) -> dict:
@@ -242,13 +291,13 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
     return response
 
 
-@app.post("/api/analyze")
+@protected.post("/api/analyze")
 async def analyze(file: UploadFile) -> dict:
     content = await file.read()
     return _run_analysis(file.filename or "upload.csv", content)
 
 
-@app.post("/api/analyze/start")
+@protected.post("/api/analyze/start")
 async def start_analyze_job(file: UploadFile) -> dict:
     """Kicks off analysis in a background thread and returns a job_id to
     watch over WS /ws/analyze/{job_id} for live step-by-step progress —
@@ -273,6 +322,19 @@ async def start_analyze_job(file: UploadFile) -> dict:
 
 @app.websocket("/ws/analyze/{job_id}")
 async def analyze_progress_ws(websocket: WebSocket, job_id: str) -> None:
+    # Browsers can't set a custom Authorization header on the WS handshake,
+    # so the token travels as a query param instead — same JWT, same
+    # decode_access_token() check as every other endpoint.
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        decode_access_token(token)
+    except AuthError:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
     job = get_job(job_id)
     if job is None:
@@ -306,7 +368,7 @@ class InsightsRequest(BaseModel):
     period_comparison: dict | None = None
 
 
-@app.post("/api/insights")
+@protected.post("/api/insights")
 async def insights(req: InsightsRequest) -> dict:
     try:
         result = await generate_insights(
@@ -331,7 +393,7 @@ class AskRequest(BaseModel):
     primary_metric: str | None = None
 
 
-@app.post("/api/ask")
+@protected.post("/api/ask")
 async def ask(req: AskRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
@@ -351,7 +413,7 @@ class SimulateRequest(BaseModel):
     pct_change: float
 
 
-@app.post("/api/simulate")
+@protected.post("/api/simulate")
 def simulate(req: SimulateRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
@@ -369,7 +431,7 @@ class ExplainSimulationRequest(BaseModel):
     simulation: dict
 
 
-@app.post("/api/simulate/explain")
+@protected.post("/api/simulate/explain")
 async def explain_simulation(req: ExplainSimulationRequest) -> dict:
     try:
         result = await generate_simulation_explanation(req.domain, req.simulation)
@@ -383,7 +445,7 @@ class ForecastRequest(BaseModel):
     column: str
 
 
-@app.post("/api/forecast")
+@protected.post("/api/forecast")
 def forecast_column(req: ForecastRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
@@ -413,7 +475,7 @@ class ExplainForecastRequest(BaseModel):
     forecast: dict
 
 
-@app.post("/api/forecast/explain")
+@protected.post("/api/forecast/explain")
 async def explain_forecast(req: ExplainForecastRequest) -> dict:
     try:
         summary = await generate_forecast_explanation(req.domain, req.forecast)
@@ -430,7 +492,7 @@ class SummaryRequest(BaseModel):
     quality: dict | None = None
 
 
-@app.post("/api/summary")
+@protected.post("/api/summary")
 async def dataset_summary(req: SummaryRequest) -> dict:
     try:
         summary = await generate_dataset_summary(req.domain, req.row_count, req.column_count, req.columns, req.quality)
@@ -439,12 +501,12 @@ async def dataset_summary(req: SummaryRequest) -> dict:
     return {"summary": summary}
 
 
-@app.get("/api/datasets")
+@protected.get("/api/datasets")
 def list_datasets() -> dict:
     return {"datasets": catalog.list_datasets()}
 
 
-@app.get("/api/datasets/{analysis_id}")
+@protected.get("/api/datasets/{analysis_id}")
 def get_dataset(analysis_id: str) -> dict:
     record = catalog.get_dataset(analysis_id)
     if record is None:
@@ -456,7 +518,7 @@ class UpdateLabelRequest(BaseModel):
     label: str
 
 
-@app.patch("/api/datasets/{analysis_id}/columns/{column_name}")
+@protected.patch("/api/datasets/{analysis_id}/columns/{column_name}")
 def update_column_label(analysis_id: str, column_name: str, req: UpdateLabelRequest) -> dict:
     updated = catalog.update_semantic_label(analysis_id, column_name, req.label)
     if not updated:
@@ -483,7 +545,7 @@ def _table_name_from_filename(filename: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", name)
 
 
-@app.post("/api/workspace")
+@protected.post("/api/workspace")
 async def create_workspace(files: list[UploadFile]) -> dict:
     if not files:
         raise HTTPException(status_code=400, detail="Upload at least one file.")
@@ -549,7 +611,7 @@ class ConfirmRelationshipsRequest(BaseModel):
     relationships: list[RelationshipInput]
 
 
-@app.post("/api/workspace/{workspace_id}/relationships")
+@protected.post("/api/workspace/{workspace_id}/relationships")
 def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -> dict:
     tables = _WORKSPACE_TABLES_CACHE.get(workspace_id)
     schemas = _WORKSPACE_SCHEMAS_CACHE.get(workspace_id)
@@ -577,7 +639,7 @@ def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -
     }
 
 
-@app.get("/api/workspace/{workspace_id}/graph")
+@protected.get("/api/workspace/{workspace_id}/graph")
 def get_workspace_graph(workspace_id: str, max_nodes: int = 150) -> dict:
     graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
     if graph is None:
@@ -600,7 +662,7 @@ def get_workspace_graph(workspace_id: str, max_nodes: int = 150) -> dict:
     return {"nodes": nodes, "edges": edges, "total_nodes": graph.number_of_nodes(), "total_edges": graph.number_of_edges()}
 
 
-@app.get("/api/workspace/{workspace_id}/entity/{table}/{key}")
+@protected.get("/api/workspace/{workspace_id}/entity/{table}/{key}")
 def get_entity_profile(workspace_id: str, table: str, key: str) -> dict:
     if workspace_id not in _WORKSPACE_TABLES_CACHE:
         raise HTTPException(status_code=404, detail="Workspace not found.")
@@ -645,7 +707,7 @@ class EntityImpactRequest(BaseModel):
     pct_change: float
 
 
-@app.post("/api/workspace/{workspace_id}/simulate-entity")
+@protected.post("/api/workspace/{workspace_id}/simulate-entity")
 def simulate_entity(workspace_id: str, req: EntityImpactRequest) -> dict:
     graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
     if graph is None:
@@ -671,7 +733,7 @@ class ActionPlanRequest(BaseModel):
     quality: dict | None = None
 
 
-@app.post("/api/action-plan")
+@protected.post("/api/action-plan")
 async def action_plan(req: ActionPlanRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
@@ -707,7 +769,7 @@ class QueryRequest(BaseModel):
     sql: str
 
 
-@app.post("/api/analyze/{analysis_id}/query")
+@protected.post("/api/analyze/{analysis_id}/query")
 def query_dataset(analysis_id: str, req: QueryRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(analysis_id)
     if df is None:
@@ -725,7 +787,7 @@ _REPORT_CONTENT_TYPES = {
 }
 
 
-@app.get("/api/analyze/{analysis_id}/report")
+@protected.get("/api/analyze/{analysis_id}/report")
 def export_report(analysis_id: str, format: str = "pdf") -> Response:
     if format not in _REPORT_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="format must be one of: xlsx, pdf, pptx")
@@ -750,3 +812,6 @@ def export_report(analysis_id: str, format: str = "pdf") -> Response:
         media_type=_REPORT_CONTENT_TYPES[format],
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+app.include_router(protected)

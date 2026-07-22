@@ -23,11 +23,15 @@ import type {
   WorkspaceGraph,
   WorkspaceResponse,
 } from "./types";
-
-
+import { getToken } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 async function unwrap<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -46,12 +50,13 @@ export async function analyzeFileWithProgress(
 
   const res = await fetch(`${API_BASE}/api/analyze/start`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
   const { job_id } = await unwrap<{ job_id: string }>(res);
 
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${WS_BASE}/ws/analyze/${job_id}`);
+    const ws = new WebSocket(`${WS_BASE}/ws/analyze/${job_id}?token=${encodeURIComponent(getToken() ?? "")}`);
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === "progress") {
@@ -85,7 +90,7 @@ export async function fetchInsights(
 ): Promise<InsightsResult> {
   const res = await fetch(`${API_BASE}/api/insights`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       domain,
       row_count: rowCount,
@@ -109,7 +114,7 @@ export async function askQuestion(
 ): Promise<AskResponse> {
   const res = await fetch(`${API_BASE}/api/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ analysis_id: analysisId, domain, question, primary_metric: primaryMetric }),
   });
 
@@ -123,7 +128,7 @@ export async function runSimulation(
 ): Promise<SimulationResult> {
   const res = await fetch(`${API_BASE}/api/simulate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ analysis_id: analysisId, driver_column: driverColumn, pct_change: pctChange }),
   });
 
@@ -133,7 +138,7 @@ export async function runSimulation(
 export async function explainSimulation(domain: string, simulation: SimulationResult): Promise<SimulationExplanation> {
   const res = await fetch(`${API_BASE}/api/simulate/explain`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ domain, simulation }),
   });
 
@@ -149,7 +154,7 @@ export async function fetchDatasetSummary(
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/api/summary`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ domain, row_count: rowCount, column_count: columnCount, columns: schema, quality }),
   });
 
@@ -158,7 +163,7 @@ export async function fetchDatasetSummary(
 }
 
 export async function listDatasets(): Promise<CatalogEntry[]> {
-  const res = await fetch(`${API_BASE}/api/datasets`);
+  const res = await fetch(`${API_BASE}/api/datasets`, { headers: authHeaders() });
   const body = await unwrap<{ datasets: CatalogEntry[] }>(res);
   return body.datasets;
 }
@@ -166,7 +171,7 @@ export async function listDatasets(): Promise<CatalogEntry[]> {
 export async function updateSemanticLabel(analysisId: string, columnName: string, label: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(analysisId)}/columns/${encodeURIComponent(columnName)}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ label }),
   });
   await unwrap<{ updated: boolean }>(res);
@@ -175,7 +180,7 @@ export async function updateSemanticLabel(analysisId: string, columnName: string
 export async function forecastColumn(analysisId: string, column: string): Promise<Forecast> {
   const res = await fetch(`${API_BASE}/api/forecast`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ analysis_id: analysisId, column }),
   });
 
@@ -185,7 +190,7 @@ export async function forecastColumn(analysisId: string, column: string): Promis
 export async function explainForecast(domain: string, forecast: Forecast): Promise<string> {
   const res = await fetch(`${API_BASE}/api/forecast/explain`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ domain, forecast }),
   });
 
@@ -199,6 +204,7 @@ export async function createWorkspace(files: File[]): Promise<WorkspaceResponse>
 
   const res = await fetch(`${API_BASE}/api/workspace`, {
     method: "POST",
+    headers: authHeaders(),
     body: formData,
   });
 
@@ -211,7 +217,7 @@ export async function confirmRelationships(
 ): Promise<ConfirmRelationshipsResponse> {
   const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/relationships`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ relationships }),
   });
 
@@ -219,13 +225,16 @@ export async function confirmRelationships(
 }
 
 export async function fetchWorkspaceGraph(workspaceId: string): Promise<WorkspaceGraph> {
-  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/graph`);
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/graph`, {
+    headers: authHeaders(),
+  });
   return unwrap<WorkspaceGraph>(res);
 }
 
 export async function fetchEntityProfile(workspaceId: string, table: string, key: string): Promise<EntityProfile> {
   const res = await fetch(
-    `${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/entity/${encodeURIComponent(table)}/${encodeURIComponent(key)}`
+    `${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/entity/${encodeURIComponent(table)}/${encodeURIComponent(key)}`,
+    { headers: authHeaders() }
   );
   return unwrap<EntityProfile>(res);
 }
@@ -238,7 +247,7 @@ export async function simulateEntityImpact(
 ): Promise<EntityImpactResult> {
   const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/simulate-entity`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ table, key, pct_change: pctChange }),
   });
   return unwrap<EntityImpactResult>(res);
@@ -255,7 +264,7 @@ export async function generateActionPlan(
 ): Promise<ActionPlanResult> {
   const res = await fetch(`${API_BASE}/api/action-plan`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
       analysis_id: analysisId,
       domain,
@@ -270,13 +279,17 @@ export async function generateActionPlan(
 }
 
 export function reportUrl(analysisId: string, format: "xlsx" | "pdf" | "pptx"): string {
-  return `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/report?format=${format}`;
+  // Plain <a href> download link — no custom headers possible on a browser
+  // navigation, so the token rides as a query param (get_current_user on
+  // the backend accepts either).
+  const token = encodeURIComponent(getToken() ?? "");
+  return `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/report?format=${format}&token=${token}`;
 }
 
 export async function runSqlQuery(analysisId: string, sql: string): Promise<QueryResult> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/query`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({ sql }),
   });
   return unwrap<QueryResult>(res);

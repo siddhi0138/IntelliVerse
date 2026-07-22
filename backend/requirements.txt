@@ -22,3 +22,5 @@ openpyxl==3.1.5
 reportlab==4.4.4
 python-pptx==1.0.2
 websockets==16.1.1
+python-jose[cryptography]==3.5.0
+bcrypt==5.0.0
