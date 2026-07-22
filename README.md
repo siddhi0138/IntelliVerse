@@ -283,3 +283,47 @@ region performs best?" were already covered by the `POST /api/ask`
 pipeline built in the earlier v2 backfill (classify intent → compute
 deterministically → narrate only the computed result) — no new work was
 needed there.
+
+## v3 upgrade: real model competition, target discovery, threshold alerts
+
+A fifth spec pass asked for genuine predictive-model competition rather
+than three simple statistical methods. Prophet and XGBoost were flagged
+as unreliable to install on Windows earlier in this project — that was
+re-tested, and both actually install and run fine here now, so they were
+added for real rather than substituted again.
+
+- **Six real candidates** backtested per forecast (`backend/forecasting.py`):
+  naive, linear trend, Holt's exponential smoothing, Random Forest,
+  XGBoost, and Prophet. Whichever has the lowest validation RMSE on a
+  held-out tail is chosen and refit on the full series. On the smooth
+  trending series this was tested against, Holt won and the tree models
+  (Random Forest, XGBoost) scored honestly worse — they can't extrapolate
+  a trend past the range they were trained on, a real, known limitation
+  the backtest surfaces rather than hides.
+- **R² added** alongside RMSE/MAE/MAPE, plus explicit training-period and
+  validation-period date ranges attached to every forecast's validation
+  block.
+- **Automatic target discovery** (`discover_forecastable_targets()`) —
+  every numeric column is evaluated as a potential forecast target with
+  a confidence score (based on how many time periods are available), not
+  just the first one. `POST /api/forecast` lets the frontend forecast any
+  of them on demand using the cached DataFrame, without re-uploading.
+- **Forecast comparison table** — the frontend renders every candidate
+  model's MAPE/RMSE/R² side by side with a checkmark on the one selected,
+  plus the exact train/validation date ranges used.
+- **Threshold-crossing risk alerts** (`backend/risk_alerts.py`) — for a
+  metric semantically labeled `Quantity` (a reasonable stand-in for
+  inventory/stock — there's no dataset-specific "critical level" to
+  assume otherwise), if the forecast trend is down, this computes exactly
+  how many periods until the linear projection crosses zero via
+  interpolation between forecast points. Verified against a synthetic
+  declining-inventory series: correctly flagged ~0.3 periods until
+  stockout, matching the interpolation by hand.
+- **Dedicated forecast explanation** (`POST /api/forecast/explain`,
+  `generate_forecast_explanation()`) — separate from the general insights
+  narrator, grounded specifically in the chosen model, its validation
+  metrics vs. the alternatives, and the prediction interval; explicitly
+  told to cite the actual MAPE/R² rather than invent a reliability claim.
+
+Kendall correlation and DBSCAN remain skipped from the v2 pass (marked
+optional there); nothing new in this v3 pass was skipped.

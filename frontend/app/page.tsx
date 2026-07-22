@@ -8,7 +8,7 @@ import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
-import { ForecastChart } from "@/components/ForecastChart";
+import { ForecastSection } from "@/components/ForecastSection";
 import { AnomaliesPanel } from "@/components/AnomaliesPanel";
 import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { DecisionSimulator } from "@/components/DecisionSimulator";
@@ -177,13 +177,28 @@ export default function Home() {
 
           <RankedFindingsPanel findings={result.ranked_findings} />
 
+          <div>
+            <h3 className="text-lg font-medium mb-1">Forecast</h3>
+            <p className="text-sm text-slate-500 mb-3">
+              Multiple models are backtested per target; the one with the lowest validation error is chosen
+              automatically.
+            </p>
+            <ForecastSection
+              analysisId={result.analysis_id}
+              domain={result.domain}
+              initialForecast={result.forecast}
+              eligibility={result.forecast_eligibility}
+              targets={result.forecastable_targets}
+              primaryMetric={result.primary_metric}
+            />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {result.charts
               .filter((c) => c.chart_type !== "kpi")
               .map((chart) => (
                 <ChartCard key={chart.id} chart={chart} />
               ))}
-            <ForecastChart forecast={result.forecast} eligibility={result.forecast_eligibility} />
             <InsightsPanel insights={insights} loading={insightsLoading} error={insightsError} />
             <AnomaliesPanel anomalies={result.anomalies} />
             <RecommendationsPanel recommendations={recommendations} loading={insightsLoading} />

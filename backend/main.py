@@ -15,11 +15,17 @@ from analytics import detect_anomalies, detect_seasonality, detect_time_series_s
 from anomalies_ml import detect_multivariate_anomalies
 import catalog
 from distributions import analyze_distributions
-from forecasting import check_forecast_eligibility, select_and_forecast
+from forecasting import check_forecast_eligibility, discover_forecastable_targets, select_and_forecast
 from graph_builder import build_knowledge_graph
 from insight_ranking import build_ranked_findings
 from insight_timeline import build_insight_timeline
-from insights import InsightsUnavailable, generate_dataset_summary, generate_insights, generate_simulation_explanation
+from insights import (
+    InsightsUnavailable,
+    generate_dataset_summary,
+    generate_forecast_explanation,
+    generate_insights,
+    generate_simulation_explanation,
+)
 from profiling import build_quality_report
 from qa import answer_question
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
@@ -102,12 +108,14 @@ async def analyze(file: UploadFile) -> dict:
 
     forecast = None
     monthly = []
+    forecastable_targets = []
     if date_cols and numeric_cols:
         monthly = monthly_series(df, date_cols[0].name, numeric_cols[0].name)
         forecast_eligibility = check_forecast_eligibility(True, True, len(monthly))
         if forecast_eligibility["eligible"]:
             forecast = select_and_forecast(monthly)
             forecast["column"] = numeric_cols[0].semantic_label
+        forecastable_targets = discover_forecastable_targets(df, schema, date_cols[0].name, monthly_series)
 
     anomalies = detect_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
     multivariate_anomalies = detect_multivariate_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
@@ -126,8 +134,10 @@ async def analyze(file: UploadFile) -> dict:
     ranked_findings = build_ranked_findings(correlations, associations, root_cause, anomalies)
     insight_timeline = build_insight_timeline(monthly, time_series_spikes) if monthly else []
 
-    # v3 backfill: deterministic risk alerts from the forecast + root cause
-    risk_alerts = generate_risk_alerts(forecast, root_cause)
+    # v3: deterministic risk alerts from the forecast + root cause
+    risk_alerts = generate_risk_alerts(
+        forecast, root_cause, numeric_cols[0].semantic_label if numeric_cols else None
+    )
 
     analysis_id = str(uuid.uuid4())
     _ANALYSIS_DF_CACHE[analysis_id] = df
@@ -156,6 +166,7 @@ async def analyze(file: UploadFile) -> dict:
         "quality": asdict(quality),
         "forecast": forecast,
         "forecast_eligibility": forecast_eligibility,
+        "forecastable_targets": forecastable_targets,
         "anomalies": anomalies,
         "multivariate_anomalies": multivariate_anomalies,
         "time_series_spikes": time_series_spikes,
@@ -254,6 +265,50 @@ async def explain_simulation(req: ExplainSimulationRequest) -> dict:
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result
+
+
+class ForecastRequest(BaseModel):
+    analysis_id: str
+    column: str
+
+
+@app.post("/api/forecast")
+def forecast_column(req: ForecastRequest) -> dict:
+    df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
+    schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
+    if df is None or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+
+    col_schema = next((c for c in schema if c.name == req.column), None)
+    if col_schema is None or col_schema.type != "numeric":
+        raise HTTPException(status_code=400, detail=f"'{req.column}' is not a forecastable numeric column.")
+
+    date_col = next((c for c in schema if c.type == "date"), None)
+    if date_col is None:
+        raise HTTPException(status_code=400, detail="No date column available for forecasting.")
+
+    series = monthly_series(df, date_col.name, req.column)
+    eligibility = check_forecast_eligibility(True, True, len(series))
+    if not eligibility["eligible"]:
+        raise HTTPException(status_code=400, detail=eligibility["reason"])
+
+    result = select_and_forecast(series)
+    result["column"] = col_schema.semantic_label
+    return result
+
+
+class ExplainForecastRequest(BaseModel):
+    domain: str
+    forecast: dict
+
+
+@app.post("/api/forecast/explain")
+async def explain_forecast(req: ExplainForecastRequest) -> dict:
+    try:
+        summary = await generate_forecast_explanation(req.domain, req.forecast)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"summary": summary}
 
 
 class SummaryRequest(BaseModel):

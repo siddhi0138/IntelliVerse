@@ -1,29 +1,38 @@
-"""V3 backfill: forecast eligibility, automatic model selection, validation metrics.
+"""V3: forecast eligibility, automatic target discovery, model selection,
+and validation metrics.
 
-Rather than assuming one algorithm, this backtests a few honest
-candidates — naive carry-forward, linear trend (OLS), and Holt's linear
-exponential smoothing — on a held-out tail of the series, and picks
-whichever had the lowest validation RMSE. (Prophet and XGBoost were
-considered and skipped: Prophet's build toolchain is fragile on Windows
-without a C++ compiler, and gradient-boosted trees are overkill for a
-handful of monthly points — Holt's method covers the same "trend +
-smoothing" ground.)
+Six candidates are backtested on a held-out tail of each series: naive
+carry-forward, linear trend (OLS), Holt's linear exponential smoothing,
+Random Forest, XGBoost, and Prophet. Whichever has the lowest validation
+RMSE is chosen and refit on the full series. This is a real competition,
+not a fixed pick — on short, noisy monthly series the tree models often
+lose (they can't extrapolate a trend past the range they were trained on,
+a genuine, known limitation, not a bug), and that's exactly the point:
+let the backtest decide instead of assuming one algorithm.
 
 Below `MIN_PERIODS_FOR_MODEL_SELECTION` there isn't enough data to
-backtest honestly, so we fall back to linear trend outright and say so
-in the response rather than fabricate a comparison.
+backtest honestly, so this falls back to linear trend outright and says
+so rather than run six models on three points.
 """
 
 from __future__ import annotations
 
+import logging
+import warnings
 from typing import Any, Callable
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import r2_score
 from statsmodels.tsa.holtwinters import Holt
+
+logging.getLogger("cmdstanpy").setLevel(logging.WARNING)
+warnings.filterwarnings("ignore", module="prophet")
 
 MIN_PERIODS_FOR_FORECAST = 3
 MIN_PERIODS_FOR_MODEL_SELECTION = 6
+MIN_PERIODS_FOR_TARGET_DISCOVERY = 3
 
 
 def check_forecast_eligibility(
@@ -42,6 +51,46 @@ def check_forecast_eligibility(
             ),
         }
     return {"eligible": True, "reason": None}
+
+
+def discover_forecastable_targets(
+    df: pd.DataFrame, schema, date_column: str | None, monthly_series_fn: Callable
+) -> list[dict[str, Any]]:
+    """Evaluates every numeric column as a potential forecast target,
+    rather than silently only ever forecasting the first one."""
+    if not date_column:
+        return []
+
+    numeric_cols = [c for c in schema if c.type == "numeric"]
+    targets: list[dict[str, Any]] = []
+
+    for col in numeric_cols:
+        series = monthly_series_fn(df, date_column, col.name)
+        n = len(series)
+        eligible = n >= MIN_PERIODS_FOR_TARGET_DISCOVERY
+        if not eligible:
+            confidence = 0.0
+            reason = f"Only {n} time period(s) — need at least {MIN_PERIODS_FOR_TARGET_DISCOVERY}."
+        elif n >= MIN_PERIODS_FOR_MODEL_SELECTION:
+            confidence = 0.9
+            reason = None
+        else:
+            confidence = 0.5
+            reason = f"Only {n} time periods — too few to backtest multiple models, will use linear trend."
+
+        targets.append(
+            {
+                "column": col.name,
+                "semantic_label": col.semantic_label,
+                "eligible": eligible,
+                "confidence": confidence,
+                "periods_available": n,
+                "reason": reason,
+            }
+        )
+
+    targets.sort(key=lambda t: t["confidence"], reverse=True)
+    return targets
 
 
 def _naive_forecast(train: np.ndarray, steps: int) -> np.ndarray:
@@ -65,11 +114,51 @@ def _holt_forecast(train: np.ndarray, steps: int) -> np.ndarray | None:
         return None
 
 
-_CANDIDATES: dict[str, Callable[[np.ndarray, int], np.ndarray | None]] = {
-    "naive": _naive_forecast,
-    "linear_trend": _linear_forecast,
-    "holt_linear_trend": _holt_forecast,
-}
+def _random_forest_forecast(train: np.ndarray, steps: int) -> np.ndarray | None:
+    if len(train) < 4:
+        return None
+    try:
+        x = np.arange(len(train)).reshape(-1, 1)
+        model = RandomForestRegressor(n_estimators=200, random_state=42)
+        model.fit(x, train)
+        future_x = np.arange(len(train), len(train) + steps).reshape(-1, 1)
+        return model.predict(future_x)
+    except Exception:
+        return None
+
+
+def _xgboost_forecast(train: np.ndarray, steps: int) -> np.ndarray | None:
+    if len(train) < 4:
+        return None
+    try:
+        from xgboost import XGBRegressor
+
+        x = np.arange(len(train)).reshape(-1, 1)
+        model = XGBRegressor(n_estimators=100, max_depth=3, random_state=42)
+        model.fit(x, train)
+        future_x = np.arange(len(train), len(train) + steps).reshape(-1, 1)
+        return model.predict(future_x)
+    except Exception:
+        return None
+
+
+def _prophet_forecast(train_periods: list[str], train_values: np.ndarray, steps: int) -> np.ndarray | None:
+    if len(train_values) < 4:
+        return None
+    try:
+        from prophet import Prophet
+
+        ds = pd.to_datetime([f"{p}-01" for p in train_periods])
+        history = pd.DataFrame({"ds": ds, "y": train_values})
+        model = Prophet(yearly_seasonality=len(train_values) >= 24, daily_seasonality=False, weekly_seasonality=False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model.fit(history)
+        future = model.make_future_dataframe(periods=steps, freq="MS", include_history=False)
+        forecast = model.predict(future)
+        return forecast["yhat"].to_numpy()
+    except Exception:
+        return None
 
 
 def _errors(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float | None]:
@@ -78,7 +167,13 @@ def _errors(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float | None
     mae = float(np.mean(np.abs(diff)))
     nonzero = actual != 0
     mape = float(np.mean(np.abs(diff[nonzero] / actual[nonzero])) * 100) if nonzero.any() else None
-    return {"rmse": round(rmse, 2), "mae": round(mae, 2), "mape": round(mape, 2) if mape is not None else None}
+    r_squared = float(r2_score(actual, predicted)) if len(actual) >= 2 and actual.std() > 0 else None
+    return {
+        "rmse": round(rmse, 2),
+        "mae": round(mae, 2),
+        "mape": round(mape, 2) if mape is not None else None,
+        "r_squared": round(r_squared, 3) if r_squared is not None else None,
+    }
 
 
 def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) -> dict[str, Any]:
@@ -86,6 +181,7 @@ def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) ->
         return {"history": series, "forecast": [], "method": "insufficient_data", "validation": None}
 
     values = np.array([p["value"] for p in series], dtype=float)
+    periods = [p["period"] for p in series]
     n = len(values)
 
     validation: dict[str, Any] | None = None
@@ -95,10 +191,19 @@ def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) ->
     else:
         holdout = max(1, min(3, n // 4))
         train, test = values[:-holdout], values[-holdout:]
+        train_periods = periods[:-holdout]
+
+        candidates: dict[str, np.ndarray | None] = {
+            "naive": _naive_forecast(train, holdout),
+            "linear_trend": _linear_forecast(train, holdout),
+            "holt_linear_trend": _holt_forecast(train, holdout),
+            "random_forest": _random_forest_forecast(train, holdout),
+            "xgboost": _xgboost_forecast(train, holdout),
+            "prophet": _prophet_forecast(train_periods, train, holdout),
+        }
 
         scored: list[tuple[str, dict[str, float | None]]] = []
-        for name, fn in _CANDIDATES.items():
-            pred = fn(train, holdout)
+        for name, pred in candidates.items():
             if pred is None:
                 continue
             scored.append((name, _errors(test, pred)))
@@ -109,11 +214,20 @@ def select_and_forecast(series: list[dict[str, Any]], periods_ahead: int = 3) ->
             "holdout_periods": holdout,
             "chosen_model": chosen_name,
             "metrics": scored[0][1],
-            "all_candidates": [{"model": name, **err} for name, err in scored],
+            "all_candidates": [{"model": name, "selected": name == chosen_name, **err} for name, err in scored],
+            "train_period": {"start": train_periods[0], "end": train_periods[-1]},
+            "validation_period": {"start": periods[-holdout], "end": periods[-1]},
         }
 
-    chosen_fn = _CANDIDATES[chosen_name]
-    predicted_future = chosen_fn(values, periods_ahead)
+    forecast_fns: dict[str, Callable[[], np.ndarray | None]] = {
+        "naive": lambda: _naive_forecast(values, periods_ahead),
+        "linear_trend": lambda: _linear_forecast(values, periods_ahead),
+        "holt_linear_trend": lambda: _holt_forecast(values, periods_ahead),
+        "random_forest": lambda: _random_forest_forecast(values, periods_ahead),
+        "xgboost": lambda: _xgboost_forecast(values, periods_ahead),
+        "prophet": lambda: _prophet_forecast(periods, values, periods_ahead),
+    }
+    predicted_future = forecast_fns[chosen_name]()
     if predicted_future is None:
         chosen_name = "linear_trend"
         predicted_future = _linear_forecast(values, periods_ahead)

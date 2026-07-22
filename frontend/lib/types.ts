@@ -43,17 +43,40 @@ export interface ForecastPoint {
   upper: number;
 }
 
+export interface ForecastMetrics {
+  rmse: number;
+  mae: number;
+  mape: number | null;
+  r_squared: number | null;
+}
+
+export interface ForecastCandidate extends ForecastMetrics {
+  model: string;
+  selected: boolean;
+}
+
 export interface ForecastValidation {
   holdout_periods: number;
   chosen_model: string;
-  metrics: { rmse: number; mae: number; mape: number | null };
-  all_candidates: { model: string; rmse: number; mae: number; mape: number | null }[];
+  metrics: ForecastMetrics;
+  all_candidates: ForecastCandidate[];
+  train_period: { start: string; end: string };
+  validation_period: { start: string; end: string };
 }
+
+export type ForecastMethod =
+  | "linear_trend"
+  | "naive"
+  | "holt_linear_trend"
+  | "random_forest"
+  | "xgboost"
+  | "prophet"
+  | "insufficient_data";
 
 export interface Forecast {
   history: { period: string; value: number }[];
   forecast: ForecastPoint[];
-  method: "linear_trend" | "naive" | "holt_linear_trend" | "insufficient_data";
+  method: ForecastMethod;
   trend?: "up" | "down" | "flat";
   column?: string;
   validation?: ForecastValidation | null;
@@ -61,6 +84,15 @@ export interface Forecast {
 
 export interface ForecastEligibility {
   eligible: boolean;
+  reason: string | null;
+}
+
+export interface ForecastableTarget {
+  column: string;
+  semantic_label: string;
+  eligible: boolean;
+  confidence: number;
+  periods_available: number;
   reason: string | null;
 }
 
@@ -90,10 +122,12 @@ export interface Seasonality {
 }
 
 export interface RiskAlert {
+  kind: "decline" | "threshold_crossing";
   metric: string;
-  direction: "decline";
+  direction: "decline" | "critical_level";
   confidence_pct: number | null;
   primary_driver: string | null;
+  periods_until_critical?: number;
   note: string;
 }
 
@@ -224,6 +258,7 @@ export interface AnalyzeResponse {
   quality: DataQualityReport;
   forecast: Forecast | null;
   forecast_eligibility: ForecastEligibility;
+  forecastable_targets: ForecastableTarget[];
   anomalies: Anomaly[];
   multivariate_anomalies: MultivariateAnomaly[];
   time_series_spikes: TimeSeriesSpike[];

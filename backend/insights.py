@@ -233,3 +233,47 @@ async def generate_dataset_summary(
     summary = _summarize_dataset_for_prompt(domain, row_count, column_count, schema, quality)
     parsed = await call_llm_json(_DATASET_SUMMARY_SYSTEM_PROMPT, summary)
     return parsed.get("summary", "")
+
+
+_FORECAST_SYSTEM_PROMPT = """You are explaining a statistical forecast to a business user. \
+You are given: the forecasted metric, which model was selected and why (its validation \
+metrics vs. the alternatives that were tried), the projected trend, and the prediction \
+interval. Explain: what is expected, why the model thinks this (grounded in the metrics \
+given, e.g. seasonality captured, trend direction), how reliable it is (cite the actual MAPE/
+R-squared), and what its limitations are (e.g. wider intervals further out, small holdout \
+size). Never invent a mechanism or business reason not present in the data.
+
+Respond with strict JSON only, no markdown fences:
+{"summary": "3-5 sentences: what's expected, why, how reliable, and limitations"}"""
+
+
+def _summarize_forecast_for_prompt(domain: str, forecast: dict) -> str:
+    lines = [f"Domain guess: {domain}", f"Metric: {forecast.get('column', 'primary metric')}"]
+    lines.append(f"Trend: {forecast.get('trend')}, method: {forecast.get('method')}")
+
+    validation = forecast.get("validation")
+    if validation:
+        lines.append(
+            f"Selected model: {validation['chosen_model']}, metrics: {validation['metrics']}, "
+            f"backtested over {validation['holdout_periods']} held-out period(s)."
+        )
+        lines.append("All candidates tried: " + ", ".join(f"{c['model']} (rmse={c['rmse']})" for c in validation["all_candidates"]))
+        lines.append(f"Training period: {validation['train_period']}, validation period: {validation['validation_period']}")
+    else:
+        lines.append("Too few periods to backtest multiple models; used linear trend directly.")
+
+    forecast_points = forecast.get("forecast", [])
+    if forecast_points:
+        first, last = forecast_points[0], forecast_points[-1]
+        lines.append(
+            f"Next period projected at {first['value']} (range {first['lower']} to {first['upper']}); "
+            f"furthest projected period at {last['value']} (range {last['lower']} to {last['upper']})."
+        )
+
+    return "\n".join(lines)
+
+
+async def generate_forecast_explanation(domain: str, forecast: dict) -> str:
+    summary = _summarize_forecast_for_prompt(domain, forecast)
+    parsed = await call_llm_json(_FORECAST_SYSTEM_PROMPT, summary)
+    return parsed.get("summary", "")

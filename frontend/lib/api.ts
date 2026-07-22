@@ -14,6 +14,8 @@ import type {
   SimulationResult,
 } from "./types";
 
+
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
 async function unwrap<T>(res: Response): Promise<T> {
@@ -138,4 +140,25 @@ export async function updateSemanticLabel(analysisId: string, columnName: string
     body: JSON.stringify({ label }),
   });
   await unwrap<{ updated: boolean }>(res);
+}
+
+export async function forecastColumn(analysisId: string, column: string): Promise<Forecast> {
+  const res = await fetch(`${API_BASE}/api/forecast`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ analysis_id: analysisId, column }),
+  });
+
+  return unwrap<Forecast>(res);
+}
+
+export async function explainForecast(domain: string, forecast: Forecast): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/forecast/explain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ domain, forecast }),
+  });
+
+  const body = await unwrap<{ summary: string }>(res);
+  return body.summary;
 }
