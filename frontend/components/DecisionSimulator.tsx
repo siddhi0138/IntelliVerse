@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { explainSimulation, runSimulation } from "@/lib/api";
-import type { DecisionAction, SimulationExplanation, SimulationResult } from "@/lib/types";
+import { useCallback, useEffect, useState } from "react";
+import { explainSimulation, listSavedSimulations, runSimulation, saveSimulation } from "@/lib/api";
+import type { DecisionAction, SavedSimulation, SimulationExplanation, SimulationResult } from "@/lib/types";
 import { DecisionGraph } from "@/components/DecisionGraph";
 import { EffectsList } from "@/components/EffectsList";
 import { SimulationExplanationPanel } from "@/components/SimulationExplanationPanel";
@@ -39,6 +39,32 @@ export function DecisionSimulator({
 
   const [comparison, setComparison] = useState<{ name: string; result: SimulationResult }[] | null>(null);
   const [comparing, setComparing] = useState(false);
+
+  const [saved, setSaved] = useState<SavedSimulation[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const refreshSaved = useCallback(() => {
+    listSavedSimulations(analysisId)
+      .then(setSaved)
+      .catch(() => {});
+  }, [analysisId]);
+
+  useEffect(() => {
+    refreshSaved();
+  }, [refreshSaved]);
+
+  async function handleSave() {
+    if (!result) return;
+    const label = window.prompt("Label this saved simulation:", selectedColumn);
+    if (!label) return;
+    setSaving(true);
+    try {
+      await saveSimulation(analysisId, label, result);
+      refreshSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function runOne(column: string, pctChange: number) {
     setRunning(true);
@@ -158,6 +184,34 @@ export function DecisionSimulator({
           <DecisionGraph result={result} />
           <EffectsList result={result} />
           <SimulationExplanationPanel explanation={explanation} loading={explanationLoading} error={explanationError} />
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
+          >
+            {saving ? "Saving…" : "Save this simulation"}
+          </button>
+        </div>
+      )}
+
+      {saved.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Saved simulations</h4>
+          <ul className="space-y-1">
+            {saved.map((s) => (
+              <li key={s.id} className="flex items-center justify-between text-sm">
+                <span>
+                  {s.label} <span className="text-slate-500 text-xs">({new Date(s.saved_at).toLocaleString()})</span>
+                </span>
+                <button
+                  onClick={() => setResult(s.simulation)}
+                  className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                >
+                  Load
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

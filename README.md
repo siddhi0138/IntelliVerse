@@ -9,7 +9,7 @@ inference, statistics, forecasting, anomaly detection, root-cause analysis,
 a knowledge graph, decision simulation, and an autonomous action plan. No
 configuration, no manual column mapping.
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
@@ -23,6 +23,8 @@ configuration, no manual column mapping.
 - [Tech stack](#tech-stack)
 - [Getting started](#getting-started)
 - [Docker](#docker)
+- [Observability](#observability)
+- [Deployment](#deployment)
 - [Testing](#testing)
 - [Project structure](#project-structure)
 - [Known limitations](#known-limitations)
@@ -85,16 +87,25 @@ apply, IntelliVerse says so explicitly instead of asking the LLM to fill the gap
 - Ad-hoc read-only SQL querying over any uploaded dataset (DuckDB)
 - Export a completed analysis as PDF, Excel, or PowerPoint
 - Live step-by-step progress over WebSocket while an analysis runs
+- 2D (@xyflow/react) and 3D (Three.js/React Three Fiber) knowledge graph views
 
-**Auth**
+**Auth & workspace**
 - Full login wall — Postgres-backed users, bcrypt password hashing, JWT
   bearer tokens on every endpoint
+- Per-user dataset catalog — every upload is scoped to your account and
+  persists the full analysis result, not just metadata, so reopening a
+  past dataset from `/catalog` restores the entire dashboard with no
+  re-upload (features needing the live DataFrame — SQL query, on-demand
+  forecast/simulation re-runs, the action plan — still need the file
+  re-uploaded, since only the computed result is saved)
+- Explicitly saved forecasts and simulations, one click each, listed and
+  reloadable per dataset
 
 ## Tech stack
 
 | Layer | Technology |
 |---|---|
-| Backend | FastAPI, Python 3.11+ |
+| Backend | FastAPI, Python 3.12+ |
 | Data processing | pandas, NumPy, DuckDB, Polars + PyArrow (large-file fast path) |
 | Statistics/ML | SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet, SHAP |
 | Databases | PostgreSQL 17 (auth), Neo4j 5.26 (knowledge graph), SQLite (metadata catalog) |
@@ -103,13 +114,14 @@ apply, IntelliVerse says so explicitly instead of asking the LLM to fill the gap
 | Auth | bcrypt, python-jose (JWT) |
 | LLM layer | Any OpenAI-compatible endpoint (defaults to [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi)) — narration only, never raw computation |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS |
-| Visualization | Recharts, @xyflow/react (graphs) |
+| Visualization | Recharts, @xyflow/react (2D graphs), Three.js + React Three Fiber (3D graph view) |
+| Observability | Loguru (structured logging), Prometheus + Grafana (self-hosted metrics) |
 
 ## Getting started
 
 ### Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - Node 20+
 - PostgreSQL 17 and Neo4j 5.26 (native install or via [Docker](#docker))
 - An OpenAI-compatible LLM endpoint (e.g. [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) running locally)
@@ -152,18 +164,86 @@ Open **http://localhost:3000**, register an account, and drop in a file
 docker compose up --build
 ```
 
-`docker-compose.yml` wires up the backend, frontend, Neo4j, and Postgres in
-one command. The containerized Neo4j/Postgres get fresh local credentials
-(overridden in the `backend` service's `environment:` block) rather than
-needing your native install's credentials; `FREELLMAPI_BASE_URL` is
-overridden to `host.docker.internal` since the LLM router typically runs
-natively on the host, outside the compose network.
+`docker-compose.yml` wires up the backend, frontend, Neo4j, Postgres,
+Prometheus, and Grafana in one command. The containerized Neo4j/Postgres
+get fresh local credentials (overridden in the `backend` service's
+`environment:` block) rather than needing your native install's
+credentials; `FREELLMAPI_BASE_URL` is overridden to `host.docker.internal`
+since the LLM router typically runs natively on the host, outside the
+compose network.
 
-> **Note:** this hasn't been verified with a real `docker compose up` on
-> this machine (Docker isn't installed here) — the Dockerfiles are written
-> from known packaging requirements for this dependency set. The most
-> likely first failure point is Prophet or SHAP needing a source compile if
-> no prebuilt wheel matches `python:3.11-slim`.
+> **Verified with a real `docker compose up --build`.** Caught one real
+> bug in the process: `xgboost==3.3.0` requires Python ≥3.12, but
+> `backend/Dockerfile` was on `python:3.11-slim` — fixed to `3.13-slim`
+> (matching the exact version the local dev venv already runs). After
+> that, every service builds and starts cleanly: registration/login
+> (Postgres), a full analyze call, and a multi-table workspace + Neo4j
+> knowledge graph build all verified working over the compose network,
+> plus Prometheus successfully scraping the backend and Grafana's health
+> check passing.
+>
+> **If you already have native Postgres/Neo4j/dev servers running on the
+> same ports** (5432, 7474, 7687, 3000, 8001), Docker's host-port
+> publishing for those services silently no-ops on Windows instead of
+> erroring — `docker compose ps` will show the containers as "Up" but
+> `docker port <container>` returns nothing for the conflicting port.
+> Internal container-to-container traffic (backend ↔ Postgres ↔ Neo4j,
+> Prometheus ↔ backend) is unaffected either way since it doesn't use the
+> host-published ports at all — only *your own* browser/curl access to
+> those services from the host is affected. Stop the conflicting native
+> processes first if you want host access to the containerized versions.
+
+## Observability
+
+- **Structured logging** (`backend/logging_config.py`) — Loguru, with
+  stdlib `logging` (uvicorn, cmdstanpy) routed through the same sink so
+  everything lands in one place: colorized console output plus a rotating
+  JSON-lines file (`backend/logs/app.jsonl`) for later machine parsing. A
+  request-logging middleware records method/path/status/duration on every
+  call; registration/login attempts and analysis start/failure/completion
+  are logged explicitly.
+- **Metrics** — `GET /metrics` (via `prometheus-fastapi-instrumentator`)
+  exposes request counts and latency histograms in Prometheus format, no
+  external account needed. `docker compose up` also starts a `prometheus`
+  service (scraping the backend automatically) and a `grafana` service
+  pre-provisioned with that Prometheus instance as its datasource — open
+  **http://localhost:3001** (default login `admin` / `nexuslocal`) and it's
+  ready to build dashboards against, no manual datasource setup required.
+- Sentry/Langfuse weren't added: both are hosted SaaS requiring your own
+  account and API key, unlike Prometheus/Grafana which run entirely in
+  this compose stack.
+
+## Deployment
+
+The backend (FastAPI, in-memory caches, WebSockets, Neo4j/Postgres
+connections, heavy ML dependencies) doesn't fit a serverless platform —
+each function invocation could land on a different stateless instance,
+breaking every multi-step flow (analyze → simulate → forecast → query →
+report all depend on the cached DataFrame surviving between calls).
+Frontend and backend are deployed separately, to platforms suited to each:
+
+**Frontend → Vercel**
+1. Import this repo in Vercel, set the project root to `frontend/`.
+2. Set `NEXT_PUBLIC_API_BASE` to your deployed backend's URL.
+3. Vercel auto-detects Next.js — no further config needed (the
+   `output: "standalone"` setting in `next.config.ts` is for the Docker
+   build; Vercel uses its own build pipeline regardless).
+
+**Backend → Railway (or Render/Fly.io)**
+1. Create a service from this repo, root directory `backend/` — Railway
+   detects `Dockerfile` automatically and builds/deploys it directly.
+2. Add Postgres from Railway's built-in template.
+3. Add Neo4j as a service from the `neo4j:5.26-community` Docker image
+   (Railway supports deploying arbitrary images, not just repos).
+4. Set the same environment variables as `backend/.env.example`, pointing
+   `NEO4J_URI`/`POSTGRES_DSN` at Railway's internal service hostnames
+   instead of `localhost`.
+5. Update the frontend's CORS origin in `main.py` (`allow_origins`,
+   currently hardcoded to `http://localhost:3000`) to your Vercel domain.
+
+This hasn't been executed — it needs your own Vercel/Railway accounts —
+but the Dockerfiles it depends on are the same ones verified in
+[Docker](#docker) above.
 
 ## Testing
 

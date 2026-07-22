@@ -188,7 +188,9 @@ def login(req: AuthRequest) -> dict:
     return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
 
 
-def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None] = lambda step: None) -> dict:
+def _run_analysis(
+    filename: str, content: bytes, username: str, progress: Callable[[str], None] = lambda step: None
+) -> dict:
     logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
@@ -278,16 +280,6 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
     _ANALYSIS_DF_CACHE[analysis_id] = df
     _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
 
-    catalog.save_dataset(
-        analysis_id=analysis_id,
-        filename=filename or "upload",
-        row_count=len(df),
-        column_count=len(df.columns),
-        domain=domain,
-        quality_score=quality.score,
-        schema=schema,
-    )
-
     progress("Finalizing")
     response = {
         "analysis_id": analysis_id,
@@ -321,6 +313,19 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
         "primary_metric": primary_metric,
     }
     _ANALYSIS_RESULT_CACHE[analysis_id] = response
+
+    catalog.save_dataset(
+        analysis_id=analysis_id,
+        username=username,
+        filename=filename or "upload",
+        row_count=len(df),
+        column_count=len(df.columns),
+        domain=domain,
+        quality_score=quality.score,
+        schema=schema,
+        result=response,
+    )
+
     logger.info(
         "Analysis completed: analysis_id={analysis_id} filename={filename} rows={rows} domain={domain}",
         analysis_id=analysis_id,
@@ -332,13 +337,13 @@ def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None]
 
 
 @protected.post("/api/analyze")
-async def analyze(file: UploadFile) -> dict:
+async def analyze(file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
     content = await file.read()
-    return _run_analysis(file.filename or "upload.csv", content)
+    return _run_analysis(file.filename or "upload.csv", content, current_user)
 
 
 @protected.post("/api/analyze/start")
-async def start_analyze_job(file: UploadFile) -> dict:
+async def start_analyze_job(file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
     """Kicks off analysis in a background thread and returns a job_id to
     watch over WS /ws/analyze/{job_id} for live step-by-step progress —
     useful for larger files where the multi-model forecast backtest alone
@@ -349,7 +354,7 @@ async def start_analyze_job(file: UploadFile) -> dict:
 
     async def run() -> None:
         try:
-            result = await asyncio.to_thread(_run_analysis, filename, content, job.progress)
+            result = await asyncio.to_thread(_run_analysis, filename, content, current_user, job.progress)
             job.finish(result)
         except HTTPException as exc:
             job.fail(str(exc.detail))
@@ -543,13 +548,13 @@ async def dataset_summary(req: SummaryRequest) -> dict:
 
 
 @protected.get("/api/datasets")
-def list_datasets() -> dict:
-    return {"datasets": catalog.list_datasets()}
+def list_datasets(current_user: str = Depends(get_current_user)) -> dict:
+    return {"datasets": catalog.list_datasets(current_user)}
 
 
 @protected.get("/api/datasets/{analysis_id}")
-def get_dataset(analysis_id: str) -> dict:
-    record = catalog.get_dataset(analysis_id)
+def get_dataset(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    record = catalog.get_dataset(analysis_id, current_user)
     if record is None:
         raise HTTPException(status_code=404, detail="Dataset not found in catalog.")
     return record
@@ -560,8 +565,10 @@ class UpdateLabelRequest(BaseModel):
 
 
 @protected.patch("/api/datasets/{analysis_id}/columns/{column_name}")
-def update_column_label(analysis_id: str, column_name: str, req: UpdateLabelRequest) -> dict:
-    updated = catalog.update_semantic_label(analysis_id, column_name, req.label)
+def update_column_label(
+    analysis_id: str, column_name: str, req: UpdateLabelRequest, current_user: str = Depends(get_current_user)
+) -> dict:
+    updated = catalog.update_semantic_label(analysis_id, current_user, column_name, req.label)
     if not updated:
         raise HTTPException(status_code=404, detail="Dataset or column not found.")
 
@@ -576,6 +583,42 @@ def update_column_label(analysis_id: str, column_name: str, req: UpdateLabelRequ
                 break
 
     return {"updated": True}
+
+
+class SaveForecastRequest(BaseModel):
+    label: str
+    forecast: dict
+
+
+@protected.post("/api/analyze/{analysis_id}/forecasts")
+def save_forecast(
+    analysis_id: str, req: SaveForecastRequest, current_user: str = Depends(get_current_user)
+) -> dict:
+    saved_id = catalog.save_forecast(analysis_id, current_user, req.label, req.forecast)
+    return {"id": saved_id}
+
+
+@protected.get("/api/analyze/{analysis_id}/forecasts")
+def list_saved_forecasts(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"forecasts": catalog.list_saved_forecasts(analysis_id, current_user)}
+
+
+class SaveSimulationRequest(BaseModel):
+    label: str
+    simulation: dict
+
+
+@protected.post("/api/analyze/{analysis_id}/simulations")
+def save_simulation(
+    analysis_id: str, req: SaveSimulationRequest, current_user: str = Depends(get_current_user)
+) -> dict:
+    saved_id = catalog.save_simulation(analysis_id, current_user, req.label, req.simulation)
+    return {"id": saved_id}
+
+
+@protected.get("/api/analyze/{analysis_id}/simulations")
+def list_saved_simulations(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"simulations": catalog.list_saved_simulations(analysis_id, current_user)}
 
 
 # --- V5: multi-table workspaces ------------------------------------------------

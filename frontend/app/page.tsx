@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { analyzeFileWithProgress, fetchInsights } from "@/lib/api";
+import { analyzeFileWithProgress, fetchCatalogDataset, fetchInsights } from "@/lib/api";
 import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
@@ -43,6 +43,17 @@ export default function Home() {
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const reopenId = new URLSearchParams(window.location.search).get("reopen");
+    if (!reopenId) return;
+    fetchCatalogDataset(reopenId)
+      .then((detail) => {
+        if (detail.result) setResult(detail.result);
+        else setError("This dataset's full result wasn't saved (uploaded before this feature existed).");
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : "Could not reopen this dataset."));
+  }, []);
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);

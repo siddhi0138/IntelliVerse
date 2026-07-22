@@ -27,8 +27,9 @@ export default function CatalogPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dataset Catalog</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Metadata from every upload — schema, domain, and quality score. Persisted across restarts; re-upload the
-            file itself to run charts or simulations against it again.
+            Every dataset you&apos;ve uploaded — click a row to reopen its full dashboard, no re-upload needed. Features
+            that need the live data (SQL query, re-running simulations/forecasts, the action plan) still require
+            re-uploading the file, since only the computed result is saved, not the raw file itself.
           </p>
         </div>
         <Link href="/" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline">
@@ -54,7 +55,11 @@ export default function CatalogPage() {
             </thead>
             <tbody>
               {datasets.map((d) => (
-                <tr key={d.analysis_id} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+                <tr
+                  key={d.analysis_id}
+                  onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
+                  className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                >
                   <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
                   <td className="px-4 py-2 text-slate-500">{new Date(d.uploaded_at).toLocaleString()}</td>
                   <td className="px-4 py-2">{d.domain}</td>

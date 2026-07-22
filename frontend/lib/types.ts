@@ -368,6 +368,25 @@ export interface CatalogEntry {
   quality_score: number;
 }
 
+export interface CatalogDetail extends CatalogEntry {
+  schema: ColumnSchema[];
+  result: AnalyzeResponse | null;
+}
+
+export interface SavedForecast {
+  id: string;
+  label: string;
+  saved_at: string;
+  forecast: Forecast;
+}
+
+export interface SavedSimulation {
+  id: string;
+  label: string;
+  saved_at: string;
+  simulation: SimulationResult;
+}
+
 // --- V5: multi-table workspaces --------------------------------------------
 
 export interface WorkspaceTable {

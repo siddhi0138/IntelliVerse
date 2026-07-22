@@ -3,6 +3,7 @@ import type {
   AnalyzeResponse,
   Anomaly,
   AskResponse,
+  CatalogDetail,
   CatalogEntry,
   ColumnSchema,
   ConfirmRelationshipsResponse,
@@ -18,6 +19,8 @@ import type {
   RelationshipCandidate,
   RiskAlert,
   RootCauseAnalysis,
+  SavedForecast,
+  SavedSimulation,
   SimulationExplanation,
   SimulationResult,
   WorkspaceGraph,
@@ -166,6 +169,45 @@ export async function listDatasets(): Promise<CatalogEntry[]> {
   const res = await fetch(`${API_BASE}/api/datasets`, { headers: authHeaders() });
   const body = await unwrap<{ datasets: CatalogEntry[] }>(res);
   return body.datasets;
+}
+
+export async function fetchCatalogDataset(analysisId: string): Promise<CatalogDetail> {
+  const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(analysisId)}`, { headers: authHeaders() });
+  return unwrap<CatalogDetail>(res);
+}
+
+export async function saveForecast(analysisId: string, label: string, forecast: Forecast): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ label, forecast }),
+  });
+  await unwrap<{ id: string }>(res);
+}
+
+export async function listSavedForecasts(analysisId: string): Promise<SavedForecast[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ forecasts: SavedForecast[] }>(res);
+  return body.forecasts;
+}
+
+export async function saveSimulation(analysisId: string, label: string, simulation: SimulationResult): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/simulations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ label, simulation }),
+  });
+  await unwrap<{ id: string }>(res);
+}
+
+export async function listSavedSimulations(analysisId: string): Promise<SavedSimulation[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/simulations`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ simulations: SavedSimulation[] }>(res);
+  return body.simulations;
 }
 
 export async function updateSemanticLabel(analysisId: string, columnName: string, label: string): Promise<void> {
