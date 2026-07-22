@@ -195,7 +195,7 @@ class ChartSpec:
     data: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _monthly_series(df: pd.DataFrame, date_col: str, numeric_col: str) -> list[dict[str, Any]]:
+def monthly_series(df: pd.DataFrame, date_col: str, numeric_col: str) -> list[dict[str, Any]]:
     dates = pd.to_datetime(df[date_col], errors="coerce", format="mixed")
     values = pd.to_numeric(
         df[numeric_col].astype(str).str.replace(r"[,$%]", "", regex=True)
@@ -245,7 +245,7 @@ def suggest_charts(df: pd.DataFrame, schema: list[ColumnSchema]) -> list[ChartSp
     if date_cols and numeric_cols:
         date_col = date_cols[0]
         numeric_col = numeric_cols[0]
-        series = _monthly_series(df, date_col.name, numeric_col.name)
+        series = monthly_series(df, date_col.name, numeric_col.name)
         if series:
             charts.append(
                 ChartSpec(

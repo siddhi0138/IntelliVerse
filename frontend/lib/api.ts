@@ -1,4 +1,4 @@
-import type { AnalyzeResponse, ColumnSchema, Insight } from "./types";
+import type { AnalyzeResponse, Anomaly, ColumnSchema, Forecast, Insight, Recommendation } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 
@@ -22,17 +22,29 @@ export async function analyzeFile(file: File): Promise<AnalyzeResponse> {
   return unwrap<AnalyzeResponse>(res);
 }
 
+export interface InsightsResult {
+  insights: Insight[];
+  recommendations: Recommendation[];
+}
+
 export async function fetchInsights(
   domain: string,
   rowCount: number,
-  schema: ColumnSchema[]
-): Promise<Insight[]> {
+  schema: ColumnSchema[],
+  anomalies: Anomaly[],
+  forecast: Forecast | null
+): Promise<InsightsResult> {
   const res = await fetch(`${API_BASE}/api/insights`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ domain, row_count: rowCount, columns: schema }),
+    body: JSON.stringify({
+      domain,
+      row_count: rowCount,
+      columns: schema,
+      anomalies,
+      forecast,
+    }),
   });
 
-  const body = await unwrap<{ insights: Insight[] }>(res);
-  return body.insights;
+  return unwrap<InsightsResult>(res);
 }

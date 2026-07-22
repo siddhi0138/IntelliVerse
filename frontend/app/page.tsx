@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { analyzeFile, fetchInsights } from "@/lib/api";
-import type { AnalyzeResponse, Insight } from "@/lib/types";
+import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
 import { InsightsPanel } from "@/components/InsightsPanel";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
+import { ForecastChart } from "@/components/ForecastChart";
+import { AnomaliesPanel } from "@/components/AnomaliesPanel";
+import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -15,6 +18,7 @@ export default function Home() {
   const [dragActive, setDragActive] = useState(false);
 
   const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsError, setInsightsError] = useState<string | null>(null);
 
@@ -25,6 +29,7 @@ export default function Home() {
     setError(null);
     setResult(null);
     setInsights(null);
+    setRecommendations(null);
     setInsightsError(null);
     try {
       const data = await analyzeFile(file);
@@ -39,20 +44,27 @@ export default function Home() {
   useEffect(() => {
     if (!result) return;
     let cancelled = false;
-    setInsightsLoading(true);
-    setInsightsError(null);
-    fetchInsights(result.domain, result.row_count, result.schema)
-      .then((data) => {
-        if (!cancelled) setInsights(data);
-      })
-      .catch((err) => {
+
+    async function run() {
+      if (!result) return;
+      setInsightsLoading(true);
+      setInsightsError(null);
+      try {
+        const data = await fetchInsights(result.domain, result.row_count, result.schema, result.anomalies, result.forecast);
+        if (!cancelled) {
+          setInsights(data.insights);
+          setRecommendations(data.recommendations);
+        }
+      } catch (err) {
         if (!cancelled) {
           setInsightsError(err instanceof Error ? err.message : "Could not generate insights.");
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setInsightsLoading(false);
-      });
+      }
+    }
+
+    run();
     return () => {
       cancelled = true;
     };
@@ -131,7 +143,10 @@ export default function Home() {
               .map((chart) => (
                 <ChartCard key={chart.id} chart={chart} />
               ))}
+            {result.forecast && <ForecastChart forecast={result.forecast} />}
             <InsightsPanel insights={insights} loading={insightsLoading} error={insightsError} />
+            <AnomaliesPanel anomalies={result.anomalies} />
+            <RecommendationsPanel recommendations={recommendations} loading={insightsLoading} />
           </div>
 
           <div>

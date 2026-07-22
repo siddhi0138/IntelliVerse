@@ -1,11 +1,12 @@
-"""AI-generated insights over an already-analyzed dataset.
+"""AI-generated insights and recommendations over an already-analyzed dataset.
 
 Calls out to an OpenAI-compatible endpoint (FreeLLMAPI by default, running
-locally) with a compact statistical summary of the dataset — never raw
-rows — and asks for a short list of structured insights. If no provider is
-configured or the call fails, callers get an empty list plus a reason
-rather than a 500, since insights are a nice-to-have layered on top of the
-charts that already render without them.
+locally) with a compact statistical summary of the dataset — column stats,
+detected anomalies, forecast trend — never raw rows — and asks for a short
+list of structured insights plus recommended actions. If no provider is
+configured or the call fails, callers get a clear reason rather than a
+500, since this is a nice-to-have layered on top of the charts/graph that
+already render without it.
 """
 
 from __future__ import annotations
@@ -20,16 +21,26 @@ LLM_API_KEY = os.environ.get("FREELLMAPI_API_KEY", "")
 LLM_MODEL = os.environ.get("FREELLMAPI_MODEL", "auto")
 
 _SYSTEM_PROMPT = """You are a senior data analyst. You are given a compact statistical \
-summary of a dataset (column types, inferred meanings, and aggregate stats) — not the \
-raw rows. Identify the most useful, concrete insights a business user would want to know.
+summary of a dataset (column types, inferred meanings, aggregate stats, detected \
+statistical outliers, and a forecast trend) — not the raw rows. Identify the most useful, \
+concrete insights a business user would want to know, and propose concrete recommended \
+actions grounded in the anomalies and forecast trend when they are present.
 
 Respond with strict JSON only, no markdown fences, matching exactly this shape:
-{"insights": [{"title": "short headline", "description": "1-2 sentences", "confidence": "high|medium|low"}]}
+{"insights": [{"title": "short headline", "description": "1-2 sentences", "confidence": "high|medium|low"}],
+ "recommendations": [{"title": "short headline", "action": "one concrete action to take", "rationale": "why, tied to the data"}]}
 
-Return at most 5 insights. If the data is too sparse to say anything meaningful, return an empty list."""
+Return at most 5 insights and at most 4 recommendations. If the data is too sparse to say \
+anything meaningful, return empty lists for either."""
 
 
-def _summarize_for_prompt(domain: str, row_count: int, schema: list[dict]) -> str:
+def _summarize_for_prompt(
+    domain: str,
+    row_count: int,
+    schema: list[dict],
+    anomalies: list[dict],
+    forecast: dict | None,
+) -> str:
     lines = [f"Domain guess: {domain}", f"Row count: {row_count}", "Columns:"]
     for col in schema:
         stats = col.get("stats", {})
@@ -47,6 +58,19 @@ def _summarize_for_prompt(domain: str, row_count: int, schema: list[dict]) -> st
             stat_bits.append(f"date_range=[{stats['min_date']} to {stats['max_date']}]")
         stat_bits.append(f"nulls={stats.get('null_count', 0)}")
         lines.append(f"- {col['semantic_label']} ({col['name']}, {col['type']}): {', '.join(stat_bits)}")
+
+    if anomalies:
+        lines.append("\nDetected statistical outliers (IQR method):")
+        for a in anomalies[:8]:
+            lines.append(f"- {a['semantic_label']} = {a['value']} ({a['direction']} normal range, row {a['row']})")
+
+    if forecast and forecast.get("forecast"):
+        lines.append(f"\nForecast for {forecast.get('column', 'primary metric')}: trending {forecast.get('trend')}.")
+        next_point = forecast["forecast"][0]
+        lines.append(
+            f"Next period projected at {next_point['value']} (range {next_point['lower']} to {next_point['upper']})."
+        )
+
     return "\n".join(lines)
 
 
@@ -54,11 +78,17 @@ class InsightsUnavailable(Exception):
     pass
 
 
-async def generate_insights(domain: str, row_count: int, schema: list[dict]) -> list[dict]:
+async def generate_insights(
+    domain: str,
+    row_count: int,
+    schema: list[dict],
+    anomalies: list[dict] | None = None,
+    forecast: dict | None = None,
+) -> dict:
     if not LLM_API_KEY:
         raise InsightsUnavailable("No FREELLMAPI_API_KEY configured on the backend.")
 
-    summary = _summarize_for_prompt(domain, row_count, schema)
+    summary = _summarize_for_prompt(domain, row_count, schema, anomalies or [], forecast)
 
     payload = {
         "model": LLM_MODEL,
@@ -85,8 +115,10 @@ async def generate_insights(domain: str, row_count: int, schema: list[dict]) -> 
     try:
         content = body["choices"][0]["message"]["content"]
         parsed = json.loads(content)
-        insights = parsed.get("insights", [])
     except (KeyError, IndexError, json.JSONDecodeError) as exc:
         raise InsightsUnavailable(f"Router returned an unparseable response: {exc}") from exc
 
-    return insights
+    return {
+        "insights": parsed.get("insights", []),
+        "recommendations": parsed.get("recommendations", []),
+    }
