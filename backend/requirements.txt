@@ -21,3 +21,4 @@ pyarrow==25.0.0
 openpyxl==3.1.5
 reportlab==4.4.4
 python-pptx==1.0.2
+websockets==16.1.1
