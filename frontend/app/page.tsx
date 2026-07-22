@@ -90,6 +90,16 @@ export default function Home() {
     }
   }, []);
 
+  const clearDataset = useCallback(() => {
+    setResult(null);
+    setInsights(null);
+    setRecommendations(null);
+    setInsightsError(null);
+    setError(null);
+    window.history.replaceState(null, "", "/");
+    localStorage.removeItem("nexus_last_analysis");
+  }, []);
+
   useEffect(() => {
     if (!result) return;
     let cancelled = false;
@@ -199,9 +209,19 @@ export default function Home() {
                 {result.row_count.toLocaleString()} rows &middot; {result.column_count} columns
               </p>
             </div>
-            <span className="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-sm font-medium">
-              {result.domain}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-sm font-medium">
+                {result.domain}
+              </span>
+              <button
+                onClick={clearDataset}
+                title="Clear this dataset and start over"
+                aria-label="Clear this dataset"
+                className="rounded-full border border-slate-300 dark:border-slate-700 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
           </div>
 
           <ReportExportPanel key={`report-${result.analysis_id}`} analysisId={result.analysis_id} />
