@@ -27,6 +27,7 @@ import type {
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
+const WS_BASE = API_BASE.replace(/^http/, "ws");
 
 async function unwrap<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -36,16 +37,35 @@ async function unwrap<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-export async function analyzeFile(file: File): Promise<AnalyzeResponse> {
+export async function analyzeFileWithProgress(
+  file: File,
+  onProgress: (step: string) => void
+): Promise<AnalyzeResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const res = await fetch(`${API_BASE}/api/analyze`, {
+  const res = await fetch(`${API_BASE}/api/analyze/start`, {
     method: "POST",
     body: formData,
   });
+  const { job_id } = await unwrap<{ job_id: string }>(res);
 
-  return unwrap<AnalyzeResponse>(res);
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(`${WS_BASE}/ws/analyze/${job_id}`);
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "progress") {
+        onProgress(msg.step);
+      } else if (msg.type === "done") {
+        ws.close();
+        resolve(msg.result as AnalyzeResponse);
+      } else if (msg.type === "error") {
+        ws.close();
+        reject(new Error(msg.detail));
+      }
+    };
+    ws.onerror = () => reject(new Error("Lost connection while analyzing."));
+  });
 }
 
 export interface InsightsResult {

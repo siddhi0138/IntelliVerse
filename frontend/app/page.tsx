@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { analyzeFile, fetchInsights } from "@/lib/api";
+import { analyzeFileWithProgress, fetchInsights } from "@/lib/api";
 import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
@@ -31,6 +31,7 @@ import { ReportExportPanel } from "@/components/ReportExportPanel";
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progressStep, setProgressStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -43,18 +44,20 @@ export default function Home() {
 
   const handleFile = useCallback(async (file: File) => {
     setLoading(true);
+    setProgressStep(null);
     setError(null);
     setResult(null);
     setInsights(null);
     setRecommendations(null);
     setInsightsError(null);
     try {
-      const data = await analyzeFile(file);
+      const data = await analyzeFileWithProgress(file, setProgressStep);
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setLoading(false);
+      setProgressStep(null);
     }
   }, []);
 
@@ -145,7 +148,9 @@ export default function Home() {
           }}
         />
         <p className="text-slate-600 dark:text-slate-400">
-          {loading ? "Analyzing…" : "Drop a CSV, Excel, or JSON file here, or click to browse"}
+          {loading
+            ? progressStep ?? "Analyzing…"
+            : "Drop a CSV, Excel, or JSON file here, or click to browse"}
         </p>
       </div>
 

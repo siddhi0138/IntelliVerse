@@ -1,7 +1,9 @@
+import asyncio
 import io
 import re
 import uuid
 from dataclasses import asdict
+from typing import Callable
 
 from dotenv import load_dotenv
 
@@ -10,7 +12,7 @@ load_dotenv()  # must run before `insights` reads FREELLMAPI_* env vars at impor
 import networkx as nx
 import pandas as pd
 import polars as pl
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -40,6 +42,7 @@ from knowledge_graph_builder import build_graph
 from multi_table import RelationshipCandidate, discover_relationships
 from neo4j_client import get_driver
 from profiling import build_quality_report
+from progress_jobs import create_job, get_job
 from qa import answer_question
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
 from report import build_excel_report, build_pdf_report, build_pptx_report
@@ -105,14 +108,13 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.post("/api/analyze")
-async def analyze(file: UploadFile) -> dict:
-    content = await file.read()
+def _run_analysis(filename: str, content: bytes, progress: Callable[[str], None] = lambda step: None) -> dict:
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
+    progress("Parsing file")
     try:
-        df = _read_dataframe(file.filename or "upload.csv", content)
+        df = _read_dataframe(filename, content)
     except HTTPException:
         raise
     except Exception as exc:  # pandas parse errors, bad encoding, etc.
@@ -121,6 +123,7 @@ async def analyze(file: UploadFile) -> dict:
     if df.empty:
         raise HTTPException(status_code=400, detail="Uploaded file has no rows.")
 
+    progress("Inferring schema")
     schema = build_schema(df)
     charts = suggest_charts(df, schema)
     domain = guess_domain(list(df.columns))
@@ -132,6 +135,7 @@ async def analyze(file: UploadFile) -> dict:
     primary_metric = numeric_cols[0].name if numeric_cols else None
 
     # v1 backfill: data quality profiling (duplicates, invalid values, score, recommendations)
+    progress("Checking data quality")
     quality = build_quality_report(df, schema)
 
     # v3: forecast eligibility is always reported, even when there's no date
@@ -147,6 +151,7 @@ async def analyze(file: UploadFile) -> dict:
     monthly = []
     forecastable_targets = []
     if date_cols and numeric_cols:
+        progress("Backtesting forecast models")
         monthly = monthly_series(df, date_cols[0].name, numeric_cols[0].name)
         forecast_eligibility = check_forecast_eligibility(True, True, len(monthly))
         if forecast_eligibility["eligible"]:
@@ -154,6 +159,7 @@ async def analyze(file: UploadFile) -> dict:
             forecast["column"] = numeric_cols[0].semantic_label
         forecastable_targets = discover_forecastable_targets(df, schema, date_cols[0].name, monthly_series)
 
+    progress("Detecting anomalies")
     anomalies = detect_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
     multivariate_anomalies = detect_multivariate_anomalies(df, schema, id_column=id_cols[0].name if id_cols else None)
     time_series_spikes = detect_time_series_spikes(monthly) if monthly else []
@@ -161,6 +167,7 @@ async def analyze(file: UploadFile) -> dict:
     period_comparison = period_over_period(monthly) if monthly else None
 
     # v2 backfill: relationship discovery + root cause
+    progress("Analyzing relationships and root cause")
     correlations = numeric_correlations(df, schema)
     associations = categorical_associations(df, schema)
     root_cause = root_cause_breakdown(df, schema, primary_metric) if primary_metric else None
@@ -177,10 +184,12 @@ async def analyze(file: UploadFile) -> dict:
     )
 
     # additive ML: KMeans segmentation (K chosen via silhouette score, not assumed)
+    progress("Clustering")
     clustering = cluster_rows(df, schema, id_column=id_cols[0].name if id_cols else None)
 
     # additive: Great Expectations as a supplementary structural sanity check,
     # layered on top of (not replacing) the business-meaning-aware quality report above
+    progress("Running validation checks")
     ge_validation = run_ge_validation(df, schema)
 
     analysis_id = str(uuid.uuid4())
@@ -189,7 +198,7 @@ async def analyze(file: UploadFile) -> dict:
 
     catalog.save_dataset(
         analysis_id=analysis_id,
-        filename=file.filename or "upload",
+        filename=filename or "upload",
         row_count=len(df),
         column_count=len(df.columns),
         domain=domain,
@@ -197,9 +206,10 @@ async def analyze(file: UploadFile) -> dict:
         schema=schema,
     )
 
+    progress("Finalizing")
     response = {
         "analysis_id": analysis_id,
-        "filename": file.filename,
+        "filename": filename,
         "row_count": len(df),
         "column_count": len(df.columns),
         "memory_usage_bytes": int(df.memory_usage(deep=True).sum()),
@@ -230,6 +240,59 @@ async def analyze(file: UploadFile) -> dict:
     }
     _ANALYSIS_RESULT_CACHE[analysis_id] = response
     return response
+
+
+@app.post("/api/analyze")
+async def analyze(file: UploadFile) -> dict:
+    content = await file.read()
+    return _run_analysis(file.filename or "upload.csv", content)
+
+
+@app.post("/api/analyze/start")
+async def start_analyze_job(file: UploadFile) -> dict:
+    """Kicks off analysis in a background thread and returns a job_id to
+    watch over WS /ws/analyze/{job_id} for live step-by-step progress —
+    useful for larger files where the multi-model forecast backtest alone
+    can take several seconds."""
+    content = await file.read()
+    filename = file.filename or "upload.csv"
+    job = create_job()
+
+    async def run() -> None:
+        try:
+            result = await asyncio.to_thread(_run_analysis, filename, content, job.progress)
+            job.finish(result)
+        except HTTPException as exc:
+            job.fail(str(exc.detail))
+        except Exception as exc:  # pragma: no cover - unexpected failure
+            job.fail(str(exc))
+
+    asyncio.create_task(run())
+    return {"job_id": job.id}
+
+
+@app.websocket("/ws/analyze/{job_id}")
+async def analyze_progress_ws(websocket: WebSocket, job_id: str) -> None:
+    await websocket.accept()
+    job = get_job(job_id)
+    if job is None:
+        await websocket.send_json({"type": "error", "detail": "Unknown job_id."})
+        await websocket.close()
+        return
+
+    sent = 0
+    try:
+        while True:
+            while sent < len(job.log):
+                await websocket.send_json(job.log[sent])
+                sent += 1
+            if job.status != "running":
+                break
+            await job.wait_for_update()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await websocket.close()
 
 
 class InsightsRequest(BaseModel):
