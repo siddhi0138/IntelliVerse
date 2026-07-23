@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  checkUploadSize,
   confirmRelationships,
   createWorkspace,
   deleteWorkspace,
@@ -109,6 +110,13 @@ export default function WorkspacePage() {
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
+    for (const file of Array.from(files)) {
+      const sizeError = checkUploadSize(file);
+      if (sizeError) {
+        setError(sizeError);
+        return;
+      }
+    }
     setUploading(true);
     setError(null);
     resetView();

@@ -149,6 +149,19 @@ _simulation_engine = CorrelationRegressionEngine()
 # pandas DataFrame unchanged.
 _POLARS_FAST_PATH_THRESHOLD_BYTES = 20_000_000
 
+# Free-tier deploys (512MB-1GB RAM) can OOM parsing+analyzing a large
+# enough file well before pandas itself would complain — this caps it at
+# the request boundary instead of letting the process crash mid-analysis.
+MAX_UPLOAD_BYTES = 25_000_000
+
+
+def _check_upload_size(filename: str, content: bytes) -> None:
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"'{filename}' is {len(content) / 1_000_000:.1f}MB, over the {MAX_UPLOAD_BYTES // 1_000_000}MB upload limit.",
+        )
+
 
 def _read_dataframe(filename: str, content: bytes) -> pd.DataFrame:
     lowered = filename.lower()
@@ -202,6 +215,7 @@ def _run_analysis(
     logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    _check_upload_size(filename, content)
 
     progress("Parsing file")
     try:
@@ -721,6 +735,7 @@ async def create_workspace(files: list[UploadFile], current_user: str = Depends(
         content = await file.read()
         if not content:
             continue
+        _check_upload_size(file.filename or "table.csv", content)
         try:
             df = _read_dataframe(file.filename or "table.csv", content)
         except Exception as exc:
@@ -1039,6 +1054,7 @@ async def upload_documents(
     for file in files:
         content = await file.read()
         filename = file.filename or "document"
+        _check_upload_size(filename, content)
         doc_id = str(uuid.uuid4())
         try:
             chunk_count = document_intelligence.ingest_document(current_user, doc_id, filename, content)

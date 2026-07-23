@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { askDocuments, deleteDocument, listDatasets, listDocuments, uploadDocuments } from "@/lib/api";
+import { askDocuments, checkUploadSize, deleteDocument, listDatasets, listDocuments, uploadDocuments } from "@/lib/api";
 import type { AskDocumentsResponse, CatalogEntry, DocumentEntry } from "@/lib/types";
 
 export default function KnowledgePage() {
@@ -35,6 +35,13 @@ export default function KnowledgePage() {
   }, [refresh]);
 
   async function handleFiles(files: FileList | File[]) {
+    for (const file of Array.from(files)) {
+      const sizeError = checkUploadSize(file);
+      if (sizeError) {
+        setUploadError(sizeError);
+        return;
+      }
+    }
     setUploading(true);
     setUploadError(null);
     try {
