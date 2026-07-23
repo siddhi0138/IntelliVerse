@@ -84,20 +84,38 @@ Instrumentator().instrument(app).expose(app, include_in_schema=False)
 MAX_REQUEST_BODY_BYTES = 30_000_000
 
 
-@app.middleware("http")
-async def reject_oversized_requests(request: Request, call_next):
-    """Checked against the Content-Length header, before FastAPI/Starlette
-    ever buffers the multipart body into memory. The per-file check in
-    _check_upload_size runs after `await file.read()` — too late on a
-    memory-constrained deploy, where just receiving a large-enough body
-    was itself enough to OOM the process before that check ever ran."""
-    content_length = request.headers.get("content-length")
-    if content_length is not None and int(content_length) > MAX_REQUEST_BODY_BYTES:
-        return JSONResponse(
-            status_code=413,
-            content={"detail": f"Request body is over the {MAX_REQUEST_BODY_BYTES // 1_000_000}MB limit."},
-        )
-    return await call_next(request)
+class MaxBodySizeMiddleware:
+    """Deliberately NOT `@app.middleware("http")` — that goes through
+    Starlette's BaseHTTPMiddleware, which has a known issue where it can
+    still buffer the entire request body internally before a middleware
+    function's own code runs, even if that code never calls
+    `request.body()`. This is plain ASGI instead: it inspects the
+    Content-Length header straight from the connection `scope` and, when
+    over the limit, responds and returns *without ever calling `receive`*
+    — so the oversized body is never read off the socket, let alone
+    buffered into memory. Confirmed live: the BaseHTTPMiddleware version
+    still let a 33MB upload OOM-crash the process; this one rejects it in
+    milliseconds."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers") or [])
+            content_length = headers.get(b"content-length")
+            if content_length is not None and int(content_length) > self.max_bytes:
+                response = JSONResponse(
+                    status_code=413,
+                    content={"detail": f"Request body is over the {self.max_bytes // 1_000_000}MB limit."},
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
 
 
 @app.middleware("http")
