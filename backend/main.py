@@ -20,7 +20,7 @@ import pandas as pd
 import polars as pl
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
@@ -79,6 +79,43 @@ app.add_middleware(
 # histograms, in-progress requests) — self-hosted, no external account,
 # scraped by the prometheus service in docker-compose.yml.
 Instrumentator().instrument(app).expose(app, include_in_schema=False)
+
+
+MAX_REQUEST_BODY_BYTES = 30_000_000
+
+
+class MaxBodySizeMiddleware:
+    """Deliberately NOT `@app.middleware("http")` — that goes through
+    Starlette's BaseHTTPMiddleware, which has a known issue where it can
+    still buffer the entire request body internally before a middleware
+    function's own code runs, even if that code never calls
+    `request.body()`. This is plain ASGI instead: it inspects the
+    Content-Length header straight from the connection `scope` and, when
+    over the limit, responds and returns *without ever calling `receive`*
+    — so the oversized body is never read off the socket, let alone
+    buffered into memory. Confirmed live: the BaseHTTPMiddleware version
+    still let a 33MB upload OOM-crash the process; this one rejects it in
+    milliseconds."""
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers") or [])
+            content_length = headers.get(b"content-length")
+            if content_length is not None and int(content_length) > self.max_bytes:
+                response = JSONResponse(
+                    status_code=413,
+                    content={"detail": f"Request body is over the {self.max_bytes // 1_000_000}MB limit."},
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(MaxBodySizeMiddleware, max_bytes=MAX_REQUEST_BODY_BYTES)
 
 
 @app.middleware("http")
@@ -149,6 +186,19 @@ _simulation_engine = CorrelationRegressionEngine()
 # pandas DataFrame unchanged.
 _POLARS_FAST_PATH_THRESHOLD_BYTES = 20_000_000
 
+# Free-tier deploys (512MB-1GB RAM) can OOM parsing+analyzing a large
+# enough file well before pandas itself would complain — this caps it at
+# the request boundary instead of letting the process crash mid-analysis.
+MAX_UPLOAD_BYTES = 25_000_000
+
+
+def _check_upload_size(filename: str, content: bytes) -> None:
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"'{filename}' is {len(content) / 1_000_000:.1f}MB, over the {MAX_UPLOAD_BYTES // 1_000_000}MB upload limit.",
+        )
+
 
 def _read_dataframe(filename: str, content: bytes) -> pd.DataFrame:
     lowered = filename.lower()
@@ -202,6 +252,7 @@ def _run_analysis(
     logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
     if not content:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    _check_upload_size(filename, content)
 
     progress("Parsing file")
     try:
@@ -721,6 +772,7 @@ async def create_workspace(files: list[UploadFile], current_user: str = Depends(
         content = await file.read()
         if not content:
             continue
+        _check_upload_size(file.filename or "table.csv", content)
         try:
             df = _read_dataframe(file.filename or "table.csv", content)
         except Exception as exc:
@@ -1039,6 +1091,7 @@ async def upload_documents(
     for file in files:
         content = await file.read()
         filename = file.filename or "document"
+        _check_upload_size(filename, content)
         doc_id = str(uuid.uuid4())
         try:
             chunk_count = document_intelligence.ingest_document(current_user, doc_id, filename, content)

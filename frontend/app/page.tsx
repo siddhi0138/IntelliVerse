@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { analyzeFileWithProgress, deleteDataset, fetchCatalogDataset, fetchInsights } from "@/lib/api";
+import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset, fetchInsights } from "@/lib/api";
 import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
@@ -67,6 +67,11 @@ export default function Home() {
   }, []);
 
   const handleFile = useCallback(async (file: File) => {
+    const sizeError = checkUploadSize(file);
+    if (sizeError) {
+      setError(sizeError);
+      return;
+    }
     setLoading(true);
     setProgressStep(null);
     setError(null);
