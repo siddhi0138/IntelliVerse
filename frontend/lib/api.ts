@@ -34,17 +34,6 @@ import { getToken } from "./auth";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
-// Mirrors MAX_UPLOAD_BYTES in backend/main.py — checked client-side too so
-// a large file is rejected instantly instead of after a slow upload.
-export const MAX_UPLOAD_BYTES = 25_000_000;
-
-export function checkUploadSize(file: File): string | null {
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `'${file.name}' is ${(file.size / 1_000_000).toFixed(1)}MB, over the ${MAX_UPLOAD_BYTES / 1_000_000}MB upload limit.`;
-  }
-  return null;
-}
-
 function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
