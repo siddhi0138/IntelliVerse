@@ -1,5 +1,6 @@
 import asyncio
 import io
+import os
 import re
 import time
 import uuid
@@ -63,9 +64,13 @@ from simulation import CorrelationRegressionEngine, build_decision_actions
 
 app = FastAPI(title="IntelliVerse API", version="0.1.0")
 
+# Comma-separated list so the deployed frontend's origin can be added via a
+# Render env var, with no code change/redeploy needed once that domain is
+# known (it doesn't exist yet at the time the backend is first deployed).
+_frontend_origins = os.environ.get("FRONTEND_ORIGINS", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[o.strip() for o in _frontend_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -198,13 +198,12 @@ separately:
 3. Create a second Render service for Neo4j from the `neo4j:5.26-community`
    Docker image, with a persistent disk mounted for `/data`.
 4. Add the environment variables below to the backend Web Service.
-5. Update `allow_origins` in `backend/main.py` (currently
-   `http://localhost:3000`) to your Vercel domain.
 
 **Environment variables to add on Render:**
 
 | Variable | Value |
 |---|---|
+| `FRONTEND_ORIGINS` | Your Vercel domain, e.g. `https://your-app.vercel.app` (comma-separate if you have more than one) |
 | `FREELLMAPI_BASE_URL` | Your LLM endpoint's base URL |
 | `FREELLMAPI_API_KEY` | Your LLM endpoint's API key |
 | `FREELLMAPI_MODEL` | `auto` (or a specific model name) |
