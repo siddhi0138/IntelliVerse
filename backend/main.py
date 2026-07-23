@@ -20,7 +20,7 @@ import pandas as pd
 import polars as pl
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
@@ -79,6 +79,25 @@ app.add_middleware(
 # histograms, in-progress requests) — self-hosted, no external account,
 # scraped by the prometheus service in docker-compose.yml.
 Instrumentator().instrument(app).expose(app, include_in_schema=False)
+
+
+MAX_REQUEST_BODY_BYTES = 30_000_000
+
+
+@app.middleware("http")
+async def reject_oversized_requests(request: Request, call_next):
+    """Checked against the Content-Length header, before FastAPI/Starlette
+    ever buffers the multipart body into memory. The per-file check in
+    _check_upload_size runs after `await file.read()` — too late on a
+    memory-constrained deploy, where just receiving a large-enough body
+    was itself enough to OOM the process before that check ever ran."""
+    content_length = request.headers.get("content-length")
+    if content_length is not None and int(content_length) > MAX_REQUEST_BODY_BYTES:
+        return JSONResponse(
+            status_code=413,
+            content={"detail": f"Request body is over the {MAX_REQUEST_BODY_BYTES // 1_000_000}MB limit."},
+        )
+    return await call_next(request)
 
 
 @app.middleware("http")
