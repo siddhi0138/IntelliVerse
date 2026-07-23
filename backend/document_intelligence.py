@@ -27,6 +27,7 @@ import io
 import re
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import docx
 import pypdf
@@ -40,7 +41,12 @@ from qdrant_client.models import (
     PointStruct,
     VectorParams,
 )
-from sentence_transformers import SentenceTransformer
+
+if TYPE_CHECKING:
+    # sentence_transformers pulls in torch, one of the heaviest imports in
+    # this backend — deferred to _get_model() below so a process that never
+    # touches document Q&A never pays for it.
+    from sentence_transformers import SentenceTransformer
 
 _QDRANT_PATH = Path(__file__).parent / "data" / "qdrant"
 _COLLECTION = "documents"
@@ -68,9 +74,11 @@ def _get_client() -> QdrantClient:
     return _client
 
 
-def _get_model() -> SentenceTransformer:
+def _get_model() -> "SentenceTransformer":
     global _model
     if _model is None:
+        from sentence_transformers import SentenceTransformer
+
         _model = SentenceTransformer(_EMBEDDING_MODEL_NAME)
     return _model
 

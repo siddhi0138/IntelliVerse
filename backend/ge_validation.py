@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import great_expectations as gx
 import pandas as pd
 
 from schema_inference import ColumnSchema
@@ -22,6 +21,8 @@ from schema_inference import ColumnSchema
 
 def run_validation(df: pd.DataFrame, schema: list[ColumnSchema]) -> dict[str, Any]:
     try:
+        import great_expectations as gx  # lazy: heavy import, only paid for when this actually runs
+
         context = gx.get_context(mode="ephemeral")
         data_source = context.data_sources.add_pandas("nexus_pandas")
         asset = data_source.add_dataframe_asset(name="nexus_asset")

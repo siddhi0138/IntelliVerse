@@ -24,7 +24,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import shap
 from sklearn.ensemble import IsolationForest
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
@@ -73,6 +72,8 @@ def detect_multivariate_anomalies(
     ocsvm_labels = ocsvm.fit_predict(X_scaled)
 
     try:
+        import shap  # lazy: heavy import, only paid for when this actually runs
+
         explainer = shap.TreeExplainer(iso)
     except Exception:
         explainer = None
