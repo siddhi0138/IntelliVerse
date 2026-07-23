@@ -79,7 +79,7 @@ export default function KnowledgePage() {
         </div>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5 whitespace-nowrap"
+          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5 whitespace-nowrap"
         >
           &larr; Back to upload
         </Link>
@@ -100,7 +100,7 @@ export default function KnowledgePage() {
         className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors mb-6 ${
           dragActive
             ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30"
-            : "border-slate-300 dark:border-slate-600 hover:border-indigo-400"
+            : "border-slate-300 dark:border-slate-800 hover:border-indigo-400"
         }`}
       >
         <input
@@ -158,16 +158,16 @@ export default function KnowledgePage() {
             <select
               value={selectedDataset}
               onChange={(e) => setSelectedDataset(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
             >
-              <option value="" className="bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100">
+              <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
                 Documents only
               </option>
               {datasets.map((d) => (
                 <option
                   key={d.analysis_id}
                   value={d.analysis_id}
-                  className="bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                 >
                   {d.filename} ({d.domain})
                 </option>
@@ -183,7 +183,7 @@ export default function KnowledgePage() {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
             placeholder="e.g. Why did revenue decrease last quarter?"
-            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-transparent px-3 py-1.5 text-sm"
+            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-1.5 text-sm"
           />
           <button onClick={handleAsk} disabled={asking || !question.trim()} className="btn-primary">
             {asking ? "Thinking…" : "Ask"}

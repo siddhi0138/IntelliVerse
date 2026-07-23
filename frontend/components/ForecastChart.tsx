@@ -51,7 +51,7 @@ export function ForecastChart({
 }) {
   if (!eligibility.eligible || !forecast || forecast.method === "insufficient_data" || forecast.forecast.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-600 p-4 bg-white dark:bg-slate-700">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Forecast</h3>
         <p className="text-sm text-slate-500">
           {eligibility.reason ?? "Not enough historical periods to project a trend yet."}
@@ -64,7 +64,7 @@ export function ForecastChart({
   const modelLabel = MODEL_LABELS[forecast.method] ?? forecast.method;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 p-4 bg-white dark:bg-slate-700">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
         Forecast: {forecast.column ?? "primary metric"}
       </h3>

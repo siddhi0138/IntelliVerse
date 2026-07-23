@@ -7,7 +7,7 @@ const METHOD_LABELS: Record<string, string> = {
 };
 
 const CONSENSUS_COLORS: Record<number, string> = {
-  1: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400",
+  1: "bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400",
   2: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   3: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
 };
@@ -16,7 +16,7 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
   if (anomalies.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Multivariate Anomalies</h3>
       <p className="text-xs text-slate-500 mb-3">
         Rows unusual across a combination of metrics — Isolation Forest, Local Outlier Factor, and One-Class SVM
@@ -24,7 +24,7 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
       </p>
       <ul className="space-y-3">
         {anomalies.map((a, i) => (
-          <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-600/60 last:border-0 pb-3 last:pb-0">
+          <li key={i} className="text-sm border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{a.row}</span>
               <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${CONSENSUS_COLORS[a.consensus] ?? CONSENSUS_COLORS[1]}`}>

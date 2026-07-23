@@ -4,9 +4,9 @@ export function InsightTimelinePanel({ timeline }: { timeline: InsightTimelineEn
   if (timeline.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Insight Timeline</h3>
-      <ol className="relative border-l border-slate-200 dark:border-slate-600 ml-2 space-y-4">
+      <ol className="relative border-l border-slate-200 dark:border-slate-800 ml-2 space-y-4">
         {timeline.map((entry) => (
           <li key={entry.period} className="ml-4">
             <span className="absolute -left-1.5 w-3 h-3 rounded-full bg-indigo-500" />

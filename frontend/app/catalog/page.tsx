@@ -59,13 +59,13 @@ export default function CatalogPage() {
         </div>
         <div className="flex items-center gap-2">
           {datasets && datasets.length > 0 && (
-            <button onClick={handleEmptyCatalog} disabled={emptying} className="btn-danger-ghost whitespace-nowrap">
+            <button onClick={handleEmptyCatalog} disabled={emptying} className="btn-danger whitespace-nowrap">
               {emptying ? "Emptying…" : "Empty catalog"}
             </button>
           )}
           <Link
             href="/"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full px-3 py-1.5 whitespace-nowrap"
+            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5 whitespace-nowrap"
           >
             &larr; Back to upload
           </Link>
@@ -81,10 +81,10 @@ export default function CatalogPage() {
       )}
 
       {datasets && datasets.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 overflow-x-auto shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-600 text-left text-slate-500">
+              <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">
                 <th className="px-4 py-2 font-medium">Filename</th>
                 <th className="px-4 py-2 font-medium">Uploaded</th>
                 <th className="px-4 py-2 font-medium">Domain</th>
@@ -97,7 +97,7 @@ export default function CatalogPage() {
                 <tr
                   key={d.analysis_id}
                   onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
-                  className="border-b border-slate-100 dark:border-slate-600/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/40"
+                  className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/40"
                 >
                   <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
                   <td className="px-4 py-2 text-slate-500">{new Date(d.uploaded_at).toLocaleString()}</td>

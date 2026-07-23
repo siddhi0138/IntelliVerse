@@ -121,14 +121,14 @@ export function ForecastSection({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save this forecast"}
         </button>
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved forecasts</h4>
           <ul className="space-y-1">
             {saved.map((s) => (

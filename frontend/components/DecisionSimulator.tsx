@@ -108,7 +108,7 @@ export function DecisionSimulator({
 
   if (decisions.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Decision Simulator</h3>
         <p className="text-sm text-slate-500">No numeric columns detected to simulate against.</p>
       </div>
@@ -117,19 +117,19 @@ export function DecisionSimulator({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Custom decision</h3>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={selectedColumn}
             onChange={(e) => setSelectedColumn(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
           >
             {decisions.map((d) => (
               <option
                 key={d.id}
                 value={d.column}
-                className="bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               >
                 {d.label}
               </option>
@@ -157,7 +157,7 @@ export function DecisionSimulator({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Scenario presets</h3>
         <div className="flex flex-wrap gap-2">
           {SCENARIO_PRESETS.map((p) => (
@@ -165,7 +165,7 @@ export function DecisionSimulator({
               key={p.name}
               onClick={() => primaryMetric && runOne(primaryMetric, p.pct)}
               disabled={!primaryMetric || running}
-              className="rounded-full border border-slate-300 dark:border-slate-600 px-3 py-1.5 text-sm hover:border-indigo-400 disabled:opacity-50"
+              className="rounded-full border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-sm hover:border-indigo-400 disabled:opacity-50"
             >
               {p.name} ({p.pct > 0 ? "+" : ""}
               {p.pct}%)
@@ -191,7 +191,7 @@ export function DecisionSimulator({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save this simulation"}
           </button>
@@ -199,7 +199,7 @@ export function DecisionSimulator({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved simulations</h4>
           <ul className="space-y-1">
             {saved.map((s) => (

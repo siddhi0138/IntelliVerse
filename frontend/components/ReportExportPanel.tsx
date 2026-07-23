@@ -10,7 +10,7 @@ const FORMATS: { format: "pdf" | "xlsx" | "pptx"; label: string }[] = [
 
 export function ReportExportPanel({ analysisId }: { analysisId: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Export report</h3>
       <p className="text-xs text-slate-500 mb-3">
         Download this analysis as a formatted report — findings, risk alerts, and forecast, no re-computation.
@@ -21,7 +21,7 @@ export function ReportExportPanel({ analysisId }: { analysisId: string }) {
             key={format}
             href={reportUrl(analysisId, format)}
             download
-            className="rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
           >
             {label}
           </a>

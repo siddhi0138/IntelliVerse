@@ -10,7 +10,7 @@ export function SimulationExplanationPanel({
   error: string | null;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">AI Explanation</h3>
 
       {loading && <p className="text-sm text-slate-500">Explaining the projection…</p>}

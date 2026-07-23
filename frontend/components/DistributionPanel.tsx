@@ -19,7 +19,7 @@ export function DistributionPanel({ distributions }: { distributions: Record<str
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Distributions</h3>
       <ul className="space-y-2">
         {entries.map(([col, d]) => (

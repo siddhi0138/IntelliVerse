@@ -12,7 +12,7 @@ export function ForecastTargetsPanel({
   if (targets.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Forecastable Targets</h3>
       <div className="flex flex-wrap gap-2">
         {targets.map((t) => (
@@ -24,7 +24,7 @@ export function ForecastTargetsPanel({
             className={`rounded-full border px-3 py-1.5 text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
               selectedColumn === t.column
                 ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300"
-                : "border-slate-300 dark:border-slate-600 hover:border-indigo-400"
+                : "border-slate-300 dark:border-slate-800 hover:border-indigo-400"
             }`}
           >
             {t.semantic_label} ({Math.round(t.confidence * 100)}%)

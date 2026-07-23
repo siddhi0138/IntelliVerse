@@ -2,7 +2,7 @@ import type { GraphAnalytics } from "@/lib/types";
 
 export function GraphAnalyticsPanel({ analytics }: { analytics: GraphAnalytics }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Graph Analytics</h3>
 
       <div className="grid grid-cols-2 gap-4 mb-4">

@@ -14,7 +14,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <li className="border-b border-slate-100 dark:border-slate-600/60 last:border-0 py-2.5">
+    <li className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 py-2.5">
       <button onClick={() => setOpen((o) => !o)} className="w-full text-left flex items-start justify-between gap-3">
         <span className="text-sm">{finding.headline}</span>
         <span
@@ -24,7 +24,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
         </span>
       </button>
       {open && (
-        <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-700/60 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
+        <pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900/60 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
           {JSON.stringify(finding.evidence, null, 2)}
         </pre>
       )}
@@ -34,7 +34,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
 
 export function RankedFindingsPanel({ findings }: { findings: RankedFinding[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 p-4">
+    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Insight Explorer</h3>
       <p className="text-xs text-slate-500 mb-3">
         Ranked by magnitude and statistical significance. Click a finding to inspect the supporting evidence.
