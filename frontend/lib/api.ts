@@ -26,6 +26,7 @@ import type {
   SimulationExplanation,
   SimulationResult,
   WorkspaceGraph,
+  WorkspaceMetadata,
   WorkspaceResponse,
 } from "./types";
 import { getToken } from "./auth";
@@ -290,6 +291,30 @@ export async function fetchWorkspaceGraph(workspaceId: string): Promise<Workspac
     headers: authHeaders(),
   });
   return unwrap<WorkspaceGraph>(res);
+}
+
+export async function fetchWorkspaceMetadata(workspaceId: string): Promise<WorkspaceMetadata> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}`, {
+    headers: authHeaders(),
+  });
+  return unwrap<WorkspaceMetadata>(res);
+}
+
+export async function saveWorkspace(workspaceId: string): Promise<string> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}/save`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ saved_at: string }>(res);
+  return body.saved_at;
+}
+
+export async function deleteWorkspace(workspaceId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/workspace/${encodeURIComponent(workspaceId)}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await unwrap<{ deleted: boolean }>(res);
 }
 
 export async function fetchEntityProfile(workspaceId: string, table: string, key: string): Promise<EntityProfile> {

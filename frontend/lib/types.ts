@@ -415,6 +415,15 @@ export interface WorkspaceResponse {
   suggested_relationships: RelationshipCandidate[];
 }
 
+export interface WorkspaceMetadata {
+  workspace_id: string;
+  tables: WorkspaceTable[];
+  node_count: number;
+  edge_count: number;
+  analytics: GraphAnalytics | null;
+  saved_at: string | null;
+}
+
 export interface GraphAnalyticsEntry {
   node: string;
   table: string | null;

@@ -667,8 +667,44 @@ def _table_name_from_filename(filename: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", name)
 
 
+def _load_workspace_graph(workspace_id: str) -> nx.MultiDiGraph | None:
+    """The in-memory cache is lost on a backend restart, but the actual
+    graph data lives in Neo4j (tagged by _workspace_id) regardless — so
+    fall back to rebuilding the NetworkX graph from there instead of
+    treating a cold cache as "no graph exists"."""
+    cached = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
+    if cached is not None:
+        return cached
+
+    driver = get_driver()
+    graph = nx.MultiDiGraph()
+    with driver.session() as session:
+        nodes = session.run(
+            "MATCH (n {_workspace_id: $wid}) RETURN labels(n)[0] AS table, n._key AS key", wid=workspace_id
+        )
+        found = False
+        for rec in nodes:
+            found = True
+            graph.add_node(f"{rec['table']}:{rec['key']}", table=rec["table"], key=rec["key"])
+        if not found:
+            return None
+
+        edges = session.run(
+            """
+            MATCH (a {_workspace_id: $wid})-[r]->(b {_workspace_id: $wid})
+            RETURN labels(a)[0] AS at, a._key AS ak, labels(b)[0] AS bt, b._key AS bk, type(r) AS rtype
+            """,
+            wid=workspace_id,
+        )
+        for rec in edges:
+            graph.add_edge(f"{rec['at']}:{rec['ak']}", f"{rec['bt']}:{rec['bk']}", type=rec["rtype"])
+
+    _WORKSPACE_GRAPH_CACHE[workspace_id] = graph
+    return graph
+
+
 @protected.post("/api/workspace")
-async def create_workspace(files: list[UploadFile]) -> dict:
+async def create_workspace(files: list[UploadFile], current_user: str = Depends(get_current_user)) -> dict:
     if not files:
         raise HTTPException(status_code=400, detail="Upload at least one file.")
 
@@ -707,6 +743,7 @@ async def create_workspace(files: list[UploadFile]) -> dict:
     workspace_id = str(uuid.uuid4())
     _WORKSPACE_TABLES_CACHE[workspace_id] = tables
     _WORKSPACE_SCHEMAS_CACHE[workspace_id] = schemas
+    catalog.save_workspace(workspace_id, current_user, table_summaries)
 
     suggested = discover_relationships(tables, schemas) if len(tables) > 1 else []
 
@@ -734,7 +771,9 @@ class ConfirmRelationshipsRequest(BaseModel):
 
 
 @protected.post("/api/workspace/{workspace_id}/relationships")
-def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -> dict:
+def confirm_relationships(
+    workspace_id: str, req: ConfirmRelationshipsRequest, current_user: str = Depends(get_current_user)
+) -> dict:
     tables = _WORKSPACE_TABLES_CACHE.get(workspace_id)
     schemas = _WORKSPACE_SCHEMAS_CACHE.get(workspace_id)
     if tables is None or schemas is None:
@@ -753,6 +792,7 @@ def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -
     graph = result["graph"]
     _WORKSPACE_GRAPH_CACHE[workspace_id] = graph
     analytics = compute_graph_analytics(graph)
+    catalog.update_workspace_graph(workspace_id, current_user, result["node_count"], result["edge_count"], analytics)
 
     return {
         "node_count": result["node_count"],
@@ -761,9 +801,54 @@ def confirm_relationships(workspace_id: str, req: ConfirmRelationshipsRequest) -
     }
 
 
+@protected.get("/api/workspace/{workspace_id}")
+def get_workspace_metadata(workspace_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    """Read-only metadata restore — lets the frontend rebuild the page after
+    a refresh without needing the raw uploaded tables again."""
+    record = catalog.get_workspace(workspace_id, current_user)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+    return {
+        "workspace_id": record["workspace_id"],
+        "tables": record["tables"],
+        "node_count": record["node_count"],
+        "edge_count": record["edge_count"],
+        "analytics": record["analytics"],
+        "saved_at": record["saved_at"],
+    }
+
+
+@protected.post("/api/workspace/{workspace_id}/save")
+def save_workspace_explicit(workspace_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    saved_at = catalog.mark_workspace_saved(workspace_id, current_user)
+    if saved_at is None:
+        raise HTTPException(
+            status_code=404, detail="Workspace not found, or its knowledge graph hasn't been built yet."
+        )
+    return {"saved_at": saved_at}
+
+
+@protected.delete("/api/workspace/{workspace_id}")
+def delete_workspace(workspace_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    if catalog.get_workspace(workspace_id, current_user) is None:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+
+    driver = get_driver()
+    with driver.session() as session:
+        session.run("MATCH (n {_workspace_id: $wid}) DETACH DELETE n", wid=workspace_id)
+
+    _WORKSPACE_TABLES_CACHE.pop(workspace_id, None)
+    _WORKSPACE_SCHEMAS_CACHE.pop(workspace_id, None)
+    _WORKSPACE_GRAPH_CACHE.pop(workspace_id, None)
+    deleted = catalog.delete_workspace(workspace_id, current_user)
+    return {"deleted": deleted}
+
+
 @protected.get("/api/workspace/{workspace_id}/graph")
-def get_workspace_graph(workspace_id: str, max_nodes: int = 150) -> dict:
-    graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
+def get_workspace_graph(workspace_id: str, max_nodes: int = 150, current_user: str = Depends(get_current_user)) -> dict:
+    if catalog.get_workspace(workspace_id, current_user) is None:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+    graph = _load_workspace_graph(workspace_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="No confirmed graph for this workspace yet.")
 
@@ -785,8 +870,8 @@ def get_workspace_graph(workspace_id: str, max_nodes: int = 150) -> dict:
 
 
 @protected.get("/api/workspace/{workspace_id}/entity/{table}/{key}")
-def get_entity_profile(workspace_id: str, table: str, key: str) -> dict:
-    if workspace_id not in _WORKSPACE_TABLES_CACHE:
+def get_entity_profile(workspace_id: str, table: str, key: str, current_user: str = Depends(get_current_user)) -> dict:
+    if catalog.get_workspace(workspace_id, current_user) is None:
         raise HTTPException(status_code=404, detail="Workspace not found.")
 
     driver = get_driver()
@@ -830,8 +915,10 @@ class EntityImpactRequest(BaseModel):
 
 
 @protected.post("/api/workspace/{workspace_id}/simulate-entity")
-def simulate_entity(workspace_id: str, req: EntityImpactRequest) -> dict:
-    graph = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
+def simulate_entity(workspace_id: str, req: EntityImpactRequest, current_user: str = Depends(get_current_user)) -> dict:
+    if catalog.get_workspace(workspace_id, current_user) is None:
+        raise HTTPException(status_code=404, detail="Workspace not found.")
+    graph = _load_workspace_graph(workspace_id)
     if graph is None:
         raise HTTPException(status_code=404, detail="No confirmed graph for this workspace yet.")
 

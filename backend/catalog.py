@@ -90,6 +90,25 @@ def _init_db(conn: sqlite3.Connection) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS workspaces (
+            workspace_id TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            tables_json TEXT NOT NULL,
+            node_count INTEGER NOT NULL DEFAULT 0,
+            edge_count INTEGER NOT NULL DEFAULT 0,
+            analytics_json TEXT
+        )
+        """
+    )
+    # Added after the initial auto-persist-on-build design: a distinct,
+    # user-triggered "Save" click updates this timestamp, separately from
+    # the automatic persistence that already happens when the graph is
+    # built (that one is a safety net; this one is an explicit confirmation
+    # the user can see and re-trigger).
+    _add_column_if_missing(conn, "workspaces", "saved_at", "saved_at TEXT")
     conn.commit()
 
 
@@ -290,5 +309,64 @@ def list_documents(username: str) -> list[dict]:
 def delete_document_record(doc_id: str, username: str) -> bool:
     with _connect() as conn:
         cur = conn.execute("DELETE FROM documents WHERE doc_id = ? AND username = ?", (doc_id, username))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def save_workspace(workspace_id: str, username: str, tables: list[dict]) -> None:
+    """Called right after upload — persists the table summary so the
+    workspace survives a refresh even before a graph has been confirmed."""
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO workspaces (workspace_id, username, created_at, tables_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(workspace_id) DO UPDATE SET tables_json = excluded.tables_json
+            """,
+            (workspace_id, username, datetime.now(timezone.utc).isoformat(), json.dumps(tables)),
+        )
+        conn.commit()
+
+
+def update_workspace_graph(workspace_id: str, username: str, node_count: int, edge_count: int, analytics: dict) -> bool:
+    with _connect() as conn:
+        cur = conn.execute(
+            "UPDATE workspaces SET node_count = ?, edge_count = ?, analytics_json = ? WHERE workspace_id = ? AND username = ?",
+            (node_count, edge_count, json.dumps(analytics), workspace_id, username),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def mark_workspace_saved(workspace_id: str, username: str) -> str | None:
+    """Explicit, user-triggered save — returns the new saved_at timestamp,
+    or None if the workspace (or its confirmed graph) doesn't exist."""
+    saved_at = datetime.now(timezone.utc).isoformat()
+    with _connect() as conn:
+        cur = conn.execute(
+            "UPDATE workspaces SET saved_at = ? WHERE workspace_id = ? AND username = ? AND analytics_json IS NOT NULL",
+            (saved_at, workspace_id, username),
+        )
+        conn.commit()
+        return saved_at if cur.rowcount > 0 else None
+
+
+def get_workspace(workspace_id: str, username: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM workspaces WHERE workspace_id = ? AND username = ?", (workspace_id, username)
+        ).fetchone()
+        if row is None:
+            return None
+        record = dict(row)
+        record["tables"] = json.loads(record.pop("tables_json"))
+        analytics_json = record.pop("analytics_json", None)
+        record["analytics"] = json.loads(analytics_json) if analytics_json else None
+        return record
+
+
+def delete_workspace(workspace_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM workspaces WHERE workspace_id = ? AND username = ?", (workspace_id, username))
         conn.commit()
         return cur.rowcount > 0
