@@ -4,14 +4,14 @@
 
 **Upload anything. Understand everything.**
 
-🔗 **Live**: [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) (frontend on Vercel, backend on Render — auto-deploys on push to `master`)
-
 IntelliVerse is a universal data analytics platform: drop in a CSV, Excel, or JSON
 file and it automatically infers what the columns mean, guesses the dataset's
 domain, and generates a full analytical dashboard — schema inference, statistics,
 forecasting, anomaly detection, root-cause analysis, a knowledge graph, decision
 simulation, and an autonomous action plan. No configuration, no manual column
 mapping.
+
+🔗 **Live**: [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) 
 
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
