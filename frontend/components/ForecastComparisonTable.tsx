@@ -1,4 +1,5 @@
 import type { ForecastValidation } from "@/lib/types";
+import { Term } from "./Term";
 
 const MODEL_LABELS: Record<string, string> = {
   naive: "Naive (carry-forward)",
@@ -17,9 +18,15 @@ export function ForecastComparisonTable({ validation }: { validation: ForecastVa
         <thead>
           <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">
             <th className="px-4 py-2 font-medium">Model</th>
-            <th className="px-4 py-2 font-medium text-right">MAPE</th>
-            <th className="px-4 py-2 font-medium text-right">RMSE</th>
-            <th className="px-4 py-2 font-medium text-right">R&sup2;</th>
+            <th className="px-4 py-2 font-medium text-right">
+              <Term id="mape">MAPE</Term>
+            </th>
+            <th className="px-4 py-2 font-medium text-right">
+              <Term id="rmse">RMSE</Term>
+            </th>
+            <th className="px-4 py-2 font-medium text-right">
+              <Term id="r_squared">R&sup2;</Term>
+            </th>
             <th className="px-4 py-2 font-medium text-center">Selected</th>
           </tr>
         </thead>
@@ -41,9 +48,9 @@ export function ForecastComparisonTable({ validation }: { validation: ForecastVa
         </tbody>
       </table>
       <p className="px-4 py-2 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-800/60">
-        Backtested on {validation.holdout_periods} held-out period(s): {validation.validation_period.start} to{" "}
-        {validation.validation_period.end}, trained on {validation.train_period.start} to{" "}
-        {validation.train_period.end}.
+        <Term id="holdout">Backtested</Term> on {validation.holdout_periods} held-out period(s):{" "}
+        {validation.validation_period.start} to {validation.validation_period.end}, trained on{" "}
+        {validation.train_period.start} to {validation.train_period.end}.
       </p>
     </div>
   );

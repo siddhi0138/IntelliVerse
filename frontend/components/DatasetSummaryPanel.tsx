@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchDatasetSummary } from "@/lib/api";
+import { usePersona } from "./PersonaContext";
 import type { ColumnSchema, DataQualityReport } from "@/lib/types";
 
 export function DatasetSummaryPanel({
@@ -21,6 +22,8 @@ export function DatasetSummaryPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const { persona } = usePersona();
+
   useEffect(() => {
     let cancelled = false;
 
@@ -28,7 +31,7 @@ export function DatasetSummaryPanel({
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchDatasetSummary(domain, rowCount, columnCount, schema, quality);
+        const result = await fetchDatasetSummary(domain, rowCount, columnCount, schema, quality, persona);
         if (!cancelled) setSummary(result);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not generate a summary.");
@@ -42,12 +45,16 @@ export function DatasetSummaryPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, rowCount, columnCount]);
+  }, [domain, rowCount, columnCount, persona]);
 
   return (
     <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 p-4">
       {loading && <p className="text-sm text-slate-500">Summarizing this dataset…</p>}
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600 dark:text-red-400" title={error}>
+          AI-generated summary isn&apos;t available right now.
+        </p>
+      )}
       {!loading && summary && <p className="text-sm text-slate-700 dark:text-slate-300">{summary}</p>}
     </div>
   );

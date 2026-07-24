@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { explainForecast, forecastColumn, listSavedForecasts, saveForecast } from "@/lib/api";
+import { deleteSavedForecast, explainForecast, forecastColumn, listSavedForecasts, saveForecast } from "@/lib/api";
 import type { Forecast, ForecastEligibility, ForecastableTarget, SavedForecast } from "@/lib/types";
 import { ForecastChart } from "@/components/ForecastChart";
 import { ForecastTargetsPanel } from "@/components/ForecastTargetsPanel";
 import { ForecastComparisonTable } from "@/components/ForecastComparisonTable";
 import { ForecastExplanationPanel } from "@/components/ForecastExplanationPanel";
+import { ExpandableDetail } from "@/components/ExpandableDetail";
+import { usePersona } from "@/components/PersonaContext";
 
 export function ForecastSection({
   analysisId,
@@ -32,8 +34,11 @@ export function ForecastSection({
   const [explanationLoading, setExplanationLoading] = useState(false);
   const [explanationError, setExplanationError] = useState<string | null>(null);
 
+  const { persona } = usePersona();
+
   const [saved, setSaved] = useState<SavedForecast[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const refreshSaved = useCallback(() => {
     listSavedForecasts(analysisId)
@@ -51,10 +56,21 @@ export function ForecastSection({
     if (!label) return;
     setSaving(true);
     try {
-      await saveForecast(analysisId, label, forecast);
+      await saveForecast(analysisId, label, forecast, persona);
       refreshSaved();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(savedId: string) {
+    if (!window.confirm("Delete this saved forecast? This can't be undone.")) return;
+    setDeletingId(savedId);
+    try {
+      await deleteSavedForecast(analysisId, savedId);
+      refreshSaved();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -89,7 +105,7 @@ export function ForecastSection({
       setExplanationLoading(true);
       setExplanationError(null);
       try {
-        const summary = await explainForecast(domain, forecast);
+        const summary = await explainForecast(domain, forecast, persona);
         if (!cancelled) setExplanation(summary);
       } catch (err) {
         if (!cancelled) {
@@ -104,7 +120,7 @@ export function ForecastSection({
     return () => {
       cancelled = true;
     };
-  }, [forecast, domain]);
+  }, [forecast, domain, persona]);
 
   return (
     <div className="space-y-4">
@@ -112,17 +128,17 @@ export function ForecastSection({
       {loading && <p className="text-sm text-slate-500">Forecasting…</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <ForecastChart forecast={forecast} eligibility={eligibility} />
-      {forecast?.validation && <ForecastComparisonTable validation={forecast.validation} />}
+      {forecast?.validation && (
+        <ExpandableDetail label="Show model comparison (for analysts)">
+          <ForecastComparisonTable validation={forecast.validation} />
+        </ExpandableDetail>
+      )}
       {forecast && forecast.forecast.length > 0 && (
         <ForecastExplanationPanel summary={explanation} loading={explanationLoading} error={explanationError} />
       )}
 
       {forecast && forecast.forecast.length > 0 && (
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
-        >
+        <button onClick={handleSave} disabled={saving} className="btn-primary">
           {saving ? "Saving…" : "Save this forecast"}
         </button>
       )}
@@ -134,14 +150,26 @@ export function ForecastSection({
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span>
-                  {s.label} <span className="text-slate-500 text-xs">({new Date(s.saved_at).toLocaleString()})</span>
+                  {s.label}{" "}
+                  <span className="text-slate-500 text-xs">
+                    ({new Date(s.saved_at).toLocaleString()}{s.persona ? ` · viewed as ${s.persona}` : ""})
+                  </span>
                 </span>
-                <button
-                  onClick={() => setForecast(s.forecast)}
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
-                >
-                  Load
-                </button>
+                <span className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => setForecast(s.forecast)}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDelete(s.id)}
+                    disabled={deletingId === s.id}
+                    className="btn-danger-ghost disabled:opacity-50"
+                  >
+                    {deletingId === s.id ? "Deleting…" : "Delete"}
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

@@ -1,12 +1,10 @@
-"""AI-generated insights and recommendations over an already-analyzed dataset.
+"""AI-generated narration over an already-analyzed dataset: dataset summaries, forecast
+explanations, and simulation explanations.
 
 Calls out to an OpenAI-compatible endpoint (FreeLLMAPI by default, running
-locally) with a compact statistical summary of the dataset — column stats,
-detected anomalies, forecast trend — never raw rows — and asks for a short
-list of structured insights plus recommended actions. If no provider is
-configured or the call fails, callers get a clear reason rather than a
-500, since this is a nice-to-have layered on top of the charts/graph that
-already render without it.
+locally). If no provider is configured or the call fails, callers get a
+clear reason rather than a 500, since this is a nice-to-have layered on
+top of the charts/graph that already render without it.
 """
 
 from __future__ import annotations
@@ -20,84 +18,17 @@ LLM_BASE_URL = os.environ.get("FREELLMAPI_BASE_URL", "http://localhost:3001/v1")
 LLM_API_KEY = os.environ.get("FREELLMAPI_API_KEY", "")
 LLM_MODEL = os.environ.get("FREELLMAPI_MODEL", "auto")
 
-_SYSTEM_PROMPT = """You are a senior data analyst. You are given a compact statistical \
-summary of a dataset (column types, inferred meanings, aggregate stats, detected \
-statistical outliers, and a forecast trend) — not the raw rows. Identify the most useful, \
-concrete insights a business user would want to know, and propose concrete recommended \
-actions grounded in the anomalies and forecast trend when they are present.
 
-Respond with strict JSON only, no markdown fences, matching exactly this shape:
-{"insights": [{"title": "short headline", "description": "1-2 sentences", "confidence": "high|medium|low"}],
- "recommendations": [{"title": "short headline", "action": "one concrete action to take", "rationale": "why, tied to the data"}]}
-
-Return at most 5 insights and at most 4 recommendations. If the data is too sparse to say \
-anything meaningful, return empty lists for either."""
-
-
-def _summarize_for_prompt(
-    domain: str,
-    row_count: int,
-    schema: list[dict],
-    anomalies: list[dict],
-    forecast: dict | None,
-    quality: dict | None = None,
-    root_cause: dict | None = None,
-    period_comparison: dict | None = None,
-) -> str:
-    lines = [f"Domain guess: {domain}", f"Row count: {row_count}", "Columns:"]
-    for col in schema:
-        stats = col.get("stats", {})
-        stat_bits = []
-        if "sum" in stats:
-            stat_bits.append(f"sum={stats['sum']}")
-        if "mean" in stats:
-            stat_bits.append(f"mean={round(stats['mean'], 2)}")
-        if "min" in stats and "max" in stats:
-            stat_bits.append(f"range=[{stats['min']}, {stats['max']}]")
-        if "top_values" in stats:
-            top = ", ".join(f"{v['value']} ({v['count']})" for v in stats["top_values"][:5])
-            stat_bits.append(f"top_values=[{top}]")
-        if "min_date" in stats:
-            stat_bits.append(f"date_range=[{stats['min_date']} to {stats['max_date']}]")
-        stat_bits.append(f"nulls={stats.get('null_count', 0)}")
-        lines.append(f"- {col['semantic_label']} ({col['name']}, {col['type']}): {', '.join(stat_bits)}")
-
-    if quality:
-        lines.append(
-            f"\nData quality score: {quality['score']}/100 "
-            f"({quality['duplicate_row_count']} duplicate rows, {len(quality.get('invalid_values', []))} invalid-value issues)."
-        )
-
-    if period_comparison and period_comparison.get("delta_pct") is not None:
-        lines.append(
-            f"\nMost recent period ({period_comparison['current_period']}) vs previous "
-            f"({period_comparison['previous_period']}): {period_comparison['delta_pct']}% change."
-        )
-
-    if root_cause and root_cause.get("dimensions"):
-        lines.append(f"\nRoot cause breakdown for {root_cause['metric_label']} (variance explained, association only):")
-        for d in root_cause["dimensions"][:3]:
-            lines.append(
-                f"- {d['dimension_label']} explains {d['variance_explained_pct']}% of variance "
-                f"(top segment: {d['top_segment']})"
-            )
-
-    if anomalies:
-        lines.append("\nDetected statistical outliers (IQR method):")
-        for a in anomalies[:8]:
-            lines.append(f"- {a['semantic_label']} = {a['value']} ({a['direction']} normal range, row {a['row']})")
-
-    if forecast and forecast.get("forecast"):
-        method = forecast.get("method", "linear_trend")
-        lines.append(f"\nForecast for {forecast.get('column', 'primary metric')}: trending {forecast.get('trend')} (model: {method}).")
-        next_point = forecast["forecast"][0]
-        lines.append(
-            f"Next period projected at {next_point['value']} (range {next_point['lower']} to {next_point['upper']})."
-        )
-        if forecast.get("validation"):
-            lines.append(f"Validation metrics: {forecast['validation']['metrics']}.")
-
-    return "\n".join(lines)
+def persona_instruction(persona: str | None) -> str:
+    """Appended to a system prompt so narration is framed for who's reading it,
+    not a generic "business user". The underlying numbers never change —
+    only the language, examples, and framing do."""
+    if not persona:
+        return ""
+    return (
+        f"\n\nThe reader is a {persona}. Use language, examples, and framing that would make immediate "
+        f"sense to someone in that role, without changing what the numbers actually say."
+    )
 
 
 class InsightsUnavailable(Exception):
@@ -137,24 +68,36 @@ async def call_llm_json(system_prompt: str, user_content: str) -> dict:
         raise InsightsUnavailable(f"Router returned an unparseable response: {exc}") from exc
 
 
-async def generate_insights(
-    domain: str,
-    row_count: int,
-    schema: list[dict],
-    anomalies: list[dict] | None = None,
-    forecast: dict | None = None,
-    quality: dict | None = None,
-    root_cause: dict | None = None,
-    period_comparison: dict | None = None,
-) -> dict:
-    summary = _summarize_for_prompt(
-        domain, row_count, schema, anomalies or [], forecast, quality, root_cause, period_comparison
-    )
-    parsed = await call_llm_json(_SYSTEM_PROMPT, summary)
-    return {
-        "insights": parsed.get("insights", []),
-        "recommendations": parsed.get("recommendations", []),
-    }
+# Observed failure mode (confirmed against real small-model output, not a guess):
+# some models ignore "put everything in one `summary` string" and instead
+# split the answer into separate keys matching the sub-questions the prompt
+# lists — e.g. {"expected": "...", "why": "...", "reliability": "...",
+# "limitations": "..."} instead of {"summary": "..."}. Stitch that back into
+# one paragraph instead of discarding a perfectly good answer as a failure.
+_SUMMARY_FALLBACK_KEYS = ("expected", "why", "reliability", "reliable", "limitations", "assumptions")
+
+
+def _coerce_summary(parsed: dict) -> str:
+    if parsed.get("summary"):
+        return parsed["summary"]
+    parts = []
+    for key in _SUMMARY_FALLBACK_KEYS:
+        val = parsed.get(key)
+        if not val:
+            continue
+        parts.append("; ".join(str(v) for v in val) if isinstance(val, list) else str(val))
+    return " ".join(parts)
+
+
+async def _call_llm_for_summary(system_prompt: str, user_content: str) -> dict:
+    """Like call_llm_json, but also accepts a response that's missing "summary"
+    if it can be reassembled from the fallback keys above."""
+    parsed = await call_llm_json(system_prompt, user_content)
+    summary = _coerce_summary(parsed)
+    if not summary:
+        raise InsightsUnavailable("Router returned a response without a usable summary.")
+    parsed["summary"] = summary
+    return parsed
 
 
 _SIMULATION_SYSTEM_PROMPT = """You are explaining the output of a statistical scenario \
@@ -188,11 +131,12 @@ def _summarize_simulation_for_prompt(domain: str, simulation: dict) -> str:
     return "\n".join(lines)
 
 
-async def generate_simulation_explanation(domain: str, simulation: dict) -> dict:
+async def generate_simulation_explanation(domain: str, simulation: dict, persona: str | None = None) -> dict:
     summary = _summarize_simulation_for_prompt(domain, simulation)
-    parsed = await call_llm_json(_SIMULATION_SYSTEM_PROMPT, summary)
+    prompt = _SIMULATION_SYSTEM_PROMPT + persona_instruction(persona)
+    parsed = await _call_llm_for_summary(prompt, summary)
     return {
-        "summary": parsed.get("summary", ""),
+        "summary": parsed["summary"],
         "assumptions": parsed.get("assumptions", []),
     }
 
@@ -228,11 +172,17 @@ def _summarize_dataset_for_prompt(
 
 
 async def generate_dataset_summary(
-    domain: str, row_count: int, column_count: int, schema: list[dict], quality: dict | None
+    domain: str,
+    row_count: int,
+    column_count: int,
+    schema: list[dict],
+    quality: dict | None,
+    persona: str | None = None,
 ) -> str:
     summary = _summarize_dataset_for_prompt(domain, row_count, column_count, schema, quality)
-    parsed = await call_llm_json(_DATASET_SUMMARY_SYSTEM_PROMPT, summary)
-    return parsed.get("summary", "")
+    prompt = _DATASET_SUMMARY_SYSTEM_PROMPT + persona_instruction(persona)
+    parsed = await _call_llm_for_summary(prompt, summary)
+    return parsed["summary"]
 
 
 _FORECAST_SYSTEM_PROMPT = """You are explaining a statistical forecast to a business user. \
@@ -273,7 +223,31 @@ def _summarize_forecast_for_prompt(domain: str, forecast: dict) -> str:
     return "\n".join(lines)
 
 
-async def generate_forecast_explanation(domain: str, forecast: dict) -> str:
+async def generate_forecast_explanation(domain: str, forecast: dict, persona: str | None = None) -> str:
     summary = _summarize_forecast_for_prompt(domain, forecast)
-    parsed = await call_llm_json(_FORECAST_SYSTEM_PROMPT, summary)
-    return parsed.get("summary", "")
+    prompt = _FORECAST_SYSTEM_PROMPT + persona_instruction(persona)
+    parsed = await _call_llm_for_summary(prompt, summary)
+    return parsed["summary"]
+
+
+_ANOMALY_REASONS_SYSTEM_PROMPT = """You suggest plausible, general business reasons an unusual data point might \
+occur. You are given a domain guess, what the column means, its unusual value, and whether it's above or below \
+the normal range.
+
+These are speculative starting points for someone to investigate, not confirmed causes — keep each one short \
+and concrete, and do not invent specifics (dates, names, events) that aren't in the input.
+
+Respond with strict JSON only, no markdown fences: {"reasons": ["short reason 1", "short reason 2", "short reason 3"]}
+Return at most 3 reasons."""
+
+
+async def generate_anomaly_reasons(
+    domain: str, column_label: str, value: float | str, direction: str, persona: str | None = None
+) -> list[str]:
+    user_content = f"Domain: {domain}\nColumn: {column_label}\nUnusual value: {value} ({direction} the normal range)"
+    prompt = _ANOMALY_REASONS_SYSTEM_PROMPT + persona_instruction(persona)
+    parsed = await call_llm_json(prompt, user_content)
+    reasons = parsed.get("reasons", [])
+    if not reasons:
+        raise InsightsUnavailable("Router returned no reasons.")
+    return reasons

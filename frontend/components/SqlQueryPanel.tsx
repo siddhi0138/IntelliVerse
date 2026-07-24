@@ -37,11 +37,7 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
         rows={3}
         className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-2 text-sm font-mono"
       />
-      <button
-        onClick={run}
-        disabled={loading}
-        className="mt-2 rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-      >
+      <button onClick={run} disabled={loading} className="btn-primary mt-2">
         {loading ? "Running…" : "Run Query"}
       </button>
 

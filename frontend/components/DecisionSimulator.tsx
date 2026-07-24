@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { explainSimulation, listSavedSimulations, runSimulation, saveSimulation } from "@/lib/api";
+import { deleteSavedSimulation, explainSimulation, listSavedSimulations, runSimulation, saveSimulation } from "@/lib/api";
 import type { DecisionAction, SavedSimulation, SimulationExplanation, SimulationResult } from "@/lib/types";
 import { DecisionGraph } from "@/components/DecisionGraph";
 import { EffectsList } from "@/components/EffectsList";
 import { SimulationExplanationPanel } from "@/components/SimulationExplanationPanel";
 import { ScenarioComparisonTable } from "@/components/ScenarioComparisonTable";
+import { usePersona } from "@/components/PersonaContext";
 
 const SCENARIO_PRESETS = [
   { name: "Conservative Growth", pct: 8, risk: "Low" },
@@ -42,6 +43,9 @@ export function DecisionSimulator({
 
   const [saved, setSaved] = useState<SavedSimulation[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const { persona } = usePersona();
 
   const refreshSaved = useCallback(() => {
     listSavedSimulations(analysisId)
@@ -59,10 +63,21 @@ export function DecisionSimulator({
     if (!label) return;
     setSaving(true);
     try {
-      await saveSimulation(analysisId, label, result);
+      await saveSimulation(analysisId, label, result, persona);
       refreshSaved();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete(savedId: string) {
+    if (!window.confirm("Delete this saved simulation? This can't be undone.")) return;
+    setDeletingId(savedId);
+    try {
+      await deleteSavedSimulation(analysisId, savedId);
+      refreshSaved();
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -76,7 +91,7 @@ export function DecisionSimulator({
       const r = await runSimulation(analysisId, column, pctChange);
       setResult(r);
       setExplanationLoading(true);
-      explainSimulation(domain, r)
+      explainSimulation(domain, r, persona)
         .then(setExplanation)
         .catch((err) => setExplanationError(err instanceof Error ? err.message : "Could not explain this scenario."))
         .finally(() => setExplanationLoading(false));
@@ -147,11 +162,7 @@ export function DecisionSimulator({
             {pct > 0 ? "+" : ""}
             {pct}%
           </span>
-          <button
-            onClick={() => runOne(selectedColumn, pct)}
-            disabled={running}
-            className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-          >
+          <button onClick={() => runOne(selectedColumn, pct)} disabled={running} className="btn-primary">
             {running ? "Running…" : "Run simulation"}
           </button>
         </div>
@@ -165,17 +176,13 @@ export function DecisionSimulator({
               key={p.name}
               onClick={() => primaryMetric && runOne(primaryMetric, p.pct)}
               disabled={!primaryMetric || running}
-              className="rounded-full border border-slate-300 dark:border-slate-800 px-3 py-1.5 text-sm hover:border-indigo-400 disabled:opacity-50"
+              className="btn-primary"
             >
               {p.name} ({p.pct > 0 ? "+" : ""}
               {p.pct}%)
             </button>
           ))}
-          <button
-            onClick={runComparison}
-            disabled={!primaryMetric || comparing}
-            className="rounded-full bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 px-3 py-1.5 text-sm disabled:opacity-50"
-          >
+          <button onClick={runComparison} disabled={!primaryMetric || comparing} className="btn-primary">
             {comparing ? "Comparing…" : "Compare all scenarios"}
           </button>
         </div>
@@ -188,11 +195,7 @@ export function DecisionSimulator({
           <DecisionGraph result={result} />
           <EffectsList result={result} />
           <SimulationExplanationPanel explanation={explanation} loading={explanationLoading} error={explanationError} />
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50"
-          >
+          <button onClick={handleSave} disabled={saving} className="btn-primary">
             {saving ? "Saving…" : "Save this simulation"}
           </button>
         </div>
@@ -205,14 +208,26 @@ export function DecisionSimulator({
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span>
-                  {s.label} <span className="text-slate-500 text-xs">({new Date(s.saved_at).toLocaleString()})</span>
+                  {s.label}{" "}
+                  <span className="text-slate-500 text-xs">
+                    ({new Date(s.saved_at).toLocaleString()}{s.persona ? ` · viewed as ${s.persona}` : ""})
+                  </span>
                 </span>
-                <button
-                  onClick={() => setResult(s.simulation)}
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
-                >
-                  Load
-                </button>
+                <span className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => setResult(s.simulation)}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                  >
+                    Load
+                  </button>
+                  <button
+                    onClick={() => handleDelete(s.id)}
+                    disabled={deletingId === s.id}
+                    className="btn-danger-ghost disabled:opacity-50"
+                  >
+                    {deletingId === s.id ? "Deleting…" : "Delete"}
+                  </button>
+                </span>
               </li>
             ))}
           </ul>

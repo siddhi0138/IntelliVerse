@@ -15,7 +15,11 @@ export function SimulationExplanationPanel({
 
       {loading && <p className="text-sm text-slate-500">Explaining the projection…</p>}
 
-      {error && !loading && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && !loading && (
+        <p className="text-sm text-red-600 dark:text-red-400" title={error}>
+          AI explanation isn&apos;t available right now — the simulated numbers above aren&apos;t affected.
+        </p>
+      )}
 
       {!loading && explanation && (
         <div className="space-y-3">

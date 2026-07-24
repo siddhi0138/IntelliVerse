@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset, fetchInsights } from "@/lib/api";
-import type { AnalyzeResponse, Insight, Recommendation } from "@/lib/types";
+import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset } from "@/lib/api";
+import type { AnalyzeResponse } from "@/lib/types";
 import { ChartCard, KpiRow } from "@/components/charts";
 import { SchemaTable } from "@/components/SchemaTable";
-import { InsightsPanel } from "@/components/InsightsPanel";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { KnowledgeGraph3D } from "@/components/KnowledgeGraph3D";
 import { ForecastSection } from "@/components/ForecastSection";
 import { AnomaliesPanel } from "@/components/AnomaliesPanel";
-import { RecommendationsPanel } from "@/components/RecommendationsPanel";
 import { DecisionSimulator } from "@/components/DecisionSimulator";
 import { DataQualityPanel } from "@/components/DataQualityPanel";
 import { RelationshipsPanel } from "@/components/RelationshipsPanel";
@@ -28,6 +26,12 @@ import { GEValidationPanel } from "@/components/GEValidationPanel";
 import { ActionPlanPanel } from "@/components/ActionPlanPanel";
 import { SqlQueryPanel } from "@/components/SqlQueryPanel";
 import { ReportExportPanel } from "@/components/ReportExportPanel";
+import { QuickSummaryPanel } from "@/components/QuickSummaryPanel";
+import { BusinessHealthPanel } from "@/components/BusinessHealthPanel";
+import { GuidedTour, hasSeenTour } from "@/components/GuidedTour";
+import { GlossaryModal } from "@/components/GlossaryModal";
+import { PersonaSelector } from "@/components/PersonaSelector";
+import { useSimpleMode } from "@/components/SimpleModeContext";
 
 export default function Home() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
@@ -36,11 +40,9 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [graphView, setGraphView] = useState<"2d" | "3d">("2d");
-
-  const [insights, setInsights] = useState<Insight[] | null>(null);
-  const [recommendations, setRecommendations] = useState<Recommendation[] | null>(null);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [tourActive, setTourActive] = useState(false);
+  const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const { simpleMode, setSimpleMode } = useSimpleMode();
 
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -76,9 +78,6 @@ export default function Home() {
     setProgressStep(null);
     setError(null);
     setResult(null);
-    setInsights(null);
-    setRecommendations(null);
-    setInsightsError(null);
     try {
       const data = await analyzeFileWithProgress(file, setProgressStep);
       setResult(data);
@@ -97,9 +96,6 @@ export default function Home() {
 
   const resetView = useCallback(() => {
     setResult(null);
-    setInsights(null);
-    setRecommendations(null);
-    setInsightsError(null);
     setError(null);
     window.history.replaceState(null, "", "/");
     localStorage.removeItem("nexus_last_analysis");
@@ -133,41 +129,9 @@ export default function Home() {
   }, [result, resetView]);
 
   useEffect(() => {
-    if (!result) return;
-    let cancelled = false;
-
-    async function run() {
-      if (!result) return;
-      setInsightsLoading(true);
-      setInsightsError(null);
-      try {
-        const data = await fetchInsights(
-          result.domain,
-          result.row_count,
-          result.schema,
-          result.anomalies,
-          result.forecast,
-          result.quality,
-          result.root_cause,
-          result.period_comparison
-        );
-        if (!cancelled) {
-          setInsights(data.insights);
-          setRecommendations(data.recommendations);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setInsightsError(err instanceof Error ? err.message : "Could not generate insights.");
-        }
-      } finally {
-        if (!cancelled) setInsightsLoading(false);
-      }
-    }
-
-    run();
-    return () => {
-      cancelled = true;
-    };
+    if (!result || hasSeenTour()) return;
+    const t = window.setTimeout(() => setTourActive(true), 600);
+    return () => window.clearTimeout(t);
   }, [result]);
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -179,33 +143,55 @@ export default function Home() {
 
   return (
     <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-10 flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-            <span>🧠</span> IntelliVerse
-          </h1>
-          <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
+      <header className="mb-10">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
+              <span>🧠</span> IntelliVerse
+            </h1>
+            <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
+          </div>
+          <nav className="flex gap-2 items-center">
+            <Link
+              href="/workspace"
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
+            >
+              Multi-table workspace
+            </Link>
+            <Link
+              href="/catalog"
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
+            >
+              Dataset catalog
+            </Link>
+            <Link
+              href="/knowledge"
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
+            >
+              Knowledge Assistant
+            </Link>
+            <button
+              onClick={() => setGlossaryOpen(true)}
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
+            >
+              Glossary
+            </button>
+          </nav>
         </div>
-        <nav className="flex gap-2">
-          <Link
-            href="/workspace"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-          >
-            Multi-table workspace
-          </Link>
-          <Link
-            href="/catalog"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-          >
-            Dataset catalog
-          </Link>
-          <Link
-            href="/knowledge"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-          >
-            Knowledge Assistant
-          </Link>
-        </nav>
+
+        <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2.5 flex items-center gap-4 flex-wrap">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-400 shrink-0">Preferences</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <PersonaSelector />
+            <button
+              onClick={() => setSimpleMode(!simpleMode)}
+              title={simpleMode ? "Switch to Expert Mode — show all the numbers by default" : "Switch to Simple Mode — hide the numbers by default"}
+              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full px-3 py-1.5"
+            >
+              {simpleMode ? "Simple Mode" : "Expert Mode"}
+            </button>
+          </div>
+        </div>
       </header>
 
       <div
@@ -265,6 +251,9 @@ export default function Home() {
             </div>
             <div className="flex items-center gap-3">
               <span className="badge">{result.domain}</span>
+              <button onClick={() => setTourActive(true)} className="btn-primary">
+                Take a tour
+              </button>
               <button
                 onClick={handleDeleteDataset}
                 title="Delete this dataset permanently"
@@ -276,17 +265,33 @@ export default function Home() {
             </div>
           </div>
 
-          <ReportExportPanel key={`report-${result.analysis_id}`} analysisId={result.analysis_id} />
+          <div data-tour="quick-summary">
+            <QuickSummaryPanel result={result} />
+          </div>
 
-          <DatasetSummaryPanel
-            domain={result.domain}
-            rowCount={result.row_count}
-            columnCount={result.column_count}
-            schema={result.schema}
-            quality={result.quality}
-          />
+          {result.business_health && (
+            <div data-tour="health-score">
+              <BusinessHealthPanel health={result.business_health} />
+            </div>
+          )}
 
-          <RiskAlertsPanel alerts={result.risk_alerts} />
+          <div data-tour="export">
+            <ReportExportPanel key={`report-${result.analysis_id}`} analysisId={result.analysis_id} />
+          </div>
+
+          <div data-tour="summary">
+            <DatasetSummaryPanel
+              domain={result.domain}
+              rowCount={result.row_count}
+              columnCount={result.column_count}
+              schema={result.schema}
+              quality={result.quality}
+            />
+          </div>
+
+          <div data-tour="risk-alerts">
+            <RiskAlertsPanel alerts={result.risk_alerts} />
+          </div>
 
           {result.charts
             .filter((c) => c.chart_type === "kpi")
@@ -294,16 +299,15 @@ export default function Home() {
               <KpiRow key={chart.id} chart={chart} />
             ))}
 
-          <AskIntelliVerse analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
+          <div data-tour="ask">
+            <AskIntelliVerse analysisId={result.analysis_id} domain={result.domain} primaryMetric={result.primary_metric} />
+          </div>
 
-          <RankedFindingsPanel findings={result.ranked_findings} />
+          <div data-tour="findings">
+            <RankedFindingsPanel findings={result.ranked_findings} />
+          </div>
 
-          <div>
-            <h3 className="text-lg font-medium mb-1">Forecast</h3>
-            <p className="text-sm text-slate-500 mb-3">
-              Multiple models are backtested per target; the one with the lowest validation error is chosen
-              automatically.
-            </p>
+          <div data-tour="forecast">
             <ForecastSection
               analysisId={result.analysis_id}
               domain={result.domain}
@@ -314,25 +318,26 @@ export default function Home() {
             />
           </div>
 
-          <ActionPlanPanel
-            analysisId={result.analysis_id}
-            domain={result.domain}
-            rankedFindings={result.ranked_findings}
-            riskAlerts={result.risk_alerts}
-            rootCause={result.root_cause}
-            forecast={result.forecast}
-            quality={result.quality}
-          />
+          <div data-tour="action-plan">
+            <ActionPlanPanel
+              key={`action-plan-${result.analysis_id}`}
+              analysisId={result.analysis_id}
+              domain={result.domain}
+              rankedFindings={result.ranked_findings}
+              riskAlerts={result.risk_alerts}
+              rootCause={result.root_cause}
+              forecast={result.forecast}
+              quality={result.quality}
+            />
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div data-tour="analysis-grid" className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {result.charts
               .filter((c) => c.chart_type !== "kpi")
               .map((chart) => (
                 <ChartCard key={chart.id} chart={chart} />
               ))}
-            <InsightsPanel insights={insights} loading={insightsLoading} error={insightsError} />
-            <AnomaliesPanel anomalies={result.anomalies} />
-            <RecommendationsPanel recommendations={recommendations} loading={insightsLoading} />
+            <AnomaliesPanel anomalies={result.anomalies} domain={result.domain} />
             <DataQualityPanel quality={result.quality} />
             <RelationshipsPanel correlations={result.correlations} associations={result.associations} />
             <RootCausePanel rootCause={result.root_cause} />
@@ -344,8 +349,8 @@ export default function Home() {
 
           <InsightTimelinePanel timeline={result.insight_timeline} />
 
-          <div>
-            <div className="flex items-center justify-between mb-3">
+          <div data-tour="graph">
+            <div className="flex items-center justify-between mb-1">
               <h3 className="text-base font-semibold text-slate-900 dark:text-white">Knowledge graph</h3>
               <div className="flex rounded-lg border border-slate-300 dark:border-slate-800 overflow-hidden text-xs">
                 <button
@@ -362,14 +367,17 @@ export default function Home() {
                 </button>
               </div>
             </div>
+            <p className="text-xs text-slate-500 mb-3">
+              How to read this: each dot (node) is a row in your data; lines connect rows that share a relationship.
+              Bigger or more-connected dots matter more — drag to explore, scroll to zoom.
+            </p>
             {graphView === "2d" ? <KnowledgeGraph graph={result.graph} /> : <KnowledgeGraph3D graph={result.graph} />}
           </div>
 
-          <div>
+          <div data-tour="simulator">
             <h3 className="text-lg font-medium mb-1">Decision Simulator</h3>
             <p className="text-sm text-slate-500 mb-3">
-              Choose a decision, and see its estimated effect on other metrics based on historical associations in
-              this dataset.
+              Try a change and see its likely effect on your other numbers, based on patterns already in your data.
             </p>
             <DecisionSimulator
               analysisId={result.analysis_id}
@@ -379,14 +387,19 @@ export default function Home() {
             />
           </div>
 
-          <SqlQueryPanel key={`sql-${result.analysis_id}`} analysisId={result.analysis_id} />
+          <div data-tour="sql">
+            <SqlQueryPanel key={`sql-${result.analysis_id}`} analysisId={result.analysis_id} />
+          </div>
 
-          <div>
+          <div data-tour="schema">
             <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Detected schema</h3>
             <SchemaTable key={result.analysis_id} schema={result.schema} analysisId={result.analysis_id} />
           </div>
         </div>
       )}
+
+      <GuidedTour active={tourActive} onClose={() => setTourActive(false)} />
+      <GlossaryModal open={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
     </main>
   );
 }

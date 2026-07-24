@@ -28,6 +28,7 @@ from pydantic import BaseModel
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
 from anomalies_ml import detect_multivariate_anomalies
 from auth import AuthError, authenticate_user, create_access_token, create_user, decode_access_token
+from business_health import compute_business_health
 import catalog
 from clustering import cluster_rows
 from distributions import analyze_distributions
@@ -39,9 +40,9 @@ from insight_ranking import build_ranked_findings
 from insight_timeline import build_insight_timeline
 from insights import (
     InsightsUnavailable,
+    generate_anomaly_reasons,
     generate_dataset_summary,
     generate_forecast_explanation,
-    generate_insights,
     generate_simulation_explanation,
 )
 from autonomous_analyst import generate_action_plan
@@ -335,6 +336,11 @@ def _run_analysis(
     progress("Running validation checks")
     ge_validation = run_ge_validation(df, schema)
 
+    # additive: one 0-100 rollup of quality/growth/forecast-reliability/risk,
+    # purely a function of numbers already computed above — no new computation,
+    # no LLM narration, so it's exactly as reliable as its four inputs.
+    business_health = compute_business_health(quality, forecast, period_comparison, risk_alerts)
+
     analysis_id = str(uuid.uuid4())
     _ANALYSIS_DF_CACHE[analysis_id] = df
     _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
@@ -370,6 +376,7 @@ def _run_analysis(
         "ge_validation": ge_validation,
         "decisions": build_decision_actions(schema),
         "primary_metric": primary_metric,
+        "business_health": business_health,
     }
     _ANALYSIS_RESULT_CACHE[analysis_id] = response
 
@@ -462,35 +469,6 @@ async def analyze_progress_ws(websocket: WebSocket, job_id: str) -> None:
         await websocket.close()
 
 
-class InsightsRequest(BaseModel):
-    domain: str
-    row_count: int
-    columns: list[dict]
-    anomalies: list[dict] = []
-    forecast: dict | None = None
-    quality: dict | None = None
-    root_cause: dict | None = None
-    period_comparison: dict | None = None
-
-
-@protected.post("/api/insights")
-async def insights(req: InsightsRequest) -> dict:
-    try:
-        result = await generate_insights(
-            req.domain,
-            req.row_count,
-            req.columns,
-            req.anomalies,
-            req.forecast,
-            req.quality,
-            req.root_cause,
-            req.period_comparison,
-        )
-    except InsightsUnavailable as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return result
-
-
 class AskRequest(BaseModel):
     analysis_id: str
     domain: str
@@ -534,12 +512,13 @@ def simulate(req: SimulateRequest) -> dict:
 class ExplainSimulationRequest(BaseModel):
     domain: str
     simulation: dict
+    persona: str | None = None
 
 
 @protected.post("/api/simulate/explain")
 async def explain_simulation(req: ExplainSimulationRequest) -> dict:
     try:
-        result = await generate_simulation_explanation(req.domain, req.simulation)
+        result = await generate_simulation_explanation(req.domain, req.simulation, req.persona)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result
@@ -578,12 +557,13 @@ def forecast_column(req: ForecastRequest) -> dict:
 class ExplainForecastRequest(BaseModel):
     domain: str
     forecast: dict
+    persona: str | None = None
 
 
 @protected.post("/api/forecast/explain")
 async def explain_forecast(req: ExplainForecastRequest) -> dict:
     try:
-        summary = await generate_forecast_explanation(req.domain, req.forecast)
+        summary = await generate_forecast_explanation(req.domain, req.forecast, req.persona)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"summary": summary}
@@ -595,15 +575,35 @@ class SummaryRequest(BaseModel):
     column_count: int
     columns: list[dict]
     quality: dict | None = None
+    persona: str | None = None
 
 
 @protected.post("/api/summary")
 async def dataset_summary(req: SummaryRequest) -> dict:
     try:
-        summary = await generate_dataset_summary(req.domain, req.row_count, req.column_count, req.columns, req.quality)
+        summary = await generate_dataset_summary(
+            req.domain, req.row_count, req.column_count, req.columns, req.quality, req.persona
+        )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"summary": summary}
+
+
+class AnomalyReasonsRequest(BaseModel):
+    domain: str
+    column_label: str
+    value: float | str
+    direction: str
+    persona: str | None = None
+
+
+@protected.post("/api/anomalies/explain")
+async def explain_anomaly(req: AnomalyReasonsRequest) -> dict:
+    try:
+        reasons = await generate_anomaly_reasons(req.domain, req.column_label, req.value, req.direction, req.persona)
+    except InsightsUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"reasons": reasons}
 
 
 @protected.get("/api/datasets")
@@ -682,13 +682,14 @@ def update_column_label(
 class SaveForecastRequest(BaseModel):
     label: str
     forecast: dict
+    persona: str | None = None
 
 
 @protected.post("/api/analyze/{analysis_id}/forecasts")
 def save_forecast(
     analysis_id: str, req: SaveForecastRequest, current_user: str = Depends(get_current_user)
 ) -> dict:
-    saved_id = catalog.save_forecast(analysis_id, current_user, req.label, req.forecast)
+    saved_id = catalog.save_forecast(analysis_id, current_user, req.label, req.forecast, req.persona)
     return {"id": saved_id}
 
 
@@ -697,22 +698,66 @@ def list_saved_forecasts(analysis_id: str, current_user: str = Depends(get_curre
     return {"forecasts": catalog.list_saved_forecasts(analysis_id, current_user)}
 
 
+@protected.delete("/api/analyze/{analysis_id}/forecasts/{saved_id}")
+def delete_saved_forecast(analysis_id: str, saved_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_forecast(saved_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved forecast not found.")
+    return {"deleted": True}
+
+
 class SaveSimulationRequest(BaseModel):
     label: str
     simulation: dict
+    persona: str | None = None
 
 
 @protected.post("/api/analyze/{analysis_id}/simulations")
 def save_simulation(
     analysis_id: str, req: SaveSimulationRequest, current_user: str = Depends(get_current_user)
 ) -> dict:
-    saved_id = catalog.save_simulation(analysis_id, current_user, req.label, req.simulation)
+    saved_id = catalog.save_simulation(analysis_id, current_user, req.label, req.simulation, req.persona)
     return {"id": saved_id}
 
 
 @protected.get("/api/analyze/{analysis_id}/simulations")
 def list_saved_simulations(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
     return {"simulations": catalog.list_saved_simulations(analysis_id, current_user)}
+
+
+@protected.delete("/api/analyze/{analysis_id}/simulations/{saved_id}")
+def delete_saved_simulation(analysis_id: str, saved_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_simulation(saved_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved simulation not found.")
+    return {"deleted": True}
+
+
+class SaveActionPlanRequest(BaseModel):
+    label: str
+    plan: dict
+    persona: str | None = None
+
+
+@protected.post("/api/analyze/{analysis_id}/action-plans")
+def save_action_plan(
+    analysis_id: str, req: SaveActionPlanRequest, current_user: str = Depends(get_current_user)
+) -> dict:
+    saved_id = catalog.save_action_plan(analysis_id, current_user, req.label, req.plan, req.persona)
+    return {"id": saved_id}
+
+
+@protected.get("/api/analyze/{analysis_id}/action-plans")
+def list_saved_action_plans(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"action_plans": catalog.list_saved_action_plans(analysis_id, current_user)}
+
+
+@protected.delete("/api/analyze/{analysis_id}/action-plans/{saved_id}")
+def delete_saved_action_plan(analysis_id: str, saved_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_action_plan(saved_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved action plan not found.")
+    return {"deleted": True}
 
 
 # --- V5: multi-table workspaces ------------------------------------------------
@@ -997,6 +1042,7 @@ class ActionPlanRequest(BaseModel):
     root_cause: dict | None = None
     forecast: dict | None = None
     quality: dict | None = None
+    persona: str | None = None
 
 
 @protected.post("/api/action-plan")
@@ -1025,6 +1071,7 @@ async def action_plan(req: ActionPlanRequest) -> dict:
             req.forecast,
             req.quality,
             simulation_preview,
+            req.persona,
         )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

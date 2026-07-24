@@ -10,19 +10,24 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       if (mode === "login") {
         await login(username, password);
+        router.replace("/");
       } else {
         await register(username, password);
+        setMode("login");
+        setPassword("");
+        setNotice("Account created — sign in below.");
       }
-      router.replace("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -62,6 +67,7 @@ export default function LoginPage() {
             />
           </div>
 
+          {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p>}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <button type="submit" disabled={loading} className="btn-primary w-full py-2">
@@ -73,6 +79,7 @@ export default function LoginPage() {
           onClick={() => {
             setMode(mode === "login" ? "register" : "login");
             setError(null);
+            setNotice(null);
           }}
           className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline mt-4"
         >

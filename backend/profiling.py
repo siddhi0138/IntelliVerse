@@ -96,15 +96,21 @@ def detect_invalid_values(df: pd.DataFrame, schema: list[ColumnSchema]) -> list[
             non_null = df[col.name].dropna().astype(str)
             normalized = non_null.str.strip().str.lower()
             variants_by_norm = non_null.groupby(normalized).nunique()
-            inconsistent = variants_by_norm[variants_by_norm > 1]
-            if len(inconsistent) > 0:
+            inconsistent_norms = variants_by_norm[variants_by_norm > 1].index
+            if len(inconsistent_norms) > 0:
+                # count must be the number of affected ROWS, not the number of
+                # distinct spelling variants — summing variant counts (e.g. 3
+                # for {"USA", "usa", "Usa"}) badly undercounts when a variant
+                # is repeated many times (10 rows in that example), which
+                # understates invalid_pct and overstates the quality score.
+                affected_count = int(normalized.isin(inconsistent_norms).sum())
                 issues.append(
                     InvalidValueIssue(
                         column=col.name,
                         semantic_label=col.semantic_label,
                         issue="Inconsistent capitalization/whitespace across otherwise-identical category values.",
-                        count=int(inconsistent.sum()),
-                        examples=list(inconsistent.index[:3]),
+                        count=affected_count,
+                        examples=list(inconsistent_norms[:3]),
                     )
                 )
 

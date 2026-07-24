@@ -1,22 +1,23 @@
 import type { RiskAlert } from "@/lib/types";
+import { percentConfidence } from "@/lib/plainLanguage";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 
 function AlertBody({ a }: { a: RiskAlert }) {
   if (a.kind === "threshold_crossing") {
     return (
       <>
-        <span className="font-medium">{a.metric}</span> is projected to reach a critical level (zero) within{" "}
-        <span className="font-medium">{a.periods_until_critical} period(s)</span>
-        {a.confidence_pct !== null && <> (confidence: {a.confidence_pct}%)</>}
+        <span className="font-medium">{a.metric}</span> is projected to hit a critical level (zero) within{" "}
+        <span className="font-medium">{a.periods_until_critical} period(s)</span>.
       </>
     );
   }
   return (
     <>
-      <span className="font-medium">{a.metric}</span> is projected to {a.direction}
-      {a.confidence_pct !== null && <> (confidence: {a.confidence_pct}%)</>}
+      <span className="font-medium">{a.metric}</span> is projected to {a.direction}.
       {a.primary_driver && (
         <>
-          . Primary historical driver: <span className="font-medium">{a.primary_driver}</span>
+          {" "}
+          Likely driver: <span className="font-medium">{a.primary_driver}</span>.
         </>
       )}
     </>
@@ -32,7 +33,12 @@ export function RiskAlertsPanel({ alerts }: { alerts: RiskAlert[] }) {
       <ul className="space-y-2">
         {alerts.map((a, i) => (
           <li key={i} className="text-sm">
-            <AlertBody a={a} />
+            <div className="flex items-start justify-between gap-2">
+              <p>
+                <AlertBody a={a} />
+              </p>
+              <ConfidenceBadge level={percentConfidence(a.confidence_pct)} />
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">{a.note}</p>
           </li>
         ))}

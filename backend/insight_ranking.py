@@ -29,7 +29,7 @@ def _correlation_score(c: NumericCorrelation) -> float:
 
 
 def _association_score(a: CategoricalAssociation) -> float:
-    return a.cramers_v
+    return a.cramers_v + (0.2 if a.significant else 0.0)
 
 
 def _root_cause_score(dim: RootCauseDimension, max_variance: float) -> float:

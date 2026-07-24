@@ -2,6 +2,9 @@
 
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Forecast, ForecastEligibility } from "@/lib/types";
+import { forecastConfidence } from "@/lib/plainLanguage";
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { ExpandableDetail } from "./ExpandableDetail";
 
 interface Row {
   period: string;
@@ -62,23 +65,21 @@ export function ForecastChart({
 
   const rows = buildRows(forecast);
   const modelLabel = MODEL_LABELS[forecast.method] ?? forecast.method;
+  const mape = forecast.validation?.metrics.mape ?? null;
+  const trendWord = forecast.trend === "up" ? "rising" : forecast.trend === "down" ? "falling" : "staying flat";
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
-        Forecast: {forecast.column ?? "primary metric"}
-      </h3>
-      <p className="text-xs text-slate-500 mb-1">
-        {modelLabel}, trending {forecast.trend ?? "flat"}. Shaded lines mark the uncertainty range.
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+          Forecast: {forecast.column ?? "primary metric"}
+        </h3>
+        <ConfidenceBadge level={forecastConfidence(mape)} />
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        {forecast.column ?? "This metric"} looks to be {trendWord} over the next few periods. The shaded band shows
+        the range of likely outcomes.
       </p>
-      {forecast.validation && (
-        <p className="text-xs text-slate-500 mb-3">
-          Chosen by backtest against {forecast.validation.all_candidates.length} candidate model(s) over{" "}
-          {forecast.validation.holdout_periods} held-out period(s) — MAPE{" "}
-          {forecast.validation.metrics.mape !== null ? `${forecast.validation.metrics.mape}%` : "n/a"}, RMSE{" "}
-          {forecast.validation.metrics.rmse}.
-        </p>
-      )}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows}>
@@ -94,6 +95,13 @@ export function ForecastChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      {forecast.validation && (
+        <ExpandableDetail label="Show the technical detail">
+          Method: {modelLabel}. Chosen by backtesting {forecast.validation.all_candidates.length} candidate model(s)
+          over {forecast.validation.holdout_periods} held-out period(s) — MAPE{" "}
+          {mape !== null ? `${mape}%` : "n/a"}, RMSE {forecast.validation.metrics.rmse}.
+        </ExpandableDetail>
+      )}
     </div>
   );
 }

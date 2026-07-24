@@ -4,7 +4,8 @@ Numeric relationships use Pearson correlation by default, switching to
 Spearman (rank-based, no linearity/normality assumption) when either
 column is heavily skewed — with the p-value from whichever test was
 actually run, so "significant" means something. Categorical associations
-use Cramer's V from a contingency table (no scipy needed there). Root
+use Cramer's V from a contingency table, with significance from a
+chi-square test of independence on the same table. Root
 cause uses an eta-squared effect size plus a real significance test —
 one-way ANOVA when the metric looks roughly normal within groups,
 Kruskal-Wallis (rank-based, no normality assumption) otherwise. Everything
@@ -108,6 +109,8 @@ class CategoricalAssociation:
     label_a: str
     label_b: str
     cramers_v: float
+    p_value: float
+    significant: bool  # p < 0.05
     strength: str
 
 
@@ -145,6 +148,9 @@ def categorical_associations(
         if v < min_v:
             continue
 
+        _, p_value, _, _ = scipy_stats.chi2_contingency(contingency)
+        p_value = float(p_value)
+
         results.append(
             CategoricalAssociation(
                 column_a=col_a.name,
@@ -152,6 +158,8 @@ def categorical_associations(
                 label_a=col_a.semantic_label,
                 label_b=col_b.semantic_label,
                 cramers_v=round(v, 3),
+                p_value=round(p_value, 4),
+                significant=p_value < 0.05,
                 strength=_strength_label(v),
             )
         )
@@ -207,12 +215,19 @@ def root_cause_breakdown(
 
     for dim in dim_cols:
         paired = pd.DataFrame({"group": df[dim.name], "value": values}).dropna()
-        group_sizes = paired.groupby("group").size()
-        eligible_groups = group_sizes[group_sizes >= min_group_rows].index
+        group_sizes_all = paired.groupby("group").size()
+        eligible_groups = group_sizes_all[group_sizes_all >= min_group_rows].index
         if len(eligible_groups) < 2:
             continue
 
-        groups = [paired.loc[paired["group"] == g, "value"] for g in eligible_groups]
+        # Everything below — the significance test AND the variance-explained
+        # calculation — must use only the eligible-group rows consistently.
+        # Mixing an eligible-only numerator with a whole-dataset denominator
+        # (or vice versa) lets a single tiny/noisy excluded group dominate
+        # variance_explained_pct and top_segment even though it was just
+        # excluded for being too small to trust.
+        eligible_paired = paired[paired["group"].isin(eligible_groups)]
+        groups = [eligible_paired.loc[eligible_paired["group"] == g, "value"] for g in eligible_groups]
 
         if metric_is_skewed:
             test_used = "kruskal_wallis"
@@ -222,14 +237,20 @@ def root_cause_breakdown(
             statistic, p_value = scipy_stats.f_oneway(*groups)
         statistic, p_value = float(statistic), float(p_value)
 
-        group_means = paired.groupby("group")["value"].mean()
-        between_ss = float((group_sizes * (group_means - overall_mean) ** 2).sum())
-        variance_explained = between_ss / total_ss
+        dim_mean = float(eligible_paired["value"].mean())
+        dim_total_ss = float(((eligible_paired["value"] - dim_mean) ** 2).sum())
+        if dim_total_ss == 0:
+            continue
 
-        top_group = (group_means - overall_mean).abs().idxmax()
+        group_sizes = eligible_paired.groupby("group").size()
+        group_means = eligible_paired.groupby("group")["value"].mean()
+        between_ss = float((group_sizes * (group_means - dim_mean) ** 2).sum())
+        variance_explained = between_ss / dim_total_ss
+
+        top_group = (group_means - dim_mean).abs().idxmax()
         top_deviation_pct = None
-        if overall_mean != 0:
-            top_deviation_pct = round((group_means[top_group] - overall_mean) / abs(overall_mean) * 100, 1)
+        if dim_mean != 0:
+            top_deviation_pct = round((group_means[top_group] - dim_mean) / abs(dim_mean) * 100, 1)
 
         dimensions.append(
             RootCauseDimension(

@@ -45,16 +45,16 @@ export function AskIntelliVerse({
           placeholder="e.g. Why did revenue change? What's trending?"
           className="flex-1 rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-1.5 text-sm"
         />
-        <button
-          onClick={ask}
-          disabled={asking || !question.trim()}
-          className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-        >
+        <button onClick={ask} disabled={asking || !question.trim()} className="btn-primary">
           {asking ? "Thinking…" : "Ask"}
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-600 dark:text-red-400 mt-3" title={error}>
+          Couldn&apos;t answer that right now — AI-generated answers are temporarily unavailable.
+        </p>
+      )}
 
       {response && (
         <div className="mt-3 text-sm text-slate-700 dark:text-slate-300">

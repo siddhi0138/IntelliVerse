@@ -37,7 +37,12 @@ export function KpiRow({ chart }: { chart: ChartSpec }) {
 export function ChartCard({ chart }: { chart: ChartSpec }) {
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">{chart.title}</h3>
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">{chart.title}</h3>
+      <p className="text-xs text-slate-500 mb-3">
+        {chart.chart_type === "line"
+          ? "How to read this: follow the line left to right to see the trend over time."
+          : "How to read this: taller bars mean a bigger number for that category."}
+      </p>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           {chart.chart_type === "line" ? (

@@ -1,10 +1,8 @@
 import type { CategoricalAssociation, NumericCorrelation } from "@/lib/types";
-
-const STRENGTH_COLORS: Record<string, string> = {
-  strong: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  moderate: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  weak: "bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400",
-};
+import { correlationConfidence, associationConfidence, correlationSentence, associationSentence } from "@/lib/plainLanguage";
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { ExpandableDetail } from "./ExpandableDetail";
+import { Term } from "./Term";
 
 export function RelationshipsPanel({
   correlations,
@@ -17,48 +15,39 @@ export function RelationshipsPanel({
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Relationships</h3>
+      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Relationships</h3>
+      <p className="text-xs text-slate-500 mb-3">Which things in your data tend to move together.</p>
 
-      {!hasAny && <p className="text-sm text-slate-500">No statistically meaningful relationships detected.</p>}
+      {!hasAny && <p className="text-sm text-slate-500">Nothing in this dataset moves together strongly enough to call out.</p>}
 
-      {correlations.length > 0 && (
-        <div className="mb-4">
-          <p className="text-xs uppercase tracking-wide text-slate-500 mb-2">Numeric correlations</p>
-          <ul className="space-y-1.5">
-            {correlations.map((c, i) => (
-              <li key={i} className="flex items-center justify-between text-sm gap-2">
-                <span>
-                  {c.label_a} &harr; {c.label_b}
-                  <span className="text-xs text-slate-500 ml-1">
-                    ({c.method}, p={c.p_value}
-                    {c.significant ? "" : ", n.s."})
-                  </span>
-                </span>
-                <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STRENGTH_COLORS[c.strength]}`}>
-                  r={c.r} ({c.direction})
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {associations.length > 0 && (
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500 mb-2">Categorical associations</p>
-          <ul className="space-y-1.5">
-            {associations.map((a, i) => (
-              <li key={i} className="flex items-center justify-between text-sm gap-2">
-                <span>
-                  {a.label_a} &harr; {a.label_b}
-                </span>
-                <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STRENGTH_COLORS[a.strength]}`}>
-                  V={a.cramers_v}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {(correlations.length > 0 || associations.length > 0) && (
+        <ul className="space-y-3">
+          {correlations.map((c, i) => (
+            <li key={`c-${i}`} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm">📈 {correlationSentence(c)}</p>
+                <ConfidenceBadge level={correlationConfidence(c)} />
+              </div>
+              <ExpandableDetail>
+                <Term id={c.method === "spearman" ? "spearman" : "pearson"}>{c.method}</Term> correlation r={c.r} (
+                {c.direction}), <Term id="pvalue">p</Term>={c.p_value}
+                {c.significant ? "" : " (not statistically significant)"}
+              </ExpandableDetail>
+            </li>
+          ))}
+          {associations.map((a, i) => (
+            <li key={`a-${i}`} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm">📈 {associationSentence(a)}</p>
+                <ConfidenceBadge level={associationConfidence(a)} />
+              </div>
+              <ExpandableDetail>
+                <Term id="cramers_v">Cramér&apos;s V</Term>={a.cramers_v}, <Term id="pvalue">p</Term>={a.p_value}
+                {a.significant ? "" : " (not statistically significant)"}
+              </ExpandableDetail>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

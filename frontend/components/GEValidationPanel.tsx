@@ -1,11 +1,12 @@
 import type { GEValidation } from "@/lib/types";
+import { Term } from "./Term";
 
 export function GEValidationPanel({ validation }: { validation: GEValidation }) {
   if (!validation.available) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Structural Validation</h3>
-        <p className="text-sm text-slate-500">Great Expectations check unavailable: {validation.reason}</p>
+        <p className="text-sm text-slate-500"><Term id="great_expectations">Great Expectations</Term> check unavailable: {validation.reason}</p>
       </div>
     );
   }
@@ -14,7 +15,7 @@ export function GEValidationPanel({ validation }: { validation: GEValidation }) 
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
       <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Structural Validation</h3>
       <p className="text-xs text-slate-500 mb-3">
-        Great Expectations — generic structural checks (row count, uniqueness, nullness), supplementary to the
+        <Term id="great_expectations">Great Expectations</Term> — generic structural checks (row count, uniqueness, nullness), supplementary to the
         business-aware quality report above.
       </p>
       <p className="text-sm mb-2">

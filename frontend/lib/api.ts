@@ -1,7 +1,6 @@
 import type {
   ActionPlanResult,
   AnalyzeResponse,
-  Anomaly,
   AskDocumentsResponse,
   AskResponse,
   CatalogDetail,
@@ -13,14 +12,12 @@ import type {
   EntityImpactResult,
   EntityProfile,
   Forecast,
-  Insight,
-  PeriodComparison,
   QueryResult,
   RankedFinding,
-  Recommendation,
   RelationshipCandidate,
   RiskAlert,
   RootCauseAnalysis,
+  SavedActionPlan,
   SavedForecast,
   SavedSimulation,
   SimulationExplanation,
@@ -90,39 +87,6 @@ export async function analyzeFileWithProgress(
   });
 }
 
-export interface InsightsResult {
-  insights: Insight[];
-  recommendations: Recommendation[];
-}
-
-export async function fetchInsights(
-  domain: string,
-  rowCount: number,
-  schema: ColumnSchema[],
-  anomalies: Anomaly[],
-  forecast: Forecast | null,
-  quality: DataQualityReport | null,
-  rootCause: RootCauseAnalysis | null,
-  periodComparison: PeriodComparison | null
-): Promise<InsightsResult> {
-  const res = await fetch(`${API_BASE}/api/insights`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({
-      domain,
-      row_count: rowCount,
-      columns: schema,
-      anomalies,
-      forecast,
-      quality,
-      root_cause: rootCause,
-      period_comparison: periodComparison,
-    }),
-  });
-
-  return unwrap<InsightsResult>(res);
-}
-
 export async function askQuestion(
   analysisId: string,
   domain: string,
@@ -152,11 +116,15 @@ export async function runSimulation(
   return unwrap<SimulationResult>(res);
 }
 
-export async function explainSimulation(domain: string, simulation: SimulationResult): Promise<SimulationExplanation> {
+export async function explainSimulation(
+  domain: string,
+  simulation: SimulationResult,
+  persona?: string | null
+): Promise<SimulationExplanation> {
   const res = await fetch(`${API_BASE}/api/simulate/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, simulation }),
+    body: JSON.stringify({ domain, simulation, persona }),
   });
 
   return unwrap<SimulationExplanation>(res);
@@ -167,12 +135,20 @@ export async function fetchDatasetSummary(
   rowCount: number,
   columnCount: number,
   schema: ColumnSchema[],
-  quality: DataQualityReport | null
+  quality: DataQualityReport | null,
+  persona?: string | null
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/api/summary`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, row_count: rowCount, column_count: columnCount, columns: schema, quality }),
+    body: JSON.stringify({
+      domain,
+      row_count: rowCount,
+      column_count: columnCount,
+      columns: schema,
+      quality,
+      persona,
+    }),
   });
 
   const body = await unwrap<{ summary: string }>(res);
@@ -207,11 +183,16 @@ export async function deleteAllDatasets(): Promise<number> {
   return body.deleted_count;
 }
 
-export async function saveForecast(analysisId: string, label: string, forecast: Forecast): Promise<void> {
+export async function saveForecast(
+  analysisId: string,
+  label: string,
+  forecast: Forecast,
+  persona?: string | null
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ label, forecast }),
+    body: JSON.stringify({ label, forecast, persona }),
   });
   await unwrap<{ id: string }>(res);
 }
@@ -224,11 +205,24 @@ export async function listSavedForecasts(analysisId: string): Promise<SavedForec
   return body.forecasts;
 }
 
-export async function saveSimulation(analysisId: string, label: string, simulation: SimulationResult): Promise<void> {
+export async function deleteSavedForecast(analysisId: string, savedId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/forecasts/${encodeURIComponent(savedId)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  await unwrap<{ deleted: boolean }>(res);
+}
+
+export async function saveSimulation(
+  analysisId: string,
+  label: string,
+  simulation: SimulationResult,
+  persona?: string | null
+): Promise<void> {
   const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/simulations`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ label, simulation }),
+    body: JSON.stringify({ label, simulation, persona }),
   });
   await unwrap<{ id: string }>(res);
 }
@@ -239,6 +233,44 @@ export async function listSavedSimulations(analysisId: string): Promise<SavedSim
   });
   const body = await unwrap<{ simulations: SavedSimulation[] }>(res);
   return body.simulations;
+}
+
+export async function deleteSavedSimulation(analysisId: string, savedId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/simulations/${encodeURIComponent(savedId)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  await unwrap<{ deleted: boolean }>(res);
+}
+
+export async function saveActionPlan(
+  analysisId: string,
+  label: string,
+  plan: ActionPlanResult,
+  persona?: string | null
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/action-plans`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ label, plan, persona }),
+  });
+  await unwrap<{ id: string }>(res);
+}
+
+export async function listSavedActionPlans(analysisId: string): Promise<SavedActionPlan[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/action-plans`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ action_plans: SavedActionPlan[] }>(res);
+  return body.action_plans;
+}
+
+export async function deleteSavedActionPlan(analysisId: string, savedId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/action-plans/${encodeURIComponent(savedId)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  await unwrap<{ deleted: boolean }>(res);
 }
 
 export async function updateSemanticLabel(analysisId: string, columnName: string, label: string): Promise<void> {
@@ -260,15 +292,32 @@ export async function forecastColumn(analysisId: string, column: string): Promis
   return unwrap<Forecast>(res);
 }
 
-export async function explainForecast(domain: string, forecast: Forecast): Promise<string> {
+export async function explainForecast(domain: string, forecast: Forecast, persona?: string | null): Promise<string> {
   const res = await fetch(`${API_BASE}/api/forecast/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, forecast }),
+    body: JSON.stringify({ domain, forecast, persona }),
   });
 
   const body = await unwrap<{ summary: string }>(res);
   return body.summary;
+}
+
+export async function explainAnomaly(
+  domain: string,
+  columnLabel: string,
+  value: number | string,
+  direction: string,
+  persona?: string | null
+): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/api/anomalies/explain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ domain, column_label: columnLabel, value, direction, persona }),
+  });
+
+  const body = await unwrap<{ reasons: string[] }>(res);
+  return body.reasons;
 }
 
 export async function createWorkspace(files: File[]): Promise<WorkspaceResponse> {
@@ -357,7 +406,8 @@ export async function generateActionPlan(
   riskAlerts: RiskAlert[],
   rootCause: RootCauseAnalysis | null,
   forecast: Forecast | null,
-  quality: DataQualityReport | null
+  quality: DataQualityReport | null,
+  persona?: string | null
 ): Promise<ActionPlanResult> {
   const res = await fetch(`${API_BASE}/api/action-plan`, {
     method: "POST",
@@ -370,6 +420,7 @@ export async function generateActionPlan(
       root_cause: rootCause,
       forecast,
       quality,
+      persona,
     }),
   });
   return unwrap<ActionPlanResult>(res);

@@ -77,7 +77,11 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 
 **📤 Data access & export**
 - Ad-hoc read-only SQL querying over any uploaded dataset (DuckDB)
-- Export a completed analysis as PDF, Excel, or PowerPoint
+- Export a completed analysis as a multi-page PDF, a multi-sheet Excel
+  workbook, or a 12-slide PowerPoint deck — business health, data quality
+  detail, key findings, root cause, relationships, segmentation, risk
+  alerts, forecast (with a real chart), anomalies, and a full data
+  dictionary, not just a findings summary
 - Live step-by-step progress over WebSocket while an analysis runs
 - 2D (@xyflow/react) and 3D (Three.js/React Three Fiber) knowledge graph views
 
@@ -85,7 +89,9 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 - Full login wall — Postgres-backed users, bcrypt hashing, JWT on every endpoint
 - Per-user dataset catalog — reopening a past dataset restores the entire
   dashboard, no re-upload needed
-- Explicitly saved forecasts and simulations, reloadable per dataset
+- Explicitly saved forecasts, simulations, and action plans, each tagged with
+  the persona active when it was saved (so two saves under different
+  personas stay distinguishable later), reloadable or deletable per dataset
 
 **📄 Knowledge Assistant (document intelligence)**
 - Upload PDF/DOCX/PPTX/TXT documents and ask questions across them — answers
@@ -94,6 +100,18 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
   in the same answer — genuinely grounded in both, not just documents alone
 - Runs fully locally: sentence-transformers for embeddings, Qdrant for storage —
   no external API key required
+
+**🎨 Personalization**
+- Manual light/dark mode toggle (top bar) — persisted per browser, applied
+  before first paint so there's no flash of the wrong theme on reload
+- Persona field ("I am a...", any free-text role) reframes every AI narration
+  — findings, forecast explanations, action plan — for that reader, without
+  ever changing the underlying numbers
+- Simple/Expert mode toggle controls whether the statistical detail behind
+  each finding is shown by default or tucked behind "show the numbers"
+- Business Health Score — one deterministic 0–100 rollup of data quality,
+  growth, forecast reliability, and risk, no LLM involved
+- In-app glossary explaining every statistical term used in the dashboard
 
 ## Tech stack
 
@@ -225,7 +243,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-47 tests across every deterministic module. LLM-touching modules are tested for
+52 tests across every deterministic module. LLM-touching modules are tested for
 their deterministic error paths only — the LLM calls themselves are verified
 manually against a live endpoint.
 

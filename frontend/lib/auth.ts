@@ -35,6 +35,9 @@ export async function login(username: string, password: string): Promise<void> {
   setToken(await authRequest("/api/auth/login", username, password));
 }
 
+// Deliberately doesn't call setToken: registering creates the account but
+// shouldn't auto-sign-in — the user lands back on the login form and signs
+// in explicitly, so "register" and "login" are always two distinct steps.
 export async function register(username: string, password: string): Promise<void> {
-  setToken(await authRequest("/api/auth/register", username, password));
+  await authRequest("/api/auth/register", username, password);
 }

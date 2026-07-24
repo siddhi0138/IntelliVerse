@@ -1,5 +1,7 @@
-from profiling import build_quality_report
-from schema_inference import build_schema
+import pandas as pd
+
+from profiling import build_quality_report, detect_invalid_values
+from schema_inference import ColumnSchema, build_schema
 
 
 def test_detects_duplicate_row(dirty_df):
@@ -37,6 +39,17 @@ def test_dirty_data_scores_lower_than_clean(business_df, dirty_df):
     clean_report = build_quality_report(business_df, build_schema(business_df))
     dirty_report = build_quality_report(dirty_df, build_schema(dirty_df))
     assert dirty_report.score < clean_report.score
+
+
+def test_inconsistent_casing_count_is_affected_rows_not_variant_count():
+    """count must reflect every row with an inconsistent-casing value, not
+    just the number of distinct spelling variants — a repeated variant
+    (e.g. 5 rows spelled "usa") must not be undercounted as 1."""
+    df = pd.DataFrame({"Region": ["USA"] * 3 + ["usa"] * 5 + ["Usa"] * 2 + ["Canada"] * 10})
+    schema = [ColumnSchema(name="Region", type="categorical", semantic_label="Region")]
+    issues = detect_invalid_values(df, schema)
+    assert len(issues) == 1
+    assert issues[0].count == 10
 
 
 def test_missing_values_generate_recommendation(dirty_df):

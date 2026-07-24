@@ -81,6 +81,18 @@ def _init_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS saved_action_plans (
+            id TEXT PRIMARY KEY,
+            analysis_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            label TEXT NOT NULL,
+            saved_at TEXT NOT NULL,
+            plan_json TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS documents (
             doc_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
@@ -109,6 +121,15 @@ def _init_db(conn: sqlite3.Connection) -> None:
     # built (that one is a safety net; this one is an explicit confirmation
     # the user can see and re-trigger).
     _add_column_if_missing(conn, "workspaces", "saved_at", "saved_at TEXT")
+
+    # Added after discovering saved forecasts/simulations/action plans were
+    # indistinguishable once the persona that produced their AI narration
+    # was gone from the navbar — two saves under different personas looked
+    # identical in the saved list. NULL for rows saved before this column
+    # existed (no persona was recorded then, not that none was used).
+    _add_column_if_missing(conn, "saved_forecasts", "persona", "persona TEXT")
+    _add_column_if_missing(conn, "saved_simulations", "persona", "persona TEXT")
+    _add_column_if_missing(conn, "saved_action_plans", "persona", "persona TEXT")
     conn.commit()
 
 
@@ -195,6 +216,9 @@ def delete_dataset(analysis_id: str, username: str) -> bool:
         conn.execute(
             "DELETE FROM saved_simulations WHERE analysis_id = ? AND username = ?", (analysis_id, username)
         )
+        conn.execute(
+            "DELETE FROM saved_action_plans WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
         conn.commit()
         return cur.rowcount > 0
 
@@ -209,6 +233,7 @@ def delete_all_datasets(username: str) -> list[str]:
         conn.execute("DELETE FROM datasets WHERE username = ?", (username,))
         conn.execute("DELETE FROM saved_forecasts WHERE username = ?", (username,))
         conn.execute("DELETE FROM saved_simulations WHERE username = ?", (username,))
+        conn.execute("DELETE FROM saved_action_plans WHERE username = ?", (username,))
         conn.commit()
         return analysis_ids
 
@@ -238,12 +263,12 @@ def update_semantic_label(analysis_id: str, username: str, column_name: str, new
         return True
 
 
-def save_forecast(analysis_id: str, username: str, label: str, forecast: dict) -> str:
+def save_forecast(analysis_id: str, username: str, label: str, forecast: dict, persona: str | None = None) -> str:
     saved_id = str(uuid.uuid4())
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO saved_forecasts (id, analysis_id, username, label, saved_at, forecast_json) VALUES (?, ?, ?, ?, ?, ?)",
-            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(forecast)),
+            "INSERT INTO saved_forecasts (id, analysis_id, username, label, saved_at, forecast_json, persona) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(forecast), persona),
         )
         conn.commit()
     return saved_id
@@ -252,7 +277,7 @@ def save_forecast(analysis_id: str, username: str, label: str, forecast: dict) -
 def list_saved_forecasts(analysis_id: str, username: str) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT id, label, saved_at, forecast_json FROM saved_forecasts WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
+            "SELECT id, label, saved_at, forecast_json, persona FROM saved_forecasts WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
             (analysis_id, username),
         ).fetchall()
         out = []
@@ -263,12 +288,19 @@ def list_saved_forecasts(analysis_id: str, username: str) -> list[dict]:
         return out
 
 
-def save_simulation(analysis_id: str, username: str, label: str, simulation: dict) -> str:
+def delete_forecast(saved_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM saved_forecasts WHERE id = ? AND username = ?", (saved_id, username))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def save_simulation(analysis_id: str, username: str, label: str, simulation: dict, persona: str | None = None) -> str:
     saved_id = str(uuid.uuid4())
     with _connect() as conn:
         conn.execute(
-            "INSERT INTO saved_simulations (id, analysis_id, username, label, saved_at, simulation_json) VALUES (?, ?, ?, ?, ?, ?)",
-            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(simulation)),
+            "INSERT INTO saved_simulations (id, analysis_id, username, label, saved_at, simulation_json, persona) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(simulation), persona),
         )
         conn.commit()
     return saved_id
@@ -277,7 +309,7 @@ def save_simulation(analysis_id: str, username: str, label: str, simulation: dic
 def list_saved_simulations(analysis_id: str, username: str) -> list[dict]:
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT id, label, saved_at, simulation_json FROM saved_simulations WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
+            "SELECT id, label, saved_at, simulation_json, persona FROM saved_simulations WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
             (analysis_id, username),
         ).fetchall()
         out = []
@@ -286,6 +318,45 @@ def list_saved_simulations(analysis_id: str, username: str) -> list[dict]:
             d["simulation"] = json.loads(d.pop("simulation_json"))
             out.append(d)
         return out
+
+
+def delete_simulation(saved_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM saved_simulations WHERE id = ? AND username = ?", (saved_id, username))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def save_action_plan(analysis_id: str, username: str, label: str, plan: dict, persona: str | None = None) -> str:
+    saved_id = str(uuid.uuid4())
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO saved_action_plans (id, analysis_id, username, label, saved_at, plan_json, persona) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(plan), persona),
+        )
+        conn.commit()
+    return saved_id
+
+
+def list_saved_action_plans(analysis_id: str, username: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, label, saved_at, plan_json, persona FROM saved_action_plans WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
+            (analysis_id, username),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["plan"] = json.loads(d.pop("plan_json"))
+            out.append(d)
+        return out
+
+
+def delete_action_plan(saved_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM saved_action_plans WHERE id = ? AND username = ?", (saved_id, username))
+        conn.commit()
+        return cur.rowcount > 0
 
 
 def save_document(doc_id: str, username: str, filename: str, chunk_count: int) -> None:

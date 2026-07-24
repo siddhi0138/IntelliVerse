@@ -21,7 +21,7 @@ export function ReportExportPanel({ analysisId }: { analysisId: string }) {
             key={format}
             href={reportUrl(analysisId, format)}
             download
-            className="rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+            className="btn-primary"
           >
             {label}
           </a>

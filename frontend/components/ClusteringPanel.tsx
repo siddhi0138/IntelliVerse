@@ -1,4 +1,8 @@
 import type { ClusteringResult } from "@/lib/types";
+import { clusteringConfidence } from "@/lib/plainLanguage";
+import { ConfidenceBadge } from "./ConfidenceBadge";
+import { ExpandableDetail } from "./ExpandableDetail";
+import { Term } from "./Term";
 
 const CLUSTER_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6"];
 
@@ -7,18 +11,22 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Segmentation</h3>
-        <p className="text-sm text-slate-500">Not enough numeric structure in this dataset to segment meaningfully.</p>
+        <p className="text-sm text-slate-500">Not enough structure in this dataset to group rows meaningfully.</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
-        Segmentation ({clustering.k} clusters)
-      </h3>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+          Segmentation ({clustering.k} clusters)
+        </h3>
+        <ConfidenceBadge level={clusteringConfidence(clustering.silhouette_score)} />
+      </div>
       <p className="text-xs text-slate-500 mb-3">
-        K chosen automatically via silhouette score ({clustering.silhouette_score}) — not assumed.
+        Rows were automatically grouped by similarity — the number of groups wasn&apos;t guessed, it was chosen
+        because it split the data most cleanly.
       </p>
       <ul className="space-y-3">
         {clustering.clusters.map((c, i) => (
@@ -29,7 +37,7 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
                 style={{ background: CLUSTER_COLORS[i % CLUSTER_COLORS.length] }}
               />
               <span className="font-medium">
-                Cluster {c.cluster_id} ({c.size} rows)
+                Group {c.cluster_id} ({c.size} rows)
               </span>
             </div>
             <p className="text-xs text-slate-500 ml-4">
@@ -43,6 +51,11 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
           </li>
         ))}
       </ul>
+      <div className="mt-2">
+        <ExpandableDetail>
+          Grouping quality (<Term id="silhouette">silhouette score</Term>): {clustering.silhouette_score}
+        </ExpandableDetail>
+      </div>
     </div>
   );
 }

@@ -192,6 +192,8 @@ export interface CategoricalAssociation {
   label_a: string;
   label_b: string;
   cramers_v: number;
+  p_value: number;
+  significant: boolean;
   strength: "strong" | "moderate" | "weak";
 }
 
@@ -312,24 +314,25 @@ export interface AnalyzeResponse {
   ge_validation: GEValidation;
   decisions: DecisionAction[];
   primary_metric: string | null;
+  // Optional: datasets analyzed before this field existed won't have it —
+  // reopening one of those from the catalog must not crash.
+  business_health?: BusinessHealth;
+}
+
+export interface BusinessHealth {
+  overall: number;
+  components: {
+    data_quality: number;
+    growth: number;
+    forecast_reliability: number;
+    safety: number;
+  };
 }
 
 export interface AskResponse {
   intent: string;
   computed: Record<string, unknown>;
   answer: string;
-}
-
-export interface Insight {
-  title: string;
-  description: string;
-  confidence: "high" | "medium" | "low";
-}
-
-export interface Recommendation {
-  title: string;
-  action: string;
-  rationale: string;
 }
 
 export type Confidence = "high" | "medium" | "low";
@@ -378,6 +381,7 @@ export interface SavedForecast {
   label: string;
   saved_at: string;
   forecast: Forecast;
+  persona: string | null;
 }
 
 export interface SavedSimulation {
@@ -385,6 +389,15 @@ export interface SavedSimulation {
   label: string;
   saved_at: string;
   simulation: SimulationResult;
+  persona: string | null;
+}
+
+export interface SavedActionPlan {
+  id: string;
+  label: string;
+  saved_at: string;
+  plan: ActionPlanResult;
+  persona: string | null;
 }
 
 // --- V5: multi-table workspaces --------------------------------------------

@@ -47,11 +47,7 @@ export function EntityImpactPanel({
           {pct > 0 ? "+" : ""}
           {pct}%
         </span>
-        <button
-          onClick={run}
-          disabled={loading}
-          className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 disabled:opacity-50"
-        >
+        <button onClick={run} disabled={loading} className="btn-primary">
           {loading ? "Simulating…" : "Simulate"}
         </button>
       </div>
