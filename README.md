@@ -4,6 +4,8 @@
 
 **Upload anything. Understand everything.**
 
+🔗 **Live**: [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) (frontend on Vercel, backend on Render — auto-deploys on push to `master`)
+
 IntelliVerse is a universal data analytics platform: drop in a CSV, Excel, or JSON
 file and it automatically infers what the columns mean, guesses the dataset's
 domain, and generates a full analytical dashboard — schema inference, statistics,
@@ -107,11 +109,17 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 - Persona field ("I am a...", any free-text role) reframes every AI narration
   — findings, forecast explanations, action plan — for that reader, without
   ever changing the underlying numbers
-- Simple/Expert mode toggle controls whether the statistical detail behind
-  each finding is shown by default or tucked behind "show the numbers"
+- Simple/Expert mode is a genuine language difference, not a collapse toggle —
+  Simple stays plain-English throughout; Expert rewrites the same findings with
+  technical vocabulary and full precision inline (test names, p-values, r/effect
+  sizes), and the AI narration is instructed to match the same register. The
+  "hover for the numbers" affordance itself behaves identically in both modes
+- Every statistical term (p-value, r, Cramér's V, ANOVA, MAPE, silhouette score,
+  SHAP, IQR/Z-score, ...) is a clickable glossary link, in both modes, everywhere
+  it appears — Relationships, Root Cause, Insight Explorer, Forecast, Clustering,
+  Anomalies, Decision Simulator
 - Business Health Score — one deterministic 0–100 rollup of data quality,
   growth, forecast reliability, and risk, no LLM involved
-- In-app glossary explaining every statistical term used in the dashboard
 
 ## Tech stack
 
@@ -232,8 +240,10 @@ separately:
 | `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | `1440` |
 
-Not yet executed — it needs your own Vercel/Render accounts — but the
-Dockerfiles it relies on are the same ones verified under [Docker](#docker).
+Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
+Vercel project is git-connected (auto-deploys on push to `master`); the Render
+backend redeploys manually. To run your own copy, follow the steps above with
+your own Vercel/Render accounts.
 
 ## Testing
 
