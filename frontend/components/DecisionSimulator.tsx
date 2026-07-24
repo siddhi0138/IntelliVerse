@@ -8,6 +8,7 @@ import { EffectsList } from "@/components/EffectsList";
 import { SimulationExplanationPanel } from "@/components/SimulationExplanationPanel";
 import { ScenarioComparisonTable } from "@/components/ScenarioComparisonTable";
 import { usePersona } from "@/components/PersonaContext";
+import { useSimpleMode } from "@/components/SimpleModeContext";
 
 const SCENARIO_PRESETS = [
   { name: "Conservative Growth", pct: 8, risk: "Low" },
@@ -46,6 +47,7 @@ export function DecisionSimulator({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { persona } = usePersona();
+  const { simpleMode } = useSimpleMode();
 
   const refreshSaved = useCallback(() => {
     listSavedSimulations(analysisId)
@@ -91,7 +93,7 @@ export function DecisionSimulator({
       const r = await runSimulation(analysisId, column, pctChange);
       setResult(r);
       setExplanationLoading(true);
-      explainSimulation(domain, r, persona)
+      explainSimulation(domain, r, persona, simpleMode)
         .then(setExplanation)
         .catch((err) => setExplanationError(err instanceof Error ? err.message : "Could not explain this scenario."))
         .finally(() => setExplanationLoading(false));

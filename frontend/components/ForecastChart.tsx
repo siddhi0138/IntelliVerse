@@ -5,6 +5,8 @@ import type { Forecast, ForecastEligibility } from "@/lib/types";
 import { forecastConfidence } from "@/lib/plainLanguage";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ExpandableDetail } from "./ExpandableDetail";
+import { Term } from "./Term";
+import { useSimpleMode } from "./SimpleModeContext";
 
 interface Row {
   period: string;
@@ -52,6 +54,7 @@ export function ForecastChart({
   forecast: Forecast | null;
   eligibility: ForecastEligibility;
 }) {
+  const { simpleMode } = useSimpleMode();
   if (!eligibility.eligible || !forecast || forecast.method === "insufficient_data" || forecast.forecast.length === 0) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
@@ -69,17 +72,42 @@ export function ForecastChart({
   const trendWord = forecast.trend === "up" ? "rising" : forecast.trend === "down" ? "falling" : "staying flat";
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
+    <div className="group rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
       <div className="flex items-start justify-between gap-2 mb-1">
         <h3 className="text-base font-semibold text-slate-900 dark:text-white">
           Forecast: {forecast.column ?? "primary metric"}
         </h3>
         <ConfidenceBadge level={forecastConfidence(mape)} />
       </div>
-      <p className="text-xs text-slate-500 mb-3">
-        {forecast.column ?? "This metric"} looks to be {trendWord} over the next few periods. The shaded band shows
-        the range of likely outcomes.
-      </p>
+      {simpleMode ? (
+        <div className="flex flex-wrap items-center gap-1 mb-3">
+          <p className="text-xs text-slate-500">
+            {forecast.column ?? "This metric"} looks to be {trendWord} over the next few periods. The shaded band
+            shows the range of likely outcomes.
+          </p>
+          {forecast.validation && (
+            <ExpandableDetail label="Show the technical detail">
+              Method: {modelLabel}. Chosen by backtesting {forecast.validation.all_candidates.length} candidate model(s)
+              over <Term id="holdout">{forecast.validation.holdout_periods} held-out period(s)</Term> —{" "}
+              <Term id="mape">MAPE</Term> {mape !== null ? `${mape}%` : "n/a"}, <Term id="rmse">RMSE</Term>{" "}
+              {forecast.validation.metrics.rmse}.
+            </ExpandableDetail>
+          )}
+        </div>
+      ) : (
+        <p className="text-xs text-slate-500 mb-3">
+          Trend: {forecast.trend} ({modelLabel}
+          {forecast.validation && (
+            <>
+              , selected by backtesting {forecast.validation.all_candidates.length} candidate model(s) over{" "}
+              <Term id="holdout">{forecast.validation.holdout_periods} held-out period(s)</Term>:{" "}
+              <Term id="mape">MAPE</Term>={mape !== null ? `${mape}%` : "n/a"}, <Term id="rmse">RMSE</Term>=
+              {forecast.validation.metrics.rmse}
+            </>
+          )}
+          ). Shaded band = prediction interval.
+        </p>
+      )}
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows}>
@@ -95,13 +123,6 @@ export function ForecastChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
-      {forecast.validation && (
-        <ExpandableDetail label="Show the technical detail">
-          Method: {modelLabel}. Chosen by backtesting {forecast.validation.all_candidates.length} candidate model(s)
-          over {forecast.validation.holdout_periods} held-out period(s) — MAPE{" "}
-          {mape !== null ? `${mape}%` : "n/a"}, RMSE {forecast.validation.metrics.rmse}.
-        </ExpandableDetail>
-      )}
     </div>
   );
 }

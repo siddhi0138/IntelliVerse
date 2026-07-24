@@ -31,6 +31,23 @@ def persona_instruction(persona: str | None) -> str:
     )
 
 
+def detail_instruction(simple_mode: bool) -> str:
+    """Mirrors the frontend's Simple/Expert toggle in the narration itself —
+    same underlying numbers, genuinely different register, not the same
+    sentence with a stat parenthetically appended."""
+    if simple_mode:
+        return (
+            "\n\nWrite for a non-technical reader: plain everyday language, no statistical jargon "
+            "(no p-values, r-values, confidence intervals, or test names), no numbers beyond what's "
+            "needed to make the point concrete."
+        )
+    return (
+        "\n\nWrite for a data analyst: precise technical language, include the relevant statistics "
+        "(p-values, r/effect sizes, test names, confidence intervals) inline rather than summarizing "
+        "them away, and use correct statistical terminology throughout."
+    )
+
+
 class InsightsUnavailable(Exception):
     pass
 
@@ -131,9 +148,11 @@ def _summarize_simulation_for_prompt(domain: str, simulation: dict) -> str:
     return "\n".join(lines)
 
 
-async def generate_simulation_explanation(domain: str, simulation: dict, persona: str | None = None) -> dict:
+async def generate_simulation_explanation(
+    domain: str, simulation: dict, persona: str | None = None, simple_mode: bool = True
+) -> dict:
     summary = _summarize_simulation_for_prompt(domain, simulation)
-    prompt = _SIMULATION_SYSTEM_PROMPT + persona_instruction(persona)
+    prompt = _SIMULATION_SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
     parsed = await _call_llm_for_summary(prompt, summary)
     return {
         "summary": parsed["summary"],
@@ -178,9 +197,10 @@ async def generate_dataset_summary(
     schema: list[dict],
     quality: dict | None,
     persona: str | None = None,
+    simple_mode: bool = True,
 ) -> str:
     summary = _summarize_dataset_for_prompt(domain, row_count, column_count, schema, quality)
-    prompt = _DATASET_SUMMARY_SYSTEM_PROMPT + persona_instruction(persona)
+    prompt = _DATASET_SUMMARY_SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
     parsed = await _call_llm_for_summary(prompt, summary)
     return parsed["summary"]
 
@@ -223,9 +243,11 @@ def _summarize_forecast_for_prompt(domain: str, forecast: dict) -> str:
     return "\n".join(lines)
 
 
-async def generate_forecast_explanation(domain: str, forecast: dict, persona: str | None = None) -> str:
+async def generate_forecast_explanation(
+    domain: str, forecast: dict, persona: str | None = None, simple_mode: bool = True
+) -> str:
     summary = _summarize_forecast_for_prompt(domain, forecast)
-    prompt = _FORECAST_SYSTEM_PROMPT + persona_instruction(persona)
+    prompt = _FORECAST_SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
     parsed = await _call_llm_for_summary(prompt, summary)
     return parsed["summary"]
 
@@ -242,10 +264,15 @@ Return at most 3 reasons."""
 
 
 async def generate_anomaly_reasons(
-    domain: str, column_label: str, value: float | str, direction: str, persona: str | None = None
+    domain: str,
+    column_label: str,
+    value: float | str,
+    direction: str,
+    persona: str | None = None,
+    simple_mode: bool = True,
 ) -> list[str]:
     user_content = f"Domain: {domain}\nColumn: {column_label}\nUnusual value: {value} ({direction} the normal range)"
-    prompt = _ANOMALY_REASONS_SYSTEM_PROMPT + persona_instruction(persona)
+    prompt = _ANOMALY_REASONS_SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
     parsed = await call_llm_json(prompt, user_content)
     reasons = parsed.get("reasons", [])
     if not reasons:

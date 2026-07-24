@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { fetchDatasetSummary } from "@/lib/api";
 import { usePersona } from "./PersonaContext";
+import { useSimpleMode } from "./SimpleModeContext";
 import type { ColumnSchema, DataQualityReport } from "@/lib/types";
 
 export function DatasetSummaryPanel({
@@ -23,6 +24,7 @@ export function DatasetSummaryPanel({
   const [error, setError] = useState<string | null>(null);
 
   const { persona } = usePersona();
+  const { simpleMode } = useSimpleMode();
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +33,7 @@ export function DatasetSummaryPanel({
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchDatasetSummary(domain, rowCount, columnCount, schema, quality, persona);
+        const result = await fetchDatasetSummary(domain, rowCount, columnCount, schema, quality, persona, simpleMode);
         if (!cancelled) setSummary(result);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not generate a summary.");
@@ -45,7 +47,7 @@ export function DatasetSummaryPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, rowCount, columnCount, persona]);
+  }, [domain, rowCount, columnCount, persona, simpleMode]);
 
   return (
     <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 p-4">

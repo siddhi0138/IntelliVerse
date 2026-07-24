@@ -1,4 +1,5 @@
 import type { SimulationResult } from "@/lib/types";
+import { Term } from "./Term";
 
 const CONFIDENCE_COLORS: Record<string, string> = {
   high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
@@ -16,7 +17,9 @@ export function EffectsList({ result }: { result: SimulationResult }) {
             <th className="px-4 py-2 font-medium">Baseline</th>
             <th className="px-4 py-2 font-medium">Projected</th>
             <th className="px-4 py-2 font-medium">Change</th>
-            <th className="px-4 py-2 font-medium">Confidence (R²)</th>
+            <th className="px-4 py-2 font-medium">
+              Confidence (<Term id="r_squared">R&sup2;</Term>)
+            </th>
             <th className="px-4 py-2 font-medium">Relationship</th>
           </tr>
         </thead>

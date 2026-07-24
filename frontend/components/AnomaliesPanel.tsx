@@ -4,9 +4,12 @@ import { useState } from "react";
 import type { Anomaly } from "@/lib/types";
 import { explainAnomaly } from "@/lib/api";
 import { usePersona } from "./PersonaContext";
+import { useSimpleMode } from "./SimpleModeContext";
+import { Term } from "./Term";
 
 function AnomalyRow({ a, domain }: { a: Anomaly; domain: string }) {
   const { persona } = usePersona();
+  const { simpleMode } = useSimpleMode();
   const [reasons, setReasons] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +21,7 @@ function AnomalyRow({ a, domain }: { a: Anomaly; domain: string }) {
     setLoading(true);
     setError(null);
     try {
-      const result = await explainAnomaly(domain, a.semantic_label, a.value, a.direction, persona);
+      const result = await explainAnomaly(domain, a.semantic_label, a.value, a.direction, persona, simpleMode);
       setReasons(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not suggest reasons.");
@@ -44,6 +47,12 @@ function AnomalyRow({ a, domain }: { a: Anomaly; domain: string }) {
           {a.value.toLocaleString()} ({a.direction === "above" ? "higher" : "lower"} than normal)
         </span>
       </div>
+      {!simpleMode && (
+        <p className="text-xs text-slate-500 mt-0.5">
+          Flagged by <Term id={a.method === "iqr" ? "iqr" : "zscore"}>{a.method === "iqr" ? "IQR" : "Z-score"}</Term>{" "}
+          method: normal range is {a.bounds.lower.toLocaleString()}–{a.bounds.upper.toLocaleString()}.
+        </p>
+      )}
       <button onClick={handleClick} className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline mt-0.5">
         {open ? "Hide" : "Why might this have happened?"}
       </button>

@@ -9,6 +9,7 @@ import { ForecastComparisonTable } from "@/components/ForecastComparisonTable";
 import { ForecastExplanationPanel } from "@/components/ForecastExplanationPanel";
 import { ExpandableDetail } from "@/components/ExpandableDetail";
 import { usePersona } from "@/components/PersonaContext";
+import { useSimpleMode } from "@/components/SimpleModeContext";
 
 export function ForecastSection({
   analysisId,
@@ -35,6 +36,7 @@ export function ForecastSection({
   const [explanationError, setExplanationError] = useState<string | null>(null);
 
   const { persona } = usePersona();
+  const { simpleMode } = useSimpleMode();
 
   const [saved, setSaved] = useState<SavedForecast[]>([]);
   const [saving, setSaving] = useState(false);
@@ -105,7 +107,7 @@ export function ForecastSection({
       setExplanationLoading(true);
       setExplanationError(null);
       try {
-        const summary = await explainForecast(domain, forecast, persona);
+        const summary = await explainForecast(domain, forecast, persona, simpleMode);
         if (!cancelled) setExplanation(summary);
       } catch (err) {
         if (!cancelled) {
@@ -120,7 +122,7 @@ export function ForecastSection({
     return () => {
       cancelled = true;
     };
-  }, [forecast, domain, persona]);
+  }, [forecast, domain, persona, simpleMode]);
 
   return (
     <div className="space-y-4">
@@ -129,9 +131,18 @@ export function ForecastSection({
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <ForecastChart forecast={forecast} eligibility={eligibility} />
       {forecast?.validation && (
-        <ExpandableDetail label="Show model comparison (for analysts)">
-          <ForecastComparisonTable validation={forecast.validation} />
-        </ExpandableDetail>
+        <div className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+            Model comparison <span className="font-normal text-slate-500">— which models were tried</span>
+          </p>
+          {simpleMode ? (
+            <ExpandableDetail label="Show model comparison">
+              <ForecastComparisonTable validation={forecast.validation} />
+            </ExpandableDetail>
+          ) : (
+            <ForecastComparisonTable validation={forecast.validation} />
+          )}
+        </div>
       )}
       {forecast && forecast.forecast.length > 0 && (
         <ForecastExplanationPanel summary={explanation} loading={explanationLoading} error={explanationError} />

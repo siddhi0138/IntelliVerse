@@ -3,6 +3,7 @@ import { correlationConfidence, associationConfidence, correlationSentence, asso
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ExpandableDetail } from "./ExpandableDetail";
 import { Term } from "./Term";
+import { useSimpleMode } from "./SimpleModeContext";
 
 export function RelationshipsPanel({
   correlations,
@@ -11,6 +12,7 @@ export function RelationshipsPanel({
   correlations: NumericCorrelation[];
   associations: CategoricalAssociation[];
 }) {
+  const { simpleMode } = useSimpleMode();
   const hasAny = correlations.length > 0 || associations.length > 0;
 
   return (
@@ -23,28 +25,37 @@ export function RelationshipsPanel({
       {(correlations.length > 0 || associations.length > 0) && (
         <ul className="space-y-3">
           {correlations.map((c, i) => (
-            <li key={`c-${i}`} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+            <li key={`c-${i}`} className="group border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm">📈 {correlationSentence(c)}</p>
+                <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+                  <p className="text-sm">📈 {correlationSentence(c, !simpleMode)}</p>
+                  {simpleMode && (
+                    <ExpandableDetail>
+                      <Term id={c.method === "spearman" ? "spearman" : "pearson"}>{c.method}</Term> correlation{" "}
+                      <Term id={c.method === "spearman" ? "spearman" : "pearson"}>r</Term>={c.r} ({c.direction}),{" "}
+                      <Term id="pvalue">p</Term>={c.p_value}
+                      {c.significant ? "" : " (not statistically significant)"}
+                    </ExpandableDetail>
+                  )}
+                </div>
                 <ConfidenceBadge level={correlationConfidence(c)} />
               </div>
-              <ExpandableDetail>
-                <Term id={c.method === "spearman" ? "spearman" : "pearson"}>{c.method}</Term> correlation r={c.r} (
-                {c.direction}), <Term id="pvalue">p</Term>={c.p_value}
-                {c.significant ? "" : " (not statistically significant)"}
-              </ExpandableDetail>
             </li>
           ))}
           {associations.map((a, i) => (
-            <li key={`a-${i}`} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+            <li key={`a-${i}`} className="group border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm">📈 {associationSentence(a)}</p>
+                <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
+                  <p className="text-sm">📈 {associationSentence(a, !simpleMode)}</p>
+                  {simpleMode && (
+                    <ExpandableDetail>
+                      <Term id="cramers_v">Cramér&apos;s V</Term>={a.cramers_v}, <Term id="pvalue">p</Term>={a.p_value}
+                      {a.significant ? "" : " (not statistically significant)"}
+                    </ExpandableDetail>
+                  )}
+                </div>
                 <ConfidenceBadge level={associationConfidence(a)} />
               </div>
-              <ExpandableDetail>
-                <Term id="cramers_v">Cramér&apos;s V</Term>={a.cramers_v}, <Term id="pvalue">p</Term>={a.p_value}
-                {a.significant ? "" : " (not statistically significant)"}
-              </ExpandableDetail>
             </li>
           ))}
         </ul>

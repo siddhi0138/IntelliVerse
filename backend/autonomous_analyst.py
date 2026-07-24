@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from insights import call_llm_json, persona_instruction
+from insights import call_llm_json, detail_instruction, persona_instruction
 
 _SYSTEM_PROMPT = """You are an autonomous data analyst producing a prioritized action plan. \
 You are given every signal already computed about this dataset: ranked statistical findings \
@@ -111,11 +111,12 @@ async def generate_action_plan(
     quality: dict | None,
     simulation_preview: dict | None,
     persona: str | None = None,
+    simple_mode: bool = True,
 ) -> dict[str, Any]:
     summary_input = _summarize_for_prompt(
         domain, ranked_findings, risk_alerts, root_cause, forecast, quality, simulation_preview
     )
-    prompt = _SYSTEM_PROMPT + persona_instruction(persona)
+    prompt = _SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
     parsed = await call_llm_json(prompt, summary_input)
     return {
         "summary": parsed.get("summary", ""),

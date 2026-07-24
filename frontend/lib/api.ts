@@ -119,12 +119,13 @@ export async function runSimulation(
 export async function explainSimulation(
   domain: string,
   simulation: SimulationResult,
-  persona?: string | null
+  persona?: string | null,
+  simpleMode?: boolean
 ): Promise<SimulationExplanation> {
   const res = await fetch(`${API_BASE}/api/simulate/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, simulation, persona }),
+    body: JSON.stringify({ domain, simulation, persona, simple_mode: simpleMode }),
   });
 
   return unwrap<SimulationExplanation>(res);
@@ -136,7 +137,8 @@ export async function fetchDatasetSummary(
   columnCount: number,
   schema: ColumnSchema[],
   quality: DataQualityReport | null,
-  persona?: string | null
+  persona?: string | null,
+  simpleMode?: boolean
 ): Promise<string> {
   const res = await fetch(`${API_BASE}/api/summary`, {
     method: "POST",
@@ -148,6 +150,7 @@ export async function fetchDatasetSummary(
       columns: schema,
       quality,
       persona,
+      simple_mode: simpleMode,
     }),
   });
 
@@ -292,11 +295,16 @@ export async function forecastColumn(analysisId: string, column: string): Promis
   return unwrap<Forecast>(res);
 }
 
-export async function explainForecast(domain: string, forecast: Forecast, persona?: string | null): Promise<string> {
+export async function explainForecast(
+  domain: string,
+  forecast: Forecast,
+  persona?: string | null,
+  simpleMode?: boolean
+): Promise<string> {
   const res = await fetch(`${API_BASE}/api/forecast/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, forecast, persona }),
+    body: JSON.stringify({ domain, forecast, persona, simple_mode: simpleMode }),
   });
 
   const body = await unwrap<{ summary: string }>(res);
@@ -308,12 +316,13 @@ export async function explainAnomaly(
   columnLabel: string,
   value: number | string,
   direction: string,
-  persona?: string | null
+  persona?: string | null,
+  simpleMode?: boolean
 ): Promise<string[]> {
   const res = await fetch(`${API_BASE}/api/anomalies/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, column_label: columnLabel, value, direction, persona }),
+    body: JSON.stringify({ domain, column_label: columnLabel, value, direction, persona, simple_mode: simpleMode }),
   });
 
   const body = await unwrap<{ reasons: string[] }>(res);
@@ -407,7 +416,8 @@ export async function generateActionPlan(
   rootCause: RootCauseAnalysis | null,
   forecast: Forecast | null,
   quality: DataQualityReport | null,
-  persona?: string | null
+  persona?: string | null,
+  simpleMode?: boolean
 ): Promise<ActionPlanResult> {
   const res = await fetch(`${API_BASE}/api/action-plan`, {
     method: "POST",
@@ -421,6 +431,7 @@ export async function generateActionPlan(
       forecast,
       quality,
       persona,
+      simple_mode: simpleMode,
     }),
   });
   return unwrap<ActionPlanResult>(res);

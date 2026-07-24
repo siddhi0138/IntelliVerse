@@ -513,12 +513,13 @@ class ExplainSimulationRequest(BaseModel):
     domain: str
     simulation: dict
     persona: str | None = None
+    simple_mode: bool = True
 
 
 @protected.post("/api/simulate/explain")
 async def explain_simulation(req: ExplainSimulationRequest) -> dict:
     try:
-        result = await generate_simulation_explanation(req.domain, req.simulation, req.persona)
+        result = await generate_simulation_explanation(req.domain, req.simulation, req.persona, req.simple_mode)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return result
@@ -558,12 +559,13 @@ class ExplainForecastRequest(BaseModel):
     domain: str
     forecast: dict
     persona: str | None = None
+    simple_mode: bool = True
 
 
 @protected.post("/api/forecast/explain")
 async def explain_forecast(req: ExplainForecastRequest) -> dict:
     try:
-        summary = await generate_forecast_explanation(req.domain, req.forecast, req.persona)
+        summary = await generate_forecast_explanation(req.domain, req.forecast, req.persona, req.simple_mode)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"summary": summary}
@@ -576,13 +578,14 @@ class SummaryRequest(BaseModel):
     columns: list[dict]
     quality: dict | None = None
     persona: str | None = None
+    simple_mode: bool = True
 
 
 @protected.post("/api/summary")
 async def dataset_summary(req: SummaryRequest) -> dict:
     try:
         summary = await generate_dataset_summary(
-            req.domain, req.row_count, req.column_count, req.columns, req.quality, req.persona
+            req.domain, req.row_count, req.column_count, req.columns, req.quality, req.persona, req.simple_mode
         )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -595,12 +598,15 @@ class AnomalyReasonsRequest(BaseModel):
     value: float | str
     direction: str
     persona: str | None = None
+    simple_mode: bool = True
 
 
 @protected.post("/api/anomalies/explain")
 async def explain_anomaly(req: AnomalyReasonsRequest) -> dict:
     try:
-        reasons = await generate_anomaly_reasons(req.domain, req.column_label, req.value, req.direction, req.persona)
+        reasons = await generate_anomaly_reasons(
+            req.domain, req.column_label, req.value, req.direction, req.persona, req.simple_mode
+        )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return {"reasons": reasons}
@@ -1043,6 +1049,7 @@ class ActionPlanRequest(BaseModel):
     forecast: dict | None = None
     quality: dict | None = None
     persona: str | None = None
+    simple_mode: bool = True
 
 
 @protected.post("/api/action-plan")
@@ -1072,6 +1079,7 @@ async def action_plan(req: ActionPlanRequest) -> dict:
             req.quality,
             simulation_preview,
             req.persona,
+            req.simple_mode,
         )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

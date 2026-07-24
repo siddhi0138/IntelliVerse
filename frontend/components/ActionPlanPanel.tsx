@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { deleteSavedActionPlan, generateActionPlan, listSavedActionPlans, saveActionPlan } from "@/lib/api";
 import { usePersona } from "./PersonaContext";
+import { useSimpleMode } from "./SimpleModeContext";
 import type {
   ActionPlanResult,
   DataQualityReport,
@@ -46,6 +47,7 @@ export function ActionPlanPanel({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { persona } = usePersona();
+  const { simpleMode } = useSimpleMode();
 
   async function run() {
     setLoading(true);
@@ -59,7 +61,8 @@ export function ActionPlanPanel({
         rootCause,
         forecast,
         quality,
-        persona
+        persona,
+        simpleMode
       );
       setPlan(result);
     } catch (err) {
