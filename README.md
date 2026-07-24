@@ -11,8 +11,6 @@ forecasting, anomaly detection, root-cause analysis, a knowledge graph, decision
 simulation, and an autonomous action plan. No configuration, no manual column
 mapping.
 
-🔗 **Live**: [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) 
-
 ![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs&logoColor=white)
