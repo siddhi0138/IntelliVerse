@@ -29,8 +29,8 @@ export function ExpandableDetail({ label = "Show the numbers", children }: { lab
         aria-expanded={open}
         className={`shrink-0 inline-flex items-center justify-center w-4 h-4 rounded-full transition-opacity ${
           open
-            ? "opacity-100 text-indigo-600 dark:text-indigo-400"
-            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400"
+            ? "opacity-100 text-primary"
+            : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-muted hover:text-primary"
         }`}
       >
         <svg
@@ -46,7 +46,7 @@ export function ExpandableDetail({ label = "Show the numbers", children }: { lab
           />
         </svg>
       </button>
-      {open && <div className="basis-full w-full mt-1 text-xs text-slate-500">{children}</div>}
+      {open && <div className="basis-full w-full mt-1 text-xs text-muted">{children}</div>}
     </>
   );
 }

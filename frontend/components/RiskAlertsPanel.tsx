@@ -39,7 +39,7 @@ export function RiskAlertsPanel({ alerts }: { alerts: RiskAlert[] }) {
               </p>
               <ConfidenceBadge level={percentConfidence(a.confidence_pct)} />
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">{a.note}</p>
+            <p className="text-xs text-muted mt-0.5">{a.note}</p>
           </li>
         ))}
       </ul>

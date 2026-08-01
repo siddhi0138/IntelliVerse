@@ -50,14 +50,14 @@ export function DatasetSummaryPanel({
   }, [domain, rowCount, columnCount, persona, simpleMode]);
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 p-4">
-      {loading && <p className="text-sm text-slate-500">Summarizing this dataset…</p>}
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+      {loading && <p className="text-sm text-muted">Summarizing this dataset…</p>}
       {error && (
         <p className="text-sm text-red-600 dark:text-red-400" title={error}>
           AI-generated summary isn&apos;t available right now.
         </p>
       )}
-      {!loading && summary && <p className="text-sm text-slate-700 dark:text-slate-300">{summary}</p>}
+      {!loading && summary && <p className="text-sm text-foreground">{summary}</p>}
     </div>
   );
 }

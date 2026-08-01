@@ -18,6 +18,20 @@ export function isAuthenticated(): boolean {
   return !!getToken();
 }
 
+// Reads the "sub" claim straight out of the JWT payload — display-only, so
+// this doesn't verify the signature (the backend already did that).
+export function getUsername(): string | null {
+  const token = getToken();
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function authRequest(path: string, username: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",

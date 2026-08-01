@@ -19,13 +19,13 @@ export function DistributionPanel({ distributions }: { distributions: Record<str
   if (entries.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Distributions</h3>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-3">Distributions</h3>
       <ul className="space-y-2">
         {entries.map(([col, d]) => (
           <li key={col} className="text-sm flex items-center justify-between gap-2">
             <span className="font-mono text-xs">{col}</span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-muted">
               median={d.median}, skew={d.skewness}
             </span>
             <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${SHAPE_COLORS[d.shape]}`}>

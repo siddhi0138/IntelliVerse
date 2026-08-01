@@ -29,7 +29,6 @@ import { ReportExportPanel } from "@/components/ReportExportPanel";
 import { QuickSummaryPanel } from "@/components/QuickSummaryPanel";
 import { BusinessHealthPanel } from "@/components/BusinessHealthPanel";
 import { GuidedTour, hasSeenTour } from "@/components/GuidedTour";
-import { GlossaryModal } from "@/components/GlossaryModal";
 import { PersonaSelector } from "@/components/PersonaSelector";
 import { useSimpleMode } from "@/components/SimpleModeContext";
 
@@ -41,7 +40,6 @@ export default function Home() {
   const [dragActive, setDragActive] = useState(false);
   const [graphView, setGraphView] = useState<"2d" | "3d">("2d");
   const [tourActive, setTourActive] = useState(false);
-  const [glossaryOpen, setGlossaryOpen] = useState(false);
   const { simpleMode, setSimpleMode } = useSimpleMode();
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -142,99 +140,75 @@ export default function Home() {
   };
 
   return (
-    <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-10">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-2">
-              <span>🧠</span> IntelliVerse
-            </h1>
-            <p className="text-slate-500 mt-1">Upload anything. Understand everything.</p>
-          </div>
-          <nav className="flex gap-2 items-center">
-            <Link
-              href="/workspace"
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-            >
-              Multi-table workspace
-            </Link>
-            <Link
-              href="/catalog"
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-            >
-              Dataset catalog
-            </Link>
-            <Link
-              href="/knowledge"
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-            >
-              Knowledge Assistant
-            </Link>
-            <button
-              onClick={() => setGlossaryOpen(true)}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5"
-            >
-              Glossary
-            </button>
-          </nav>
+    <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
+        <div className="relative -mt-4 mb-8">
+          <div className="absolute -top-20 -left-10 h-56 w-[420px] rounded-full bg-accent-gradient opacity-20 blur-3xl animate-pulse-glow pointer-events-none" />
+          <h1 className="relative font-display text-3xl sm:text-4xl tracking-tight mb-2">
+            Upload anything. <span className="text-gradient">Understand everything.</span>
+          </h1>
+          <p className="relative text-muted max-w-xl">
+            Drop a file below and get a full analysis in seconds — schema, risks, forecasts, and a plain-English action plan.
+          </p>
         </div>
 
-        <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2.5 flex items-center gap-4 flex-wrap">
-          <span className="text-xs font-medium uppercase tracking-wide text-slate-400 shrink-0">Preferences</span>
+        <div className="mb-10 rounded-xl border border-border bg-surface px-4 py-2.5 flex items-center gap-4 flex-wrap">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted shrink-0">Preferences</span>
           <div className="flex items-center gap-2 flex-wrap">
             <PersonaSelector />
             <button
               onClick={() => setSimpleMode(!simpleMode)}
               title={simpleMode ? "Switch to Expert Mode — show all the numbers by default" : "Switch to Simple Mode — hide the numbers by default"}
-              className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full px-3 py-1.5"
+              className="text-sm font-medium text-muted hover:text-primary bg-background hover:bg-surface-elevated rounded-full px-3 py-1.5 border border-border"
             >
               {simpleMode ? "Simple Mode" : "Expert Mode"}
             </button>
           </div>
         </div>
-      </header>
 
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragActive(true);
-        }}
-        onDragLeave={() => setDragActive(false)}
-        onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`rounded-xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
-          dragActive
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 scale-[1.01]"
-            : "border-slate-300 dark:border-slate-800 hover:border-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-900/40"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls,.json"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFile(file);
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragActive(true);
           }}
-        />
-        {!loading && (
-          <svg
-            className="mx-auto mb-3 w-8 h-8 text-slate-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={1.5}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0 3.75 3.75M12 9l-3.75 3.75M3.75 19.5h16.5" />
-          </svg>
-        )}
-        <p className="text-slate-600 dark:text-slate-400">
-          {loading
-            ? progressStep ?? "Analyzing…"
-            : "Drop a CSV, Excel, or JSON file here, or click to browse"}
-        </p>
-      </div>
+          onDragLeave={() => setDragActive(false)}
+          onDrop={onDrop}
+          onClick={() => inputRef.current?.click()}
+          className={`glow-click relative overflow-hidden rounded-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-all ${
+            dragActive
+              ? "border-primary bg-primary/5 scale-[1.01]"
+              : "border-border hover:border-primary/60 hover:bg-surface/60"
+          }`}
+        >
+          {dragActive && (
+            <div className="absolute -inset-10 bg-accent-gradient opacity-20 blur-3xl animate-pulse-glow pointer-events-none" />
+          )}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls,.json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFile(file);
+            }}
+          />
+          {!loading && (
+            <svg
+              className="relative mx-auto mb-3 w-8 h-8 text-muted"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9m0 0 3.75 3.75M12 9l-3.75 3.75M3.75 19.5h16.5" />
+            </svg>
+          )}
+          <p className="relative text-muted">
+            {loading
+              ? progressStep ?? "Analyzing…"
+              : "Drop a CSV, Excel, or JSON file here, or click to browse"}
+          </p>
+        </div>
 
       {error && (
         <p className="mt-4 text-sm text-red-600 dark:text-red-400">{error}</p>
@@ -242,10 +216,10 @@ export default function Home() {
 
       {result && (
         <div className="mt-10 space-y-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <div>
               <h2 className="text-xl font-medium">{result.filename}</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted">
                 {result.row_count.toLocaleString()} rows &middot; {result.column_count} columns
               </p>
             </div>
@@ -258,7 +232,7 @@ export default function Home() {
                 onClick={handleDeleteDataset}
                 title="Delete this dataset permanently"
                 aria-label="Delete this dataset"
-                className="rounded-full border border-slate-300 dark:border-slate-800 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors"
+                className="rounded-full border border-border w-7 h-7 flex items-center justify-center text-muted hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors"
               >
                 ✕
               </button>
@@ -351,23 +325,23 @@ export default function Home() {
 
           <div data-tour="graph">
             <div className="flex items-center justify-between mb-1">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">Knowledge graph</h3>
-              <div className="flex rounded-lg border border-slate-300 dark:border-slate-800 overflow-hidden text-xs">
+              <h3 className="text-base font-semibold text-foreground">Knowledge graph</h3>
+              <div className="flex rounded-lg border border-border overflow-hidden text-xs">
                 <button
                   onClick={() => setGraphView("2d")}
-                  className={`px-3 py-1 ${graphView === "2d" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-400"}`}
+                  className={`px-3 py-1 ${graphView === "2d" ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"}`}
                 >
                   2D
                 </button>
                 <button
                   onClick={() => setGraphView("3d")}
-                  className={`px-3 py-1 ${graphView === "3d" ? "bg-indigo-600 text-white" : "text-slate-600 dark:text-slate-400"}`}
+                  className={`px-3 py-1 ${graphView === "3d" ? "bg-primary text-primary-foreground" : "text-muted hover:text-foreground"}`}
                 >
                   3D
                 </button>
               </div>
             </div>
-            <p className="text-xs text-slate-500 mb-3">
+            <p className="text-xs text-muted mb-3">
               How to read this: each dot (node) is a row in your data; lines connect rows that share a relationship.
               Bigger or more-connected dots matter more — drag to explore, scroll to zoom.
             </p>
@@ -376,7 +350,7 @@ export default function Home() {
 
           <div data-tour="simulator">
             <h3 className="text-lg font-medium mb-1">Decision Simulator</h3>
-            <p className="text-sm text-slate-500 mb-3">
+            <p className="text-sm text-muted mb-3">
               Try a change and see its likely effect on your other numbers, based on patterns already in your data.
             </p>
             <DecisionSimulator
@@ -392,14 +366,13 @@ export default function Home() {
           </div>
 
           <div data-tour="schema">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Detected schema</h3>
+            <h3 className="text-base font-semibold text-foreground mb-3">Detected schema</h3>
             <SchemaTable key={result.analysis_id} schema={result.schema} analysisId={result.analysis_id} />
           </div>
         </div>
       )}
 
-      <GuidedTour active={tourActive} onClose={() => setTourActive(false)} />
-      <GlossaryModal open={glossaryOpen} onClose={() => setGlossaryOpen(false)} />
-    </main>
+        <GuidedTour active={tourActive} onClose={() => setTourActive(false)} />
+      </main>
   );
 }

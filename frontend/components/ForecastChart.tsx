@@ -57,9 +57,9 @@ export function ForecastChart({
   const { simpleMode } = useSimpleMode();
   if (!eligibility.eligible || !forecast || forecast.method === "insufficient_data" || forecast.forecast.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Forecast</h3>
-        <p className="text-sm text-slate-500">
+      <div className="card">
+        <h3 className="text-base font-semibold text-foreground mb-2">Forecast</h3>
+        <p className="text-sm text-muted">
           {eligibility.reason ?? "Not enough historical periods to project a trend yet."}
         </p>
       </div>
@@ -72,16 +72,16 @@ export function ForecastChart({
   const trendWord = forecast.trend === "up" ? "rising" : forecast.trend === "down" ? "falling" : "staying flat";
 
   return (
-    <div className="group rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
+    <div className="group card">
       <div className="flex items-start justify-between gap-2 mb-1">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+        <h3 className="text-base font-semibold text-foreground">
           Forecast: {forecast.column ?? "primary metric"}
         </h3>
         <ConfidenceBadge level={forecastConfidence(mape)} />
       </div>
       {simpleMode ? (
         <div className="flex flex-wrap items-center gap-1 mb-3">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             {forecast.column ?? "This metric"} looks to be {trendWord} over the next few periods. The shaded band
             shows the range of likely outcomes.
           </p>
@@ -95,7 +95,7 @@ export function ForecastChart({
           )}
         </div>
       ) : (
-        <p className="text-xs text-slate-500 mb-3">
+        <p className="text-xs text-muted mb-3">
           Trend: {forecast.trend} ({modelLabel}
           {forecast.validation && (
             <>
@@ -116,10 +116,10 @@ export function ForecastChart({
             <YAxis stroke="#64748b" fontSize={12} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="actual" name="Actual" stroke="#6366f1" strokeWidth={2} dot={false} connectNulls={false} />
-            <Line type="monotone" dataKey="forecast" name="Forecast" stroke="#6366f1" strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls />
-            <Line type="monotone" dataKey="upper" name="Upper bound" stroke="#a5b4fc" strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />
-            <Line type="monotone" dataKey="lower" name="Lower bound" stroke="#a5b4fc" strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />
+            <Line type="monotone" dataKey="actual" name="Actual" stroke="#2dd4bf" strokeWidth={2} dot={false} connectNulls={false} />
+            <Line type="monotone" dataKey="forecast" name="Forecast" stroke="#a78bfa" strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls />
+            <Line type="monotone" dataKey="upper" name="Upper bound" stroke="#a78bfa" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />
+            <Line type="monotone" dataKey="lower" name="Lower bound" stroke="#a78bfa" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />
           </LineChart>
         </ResponsiveContainer>
       </div>

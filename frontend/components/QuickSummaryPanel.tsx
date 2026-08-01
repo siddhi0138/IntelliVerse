@@ -43,18 +43,18 @@ export function QuickSummaryPanel({ result }: { result: AnalyzeResponse }) {
   }
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-5">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">📋 What you got, in plain terms</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
+      <h3 className="text-base font-semibold text-foreground mb-1">📋 What you got, in plain terms</h3>
+      <p className="text-xs text-muted mb-3">
         Built directly from the same computed numbers everything below uses — no AI involved, so it&apos;s always
         accurate and always here.
       </p>
-      <ul className="space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+      <ul className="space-y-1.5 text-sm text-foreground">
         {bullets.map((b, i) => (
           <li key={i}>• {b}</li>
         ))}
       </ul>
-      <p className="text-xs text-slate-500 mt-3">
+      <p className="text-xs text-muted mt-3">
         Scroll down for the full findings, charts, and forecast — or use <b>Ask IntelliVerse</b> to ask a specific
         question, or click <b>🧭 Take a tour</b> above for a guided walkthrough of every panel.
       </p>

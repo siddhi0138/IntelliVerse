@@ -15,30 +15,50 @@ import type { ChartSpec } from "@/lib/types";
 
 const AXIS_COLOR = "#64748b";
 const GRID_COLOR = "#e2e8f0";
-const SERIES_COLOR = "#6366f1";
+
+// Teal/violet (brand) plus amber/rose/emerald so a page with several charts
+// and KPIs doesn't read as one flat color — cycled by index/title hash
+// rather than tied to meaning (there's no fixed metric-to-color mapping).
+const PALETTE = ["#2dd4bf", "#a78bfa", "#fbbf24", "#fb7185", "#34d399"];
+
+function colorFromString(s: string): string {
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+  return PALETTE[Math.abs(hash) % PALETTE.length];
+}
 
 export function KpiRow({ chart }: { chart: ChartSpec }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-      {chart.data.map((item, i) => (
-        <div key={i} className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-          <div className="text-xs uppercase tracking-wide text-slate-500">
-            {String(item.label)}
+      {chart.data.map((item, i) => {
+        const color = PALETTE[i % PALETTE.length];
+        return (
+          <div key={i} className="card relative overflow-hidden pl-5">
+            <span className="absolute left-0 top-0 bottom-0 w-1" style={{ background: color }} />
+            <div className="text-xs uppercase tracking-wide text-muted">
+              {String(item.label)}
+            </div>
+            <div className="text-2xl font-semibold mt-1" style={{ color }}>
+              {typeof item.value === "number" ? item.value.toLocaleString() : String(item.value)}
+            </div>
           </div>
-          <div className="text-2xl font-semibold mt-1">
-            {typeof item.value === "number" ? item.value.toLocaleString() : String(item.value)}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
 export function ChartCard({ chart }: { chart: ChartSpec }) {
+  const color = colorFromString(chart.title);
+  const emoji = chart.chart_type === "line" ? "📈" : "📊";
+
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">{chart.title}</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="card">
+      <h3 className="text-base font-semibold text-foreground mb-1 flex items-center gap-2">
+        <span>{emoji}</span>
+        {chart.title}
+      </h3>
+      <p className="text-xs text-muted mb-3">
         {chart.chart_type === "line"
           ? "How to read this: follow the line left to right to see the trend over time."
           : "How to read this: taller bars mean a bigger number for that category."}
@@ -51,7 +71,7 @@ export function ChartCard({ chart }: { chart: ChartSpec }) {
               <XAxis dataKey={chart.x ?? "period"} stroke={AXIS_COLOR} fontSize={12} />
               <YAxis stroke={AXIS_COLOR} fontSize={12} />
               <Tooltip />
-              <Line type="monotone" dataKey={chart.y ?? "value"} stroke={SERIES_COLOR} strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey={chart.y ?? "value"} stroke={color} strokeWidth={2} dot={false} />
             </LineChart>
           ) : (
             <BarChart data={chart.data}>
@@ -59,7 +79,7 @@ export function ChartCard({ chart }: { chart: ChartSpec }) {
               <XAxis dataKey="name" stroke={AXIS_COLOR} fontSize={12} />
               <YAxis stroke={AXIS_COLOR} fontSize={12} />
               <Tooltip />
-              <Bar dataKey="count" fill={SERIES_COLOR} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="count" fill={color} radius={[4, 4, 0, 0]} />
             </BarChart>
           )}
         </ResponsiveContainer>

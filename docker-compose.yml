@@ -35,8 +35,8 @@ services:
   neo4j:
     image: neo4j:5.26-community
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "7475:7474"
+      - "7688:7687"
     environment:
       NEO4J_AUTH: neo4j/nexuslocal
     volumes:
@@ -47,7 +47,7 @@ services:
   postgres:
     image: postgres:17
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: nexus
       POSTGRES_PASSWORD: nexuslocal

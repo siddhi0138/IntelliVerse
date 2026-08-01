@@ -74,7 +74,7 @@ function NodeSphere({ node, onHover }: { node: LaidOutNode; onHover: (label: str
       </mesh>
       {(node.node_type === "root" || hovered) && (
         <Html distanceFactor={10} center style={{ pointerEvents: "none" }}>
-          <div className="px-2 py-0.5 rounded bg-slate-900/80 text-white text-xs whitespace-nowrap">{node.label}</div>
+          <div className="px-2 py-0.5 rounded bg-surface/80 text-white text-xs whitespace-nowrap">{node.label}</div>
         </Html>
       )}
     </group>
@@ -87,7 +87,7 @@ export function KnowledgeGraph3D({ graph }: { graph: KnowledgeGraphData }) {
   const [, setHoveredLabel] = useState<string | null>(null);
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-950 h-[420px] overflow-hidden">
+    <div className="rounded-xl border border-border bg-surface h-[420px] overflow-hidden">
       <Canvas camera={{ position: [0, 2, 9], fov: 50 }}>
         <ambientLight intensity={0.6} />
         <pointLight position={[10, 10, 10]} intensity={1} />

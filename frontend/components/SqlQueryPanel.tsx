@@ -25,9 +25,9 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">SQL Query (DuckDB)</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">SQL Query (DuckDB)</h3>
+      <p className="text-xs text-muted mb-3">
         Ad-hoc SQL over your uploaded data — the table is called <code>df</code>. Read-only SELECT queries only.
       </p>
 
@@ -35,7 +35,7 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
         value={sql}
         onChange={(e) => setSql(e.target.value)}
         rows={3}
-        className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-2 text-sm font-mono"
+        className="w-full rounded-lg border border-border bg-transparent px-3 py-2 text-sm font-mono"
       />
       <button onClick={run} disabled={loading} className="btn-primary mt-2">
         {loading ? "Running…" : "Run Query"}
@@ -47,7 +47,7 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 {result.columns.map((c) => (
                   <th key={c} className="px-3 py-1.5 font-medium whitespace-nowrap">
                     {c}
@@ -57,17 +57,17 @@ export function SqlQueryPanel({ analysisId }: { analysisId: string }) {
             </thead>
             <tbody>
               {result.rows.map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+                <tr key={i} className="border-b border-border/60 last:border-0">
                   {row.map((cell, j) => (
                     <td key={j} className="px-3 py-1.5 whitespace-nowrap">
-                      {cell === null ? <span className="text-slate-400">null</span> : String(cell)}
+                      {cell === null ? <span className="text-muted">null</span> : String(cell)}
                     </td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-muted mt-2">
             {result.row_count} row(s){result.truncated && " (truncated at 1000)"}
           </p>
         </div>

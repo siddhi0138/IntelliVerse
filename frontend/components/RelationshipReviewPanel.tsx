@@ -13,9 +13,9 @@ export function RelationshipReviewPanel({
 }) {
   if (candidates.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Suggested Relationships</h3>
-        <p className="text-sm text-slate-500">
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-base font-semibold text-foreground mb-2">Suggested Relationships</h3>
+        <p className="text-sm text-muted">
           No relationships detected between these tables — matching column names had no meaningful value overlap.
         </p>
       </div>
@@ -23,15 +23,15 @@ export function RelationshipReviewPanel({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Suggested Relationships</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">Suggested Relationships</h3>
+      <p className="text-xs text-muted mb-3">
         Detected from column-name matches plus measured value overlap — review and confirm before the graph is built.
         Nothing here is assumed.
       </p>
       <ul className="space-y-2">
         {candidates.map((c, i) => (
-          <li key={i} className="flex items-start gap-3 text-sm border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-2 last:pb-0">
+          <li key={i} className="flex items-start gap-3 text-sm border-b border-border/60 last:border-0 pb-2 last:pb-0">
             <input
               type="checkbox"
               checked={confirmed.has(i)}
@@ -47,11 +47,11 @@ export function RelationshipReviewPanel({
                 <span className="font-medium">
                   {c.to_table}.{c.to_column}
                 </span>{" "}
-                <span className="text-xs text-slate-500">({c.relationship_type.replace("_", "-")})</span>
+                <span className="text-xs text-muted">({c.relationship_type.replace("_", "-")})</span>
               </p>
-              <p className="text-xs text-slate-500">{c.evidence}</p>
+              <p className="text-xs text-muted">{c.evidence}</p>
             </div>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary">
               {Math.round(c.confidence * 100)}%
             </span>
           </li>

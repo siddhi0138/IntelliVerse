@@ -201,28 +201,28 @@ export default function WorkspacePage() {
   }
 
   return (
-    <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12">
-      <header className="mb-8 flex items-start justify-between gap-4">
+    <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">🕸️ Multi-table Workspace</h1>
-          <p className="text-slate-500 mt-1 text-sm max-w-2xl">
+          <p className="text-muted mt-1 text-sm max-w-2xl">
             Upload related tables — IntelliVerse finds how they connect and builds a knowledge graph in Neo4j.
           </p>
         </div>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5 whitespace-nowrap"
+          className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
         >
           &larr; Single dataset
         </Link>
       </header>
 
-      {restoring && <p className="text-sm text-slate-500">Restoring your last workspace…</p>}
+      {restoring && <p className="text-sm text-muted">Restoring your last workspace…</p>}
 
       {!restoring && !workspaceId && (
         <div
           onClick={() => inputRef.current?.click()}
-          className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-indigo-400 p-12 text-center cursor-pointer transition-colors"
+          className="glow-click rounded-xl border-2 border-dashed border-border hover:border-primary/60 p-12 text-center cursor-pointer transition-colors"
         >
           <input
             ref={inputRef}
@@ -232,7 +232,7 @@ export default function WorkspacePage() {
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}
           />
-          <p className="text-slate-600 dark:text-slate-400">
+          <p className="text-muted">
             {uploading ? "Analyzing tables…" : "Click to select multiple related files (e.g. Sales.csv, Customers.csv, Products.csv)"}
           </p>
         </div>
@@ -255,7 +255,7 @@ export default function WorkspacePage() {
               disabled={removing}
               title="Remove this workspace permanently"
               aria-label="Remove this workspace"
-              className="rounded-full border border-slate-300 dark:border-slate-800 w-7 h-7 flex items-center justify-center text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:border-red-400 transition-colors disabled:opacity-50 flex-shrink-0"
+              className="rounded-full border border-border w-7 h-7 flex items-center justify-center text-muted hover:text-red-400 hover:border-red-400 transition-colors disabled:opacity-50 flex-shrink-0"
             >
               ✕
             </button>
@@ -278,7 +278,7 @@ export default function WorkspacePage() {
           {graphResult && graph && (
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-muted">
                   {graphResult.node_count} entities, {graphResult.edge_count} relationships ingested into Neo4j.
                 </p>
                 <div className="flex items-center gap-3">

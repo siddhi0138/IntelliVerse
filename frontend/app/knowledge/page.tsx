@@ -75,18 +75,18 @@ export default function KnowledgePage() {
   }
 
   return (
-    <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12">
-      <header className="mb-8 flex items-start justify-between gap-4">
+    <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">📄 Knowledge Assistant</h1>
-          <p className="text-slate-500 mt-1 text-sm">
+          <p className="text-muted mt-1 text-sm">
             Ask questions across uploaded PDFs, Word docs, and PowerPoint decks — grounded only in what&apos;s
             retrieved, cited by filename. Optionally combine with a dataset&apos;s findings below.
           </p>
         </div>
         <Link
           href="/"
-          className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5 whitespace-nowrap"
+          className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
         >
           &larr; Back to upload
         </Link>
@@ -104,10 +104,10 @@ export default function KnowledgePage() {
           if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
-        className={`rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors mb-6 ${
+        className={`glow-click rounded-xl border-2 border-dashed p-8 text-center cursor-pointer transition-colors mb-6 ${
           dragActive
-            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30"
-            : "border-slate-300 dark:border-slate-800 hover:border-indigo-400"
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/60"
         }`}
       >
         <input
@@ -120,7 +120,7 @@ export default function KnowledgePage() {
             if (e.target.files?.length) handleFiles(e.target.files);
           }}
         />
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
+        <p className="text-muted text-sm">
           {uploading ? "Uploading and indexing…" : "Drop PDF, DOCX, PPTX, or TXT files here, or click to browse"}
         </p>
       </div>
@@ -129,13 +129,13 @@ export default function KnowledgePage() {
 
       {documents && documents.length > 0 && (
         <div className="card mb-8">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Uploaded documents</h3>
+          <h3 className="text-base font-semibold text-foreground mb-3">Uploaded documents</h3>
           <ul className="space-y-2">
             {documents.map((d) => (
               <li key={d.doc_id} className="flex items-center justify-between text-sm">
                 <span>
                   {d.filename}{" "}
-                  <span className="text-slate-500 text-xs">
+                  <span className="text-muted text-xs">
                     ({d.chunk_count} chunk{d.chunk_count === 1 ? "" : "s"}, {new Date(d.uploaded_at).toLocaleString()})
                   </span>
                 </span>
@@ -150,31 +150,31 @@ export default function KnowledgePage() {
 
       {documents && documents.length === 0 && (
         <div className="card text-center py-8 mb-8">
-          <p className="text-sm text-slate-500">No documents uploaded yet.</p>
+          <p className="text-sm text-muted">No documents uploaded yet.</p>
         </div>
       )}
 
       <div className="card">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Ask across your documents</h3>
+        <h3 className="text-base font-semibold text-foreground mb-3">Ask across your documents</h3>
 
         {datasets.length > 0 && (
           <div className="mb-3">
-            <label className="block text-xs text-slate-500 mb-1">
+            <label className="block text-xs text-muted mb-1">
               Also consider this dataset&apos;s findings (optional)
             </label>
             <select
               value={selectedDataset}
               onChange={(e) => setSelectedDataset(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
+              className="w-full rounded-lg border border-border bg-surface text-foreground px-3 py-1.5 text-sm"
             >
-              <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
+              <option value="" className="bg-surface text-foreground">
                 Documents only
               </option>
               {datasets.map((d) => (
                 <option
                   key={d.analysis_id}
                   value={d.analysis_id}
-                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  className="bg-surface text-foreground"
                 >
                   {d.filename} ({d.domain})
                 </option>
@@ -190,7 +190,7 @@ export default function KnowledgePage() {
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAsk()}
             placeholder="e.g. Why did revenue decrease last quarter?"
-            className="flex-1 rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-1.5 text-sm"
+            className="flex-1 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm"
           />
           <button onClick={handleAsk} disabled={asking || !question.trim()} className="btn-primary">
             {asking ? "Thinking…" : "Ask"}
@@ -200,10 +200,10 @@ export default function KnowledgePage() {
         {askError && <p className="text-sm text-red-600 dark:text-red-400 mt-3">{askError}</p>}
 
         {answer && (
-          <div className="mt-4 text-sm text-slate-700 dark:text-slate-300">
+          <div className="mt-4 text-sm text-foreground">
             <p>{answer.answer}</p>
             {answer.citations.length > 0 && (
-              <p className="text-xs text-slate-500 mt-2">Sources: {answer.citations.join(", ")}</p>
+              <p className="text-xs text-muted mt-2">Sources: {answer.citations.join(", ")}</p>
             )}
             {answer.chunks_used.length === 0 && !selectedDataset && (
               <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">

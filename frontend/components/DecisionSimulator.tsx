@@ -125,28 +125,28 @@ export function DecisionSimulator({
 
   if (decisions.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Decision Simulator</h3>
-        <p className="text-sm text-slate-500">No numeric columns detected to simulate against.</p>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-base font-semibold text-foreground mb-2">Decision Simulator</h3>
+        <p className="text-sm text-muted">No numeric columns detected to simulate against.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Custom decision</h3>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-base font-semibold text-foreground mb-3">Custom decision</h3>
         <div className="flex flex-wrap items-center gap-3">
           <select
             value={selectedColumn}
             onChange={(e) => setSelectedColumn(e.target.value)}
-            className="rounded-lg border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-border bg-surface text-foreground px-3 py-1.5 text-sm"
           >
             {decisions.map((d) => (
               <option
                 key={d.id}
                 value={d.column}
-                className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                className="bg-surface text-foreground"
               >
                 {d.label}
               </option>
@@ -170,8 +170,8 @@ export function DecisionSimulator({
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Scenario presets</h3>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-base font-semibold text-foreground mb-3">Scenario presets</h3>
         <div className="flex flex-wrap gap-2">
           {SCENARIO_PRESETS.map((p) => (
             <button
@@ -204,21 +204,21 @@ export function DecisionSimulator({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved simulations</h4>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h4 className="text-base font-semibold text-foreground mb-2">Saved simulations</h4>
           <ul className="space-y-1">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span>
                   {s.label}{" "}
-                  <span className="text-slate-500 text-xs">
+                  <span className="text-muted text-xs">
                     ({new Date(s.saved_at).toLocaleString()}{s.persona ? ` · viewed as ${s.persona}` : ""})
                   </span>
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setResult(s.simulation)}
-                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                    className="text-primary hover:underline text-xs"
                   >
                     Load
                   </button>

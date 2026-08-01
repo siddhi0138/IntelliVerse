@@ -34,8 +34,8 @@ export function AskIntelliVerse({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Ask IntelliVerse</h3>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-3">Ask IntelliVerse</h3>
       <div className="flex gap-2">
         <input
           type="text"
@@ -43,7 +43,7 @@ export function AskIntelliVerse({
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && ask()}
           placeholder="e.g. Why did revenue change? What's trending?"
-          className="flex-1 rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-1.5 text-sm"
+          className="flex-1 rounded-lg border border-border bg-transparent px-3 py-1.5 text-sm"
         />
         <button onClick={ask} disabled={asking || !question.trim()} className="btn-primary">
           {asking ? "Thinking…" : "Ask"}
@@ -57,9 +57,9 @@ export function AskIntelliVerse({
       )}
 
       {response && (
-        <div className="mt-3 text-sm text-slate-700 dark:text-slate-300">
+        <div className="mt-3 text-sm text-foreground">
           <p>{response.answer}</p>
-          <p className="text-xs text-slate-500 mt-1">Computed via: {response.intent.replace("_", " ")}</p>
+          <p className="text-xs text-muted mt-1">Computed via: {response.intent.replace("_", " ")}</p>
         </div>
       )}
     </div>

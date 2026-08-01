@@ -32,11 +32,11 @@ export function EntityImpactPanel({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">
         Digital Twin: cascading impact from {table}:{entityKey}
       </h3>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-muted mb-3">
         Propagates a change through this entity&apos;s real confirmed graph connections — a structural estimate, not
         a statistical association.
       </p>
@@ -57,14 +57,14 @@ export function EntityImpactPanel({
       {result && (
         <div>
           {result.affected_entities.length === 0 ? (
-            <p className="text-sm text-slate-500">This entity has no connections to propagate through.</p>
+            <p className="text-sm text-muted">This entity has no connections to propagate through.</p>
           ) : (
             <ul className="space-y-1.5">
               {result.affected_entities.map((e, i) => (
                 <li key={i} className="flex items-center justify-between text-sm gap-2">
                   <span>
                     {e.table}:{e.key}{" "}
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-muted">
                       ({e.hops} hop{e.hops > 1 ? "s" : ""}, share={e.contribution_share})
                     </span>
                   </span>
@@ -82,7 +82,7 @@ export function EntityImpactPanel({
               ))}
             </ul>
           )}
-          <p className="text-xs text-slate-500 mt-3">{result.note}</p>
+          <p className="text-xs text-muted mt-3">{result.note}</p>
         </div>
       )}
     </div>

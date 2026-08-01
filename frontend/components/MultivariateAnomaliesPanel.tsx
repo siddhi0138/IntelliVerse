@@ -46,21 +46,21 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
   if (anomalies.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Multivariate Anomalies</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">Multivariate Anomalies</h3>
+      <p className="text-xs text-muted mb-3">
         Rows that look strange across a *combination* of columns at once, not just one — a stronger signal than a
         single-column outlier.
       </p>
       <ul className="space-y-3">
         {anomalies.map((a, i) => (
-          <li key={i} className="group text-sm border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+          <li key={i} className="group text-sm border-b border-border/60 last:border-0 pb-3 last:pb-0">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium">{a.row}</span>
               <ConfidenceBadge level={consensusConfidence(a.consensus)} />
             </div>
             <div className="flex flex-wrap items-center gap-1">
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-muted mt-0.5">
                 {Object.entries(a.values)
                   .map(([k, v]) => `${k}=${v}`)
                   .join(", ")}
@@ -72,7 +72,7 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
               )}
             </div>
             {!simpleMode && (
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted mt-1">
                 <WhyFlagged a={a} />
               </p>
             )}

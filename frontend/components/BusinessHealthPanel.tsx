@@ -26,9 +26,9 @@ function stars(score: number): string {
 
 export function BusinessHealthPanel({ health }: { health: BusinessHealth }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">🏆 Business Health</h3>
-      <p className="text-xs text-slate-500 mb-4">
+    <div className="rounded-xl border border-border bg-surface p-5">
+      <h3 className="text-base font-semibold text-foreground mb-1">🏆 Business Health</h3>
+      <p className="text-xs text-muted mb-4">
         One score summarizing data quality, growth, forecast confidence, and risk — built entirely from the
         numbers below, no AI involved.
       </p>
@@ -36,7 +36,7 @@ export function BusinessHealthPanel({ health }: { health: BusinessHealth }) {
       <div className="flex items-center gap-4 mb-5">
         <span className={`text-5xl font-bold ${scoreColor(health.overall)}`}>{health.overall}</span>
         <div>
-          <p className="text-sm text-slate-500">out of 100</p>
+          <p className="text-sm text-muted">out of 100</p>
           <p className={`text-lg ${scoreColor(health.overall)}`}>{stars(health.overall)}</p>
         </div>
       </div>
@@ -47,10 +47,10 @@ export function BusinessHealthPanel({ health }: { health: BusinessHealth }) {
           return (
             <div key={key}>
               <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-slate-600 dark:text-slate-400">{COMPONENT_LABELS[key]}</span>
+                <span className="text-muted">{COMPONENT_LABELS[key]}</span>
                 <span className="font-medium">{value}</span>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800">
+              <div className="w-full h-1.5 rounded-full bg-surface">
                 <div className={`h-1.5 rounded-full ${barColor(value)}`} style={{ width: `${value}%` }} />
               </div>
             </div>

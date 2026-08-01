@@ -127,13 +127,13 @@ export function ForecastSection({
   return (
     <div className="space-y-4">
       <ForecastTargetsPanel targets={targets} selectedColumn={selectedColumn} onSelect={selectTarget} />
-      {loading && <p className="text-sm text-slate-500">Forecasting…</p>}
+      {loading && <p className="text-sm text-muted">Forecasting…</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <ForecastChart forecast={forecast} eligibility={eligibility} />
       {forecast?.validation && (
-        <div className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-            Model comparison <span className="font-normal text-slate-500">— which models were tried</span>
+        <div className="group rounded-xl border border-border bg-surface p-4">
+          <p className="text-sm font-medium text-foreground mb-1">
+            Model comparison <span className="font-normal text-muted">— which models were tried</span>
           </p>
           {simpleMode ? (
             <ExpandableDetail label="Show model comparison">
@@ -155,21 +155,21 @@ export function ForecastSection({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <h4 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Saved forecasts</h4>
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h4 className="text-base font-semibold text-foreground mb-2">Saved forecasts</h4>
           <ul className="space-y-1">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span>
                   {s.label}{" "}
-                  <span className="text-slate-500 text-xs">
+                  <span className="text-muted text-xs">
                     ({new Date(s.saved_at).toLocaleString()}{s.persona ? ` · viewed as ${s.persona}` : ""})
                   </span>
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setForecast(s.forecast)}
-                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                    className="text-primary hover:underline text-xs"
                   >
                     Load
                   </button>

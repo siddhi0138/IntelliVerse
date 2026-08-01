@@ -16,16 +16,16 @@ export function RelationshipsPanel({
   const hasAny = correlations.length > 0 || associations.length > 0;
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Relationships</h3>
-      <p className="text-xs text-slate-500 mb-3">Which things in your data tend to move together.</p>
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">Relationships</h3>
+      <p className="text-xs text-muted mb-3">Which things in your data tend to move together.</p>
 
-      {!hasAny && <p className="text-sm text-slate-500">Nothing in this dataset moves together strongly enough to call out.</p>}
+      {!hasAny && <p className="text-sm text-muted">Nothing in this dataset moves together strongly enough to call out.</p>}
 
       {(correlations.length > 0 || associations.length > 0) && (
         <ul className="space-y-3">
           {correlations.map((c, i) => (
-            <li key={`c-${i}`} className="group border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+            <li key={`c-${i}`} className="group border-b border-border/60 last:border-0 pb-3 last:pb-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
                   <p className="text-sm">📈 {correlationSentence(c, !simpleMode)}</p>
@@ -43,7 +43,7 @@ export function RelationshipsPanel({
             </li>
           ))}
           {associations.map((a, i) => (
-            <li key={`a-${i}`} className="group border-b border-slate-100 dark:border-slate-800/60 last:border-0 pb-3 last:pb-0">
+            <li key={`a-${i}`} className="group border-b border-border/60 last:border-0 pb-3 last:pb-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
                   <p className="text-sm">📈 {associationSentence(a, !simpleMode)}</p>

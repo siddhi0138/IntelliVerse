@@ -13,21 +13,21 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
   const { simpleMode } = useSimpleMode();
   if (!clustering) {
     return (
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-2">Segmentation</h3>
-        <p className="text-sm text-slate-500">Not enough structure in this dataset to group rows meaningfully.</p>
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-base font-semibold text-foreground mb-2">Segmentation</h3>
+        <p className="text-sm text-muted">Not enough structure in this dataset to group rows meaningfully.</p>
       </div>
     );
   }
 
   return (
-    <div className="group rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div className="group rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex flex-wrap items-center gap-1">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+          <h3 className="text-base font-semibold text-foreground">
             Segmentation ({clustering.k} clusters)
             {!simpleMode && (
-              <span className="text-sm font-normal text-slate-500">
+              <span className="text-sm font-normal text-muted">
                 {" "}
                 — <Term id="silhouette">silhouette score</Term> {clustering.silhouette_score}
               </span>
@@ -41,7 +41,7 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
         </div>
         <ConfidenceBadge level={clusteringConfidence(clustering.silhouette_score)} />
       </div>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-muted mb-3">
         Rows were automatically grouped by similarity — the number of groups wasn&apos;t guessed, it was chosen
         because it split the data most cleanly.
       </p>
@@ -57,13 +57,13 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
                 Group {c.cluster_id} ({c.size} rows)
               </span>
             </div>
-            <p className="text-xs text-slate-500 ml-4">
+            <p className="text-xs text-muted ml-4">
               {Object.entries(c.profile)
                 .map(([k, v]) => `${k}=${v}`)
                 .join(", ")}
             </p>
             {c.sample_ids.length > 0 && (
-              <p className="text-xs text-slate-500 ml-4">Examples: {c.sample_ids.join(", ")}</p>
+              <p className="text-xs text-muted ml-4">Examples: {c.sample_ids.join(", ")}</p>
             )}
           </li>
         ))}

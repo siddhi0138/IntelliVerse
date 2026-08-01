@@ -5,18 +5,18 @@ import { updateSemanticLabel } from "@/lib/api";
 import type { ColumnSchema } from "@/lib/types";
 
 const TYPE_COLORS: Record<string, string> = {
-  id: "bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300",
-  numeric: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+  id: "bg-surface text-foreground",
+  numeric: "bg-primary/15 text-primary",
   date: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   categorical: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   boolean: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
-  text: "bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400",
+  text: "bg-surface text-muted",
 };
 
 function confidenceColor(confidence: number): string {
   if (confidence >= 0.9) return "text-emerald-600 dark:text-emerald-400";
   if (confidence >= 0.6) return "text-amber-600 dark:text-amber-400";
-  return "text-slate-500";
+  return "text-muted";
 }
 
 function EditableLabel({
@@ -56,7 +56,7 @@ function EditableLabel({
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => e.key === "Enter" && save()}
-        className="rounded border border-indigo-300 dark:border-indigo-700 bg-transparent px-1.5 py-0.5 text-sm w-full"
+        className="rounded border border-primary/40 bg-transparent px-1.5 py-0.5 text-sm w-full"
       />
     );
   }
@@ -78,10 +78,10 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
   const [localSchema, setLocalSchema] = useState(schema);
 
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto">
+    <div className="rounded-xl border border-border bg-surface overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">
+          <tr className="border-b border-border text-left text-muted">
             <th className="px-4 py-2 font-medium">Column</th>
             <th className="px-4 py-2 font-medium">Inferred meaning</th>
             <th className="px-4 py-2 font-medium">Confidence</th>
@@ -91,7 +91,7 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
         </thead>
         <tbody>
           {localSchema.map((col) => (
-            <tr key={col.name} className="border-b border-slate-100 dark:border-slate-800/60 last:border-0">
+            <tr key={col.name} className="border-b border-border/60 last:border-0">
               <td className="px-4 py-2 font-mono text-xs">{col.name}</td>
               <td className="px-4 py-2">
                 {analysisId ? (
@@ -116,7 +116,7 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
                   {col.type}
                 </span>
               </td>
-              <td className="px-4 py-2 text-slate-500">{String(col.stats.unique_count ?? "—")}</td>
+              <td className="px-4 py-2 text-muted">{String(col.stats.unique_count ?? "—")}</td>
             </tr>
           ))}
         </tbody>

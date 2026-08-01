@@ -167,17 +167,17 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
       <div style={highlightStyle} />
       <div
         style={{ position: "fixed", top: tooltipTop, left: tooltipLeft, zIndex: 61, width: tooltipWidth }}
-        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-4"
+        className="rounded-xl border border-border bg-surface shadow-xl p-4"
       >
-        <p className="text-xs text-slate-400 mb-1">
+        <p className="text-xs text-muted mb-1">
           Step {stepIdx + 1} of {STEPS.length}
         </p>
-        <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-1">{step.title}</h4>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{step.body}</p>
+        <h4 className="text-sm font-semibold text-foreground mb-1">{step.title}</h4>
+        <p className="text-sm text-muted mb-4">{step.body}</p>
         <div className="flex items-center justify-between">
           <button
             onClick={finish}
-            className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="text-xs text-muted hover:text-foreground"
           >
             Skip tour
           </button>
@@ -185,7 +185,7 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
             {stepIdx > 0 && (
               <button
                 onClick={() => setStepIdx((i) => i - 1)}
-                className="text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-slate-600 dark:text-slate-300"
+                className="text-xs font-medium rounded-lg border border-border px-3 py-1.5 text-muted"
               >
                 Back
               </button>

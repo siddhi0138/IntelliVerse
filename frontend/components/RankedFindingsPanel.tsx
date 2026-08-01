@@ -7,7 +7,7 @@ import { useSimpleMode } from "./SimpleModeContext";
 import { Term } from "./Term";
 
 const KIND_COLORS: Record<string, string> = {
-  correlation: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300",
+  correlation: "bg-primary/15 text-primary",
   association: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   root_cause: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   anomaly: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
@@ -80,7 +80,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
 
   if (!simpleMode) {
     return (
-      <li className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 py-2.5">
+      <li className="border-b border-border/60 last:border-0 py-2.5">
         <div className="flex items-start justify-between gap-3">
           <span className="text-sm">{findingHeadline(finding)}</span>
           <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${KIND_COLORS[finding.kind] ?? ""}`}>
@@ -92,7 +92,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
   }
 
   return (
-    <li className="group border-b border-slate-100 dark:border-slate-800/60 last:border-0 py-2.5">
+    <li className="group border-b border-border/60 last:border-0 py-2.5">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -103,7 +103,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 20 20"
             fill="currentColor"
-            className={`w-3 h-3 shrink-0 transition-all ${open ? "rotate-180 opacity-100 text-indigo-600 dark:text-indigo-400" : "opacity-0 group-hover:opacity-100 text-slate-400 dark:text-slate-500"}`}
+            className={`w-3 h-3 shrink-0 transition-all ${open ? "rotate-180 opacity-100 text-primary" : "opacity-0 group-hover:opacity-100 text-muted"}`}
           >
             <path
               fillRule="evenodd"
@@ -120,11 +120,11 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
         </span>
       </button>
       {open && (
-        <div className="mt-2 text-xs bg-slate-50 dark:bg-slate-900/60 rounded-lg p-3 text-slate-600 dark:text-slate-400 space-y-1">
-          <p className="text-slate-500">{findingHeadline(finding)}</p>
+        <div className="mt-2 text-xs bg-surface/60 rounded-lg p-3 text-muted space-y-1">
+          <p className="text-muted">{findingHeadline(finding)}</p>
           {Object.entries(finding.evidence).map(([k, v]) => (
             <p key={k}>
-              <span className="text-slate-400">{k}:</span> {JSON.stringify(v)}
+              <span className="text-muted">{k}:</span> {JSON.stringify(v)}
             </p>
           ))}
         </div>
@@ -135,14 +135,14 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
 
 export function RankedFindingsPanel({ findings }: { findings: RankedFinding[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-      <h3 className="text-base font-semibold text-slate-900 dark:text-white mb-1">Insight Explorer</h3>
-      <p className="text-xs text-slate-500 mb-3">
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-base font-semibold text-foreground mb-1">Insight Explorer</h3>
+      <p className="text-xs text-muted mb-3">
         Ranked by how much they matter, not just how they look. Click one to see the numbers behind it.
       </p>
 
       {findings.length === 0 ? (
-        <p className="text-sm text-slate-500">Nothing strong enough to call out yet — try a larger dataset.</p>
+        <p className="text-sm text-muted">Nothing strong enough to call out yet — try a larger dataset.</p>
       ) : (
         <ul>
           {findings.map((f, i) => (

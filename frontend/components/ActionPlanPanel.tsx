@@ -17,7 +17,7 @@ import type {
 const CONFIDENCE_COLORS: Record<string, string> = {
   high: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
   medium: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  low: "bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400",
+  low: "bg-surface text-muted",
 };
 
 export function ActionPlanPanel({
@@ -112,14 +112,14 @@ export function ActionPlanPanel({
   }
 
   return (
-    <div className="rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/40 dark:bg-indigo-900/20 p-4">
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white">Autonomous Action Plan</h3>
+        <h3 className="text-base font-semibold text-foreground">Autonomous Action Plan</h3>
         <button onClick={run} disabled={loading} className="btn-primary">
           {loading ? "Analyzing…" : plan ? "Regenerate" : "Generate Plan"}
         </button>
       </div>
-      <p className="text-xs text-slate-500 mb-3">
+      <p className="text-xs text-muted mb-3">
         What to do next, based on everything already found above — every action is grounded in a specific signal
         from your data, not free-form.
       </p>
@@ -133,11 +133,11 @@ export function ActionPlanPanel({
 
       {plan && (
         <div className="space-y-3">
-          <p className="text-sm text-slate-700 dark:text-slate-300">{plan.summary}</p>
+          <p className="text-sm text-foreground">{plan.summary}</p>
 
           <ol className="space-y-2">
             {plan.actions.map((a) => (
-              <li key={a.priority} className="text-sm border-b border-indigo-100 dark:border-indigo-800/50 last:border-0 pb-2 last:pb-0">
+              <li key={a.priority} className="text-sm border-b border-primary/20 last:border-0 pb-2 last:pb-0">
                 <div className="flex items-start justify-between gap-2">
                   <span className="font-medium">
                     {a.priority}. {a.action}
@@ -146,8 +146,8 @@ export function ActionPlanPanel({
                     {a.confidence}
                   </span>
                 </div>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{a.rationale}</p>
-                <p className="text-xs text-slate-500 italic">Grounded in: {a.grounded_in}</p>
+                <p className="text-xs text-muted mt-0.5">{a.rationale}</p>
+                <p className="text-xs text-muted italic">Grounded in: {a.grounded_in}</p>
               </li>
             ))}
           </ol>
@@ -156,12 +156,12 @@ export function ActionPlanPanel({
             <div>
               <button
                 onClick={() => setShowPreview((s) => !s)}
-                className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 {showPreview ? "Hide" : "Show"} underlying simulation preview
               </button>
               {showPreview && (
-                <pre className="mt-2 text-xs bg-white dark:bg-slate-900 rounded-lg p-3 overflow-x-auto text-slate-600 dark:text-slate-400">
+                <pre className="mt-2 text-xs bg-surface rounded-lg p-3 overflow-x-auto text-muted">
                   {JSON.stringify(plan.simulation_preview, null, 2)}
                 </pre>
               )}
@@ -175,21 +175,21 @@ export function ActionPlanPanel({
       )}
 
       {saved.length > 0 && (
-        <div className="mt-4 pt-3 border-t border-indigo-100 dark:border-indigo-800/50">
-          <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Saved plans</h4>
+        <div className="mt-4 pt-3 border-t border-primary/20">
+          <h4 className="text-sm font-semibold text-foreground mb-2">Saved plans</h4>
           <ul className="space-y-1">
             {saved.map((s) => (
               <li key={s.id} className="flex items-center justify-between text-sm">
                 <span>
                   {s.label}{" "}
-                  <span className="text-slate-500 text-xs">
+                  <span className="text-muted text-xs">
                     ({new Date(s.saved_at).toLocaleString()}{s.persona ? ` · viewed as ${s.persona}` : ""})
                   </span>
                 </span>
                 <span className="flex items-center gap-3 shrink-0">
                   <button
                     onClick={() => setPlan(s.plan)}
-                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-xs"
+                    className="text-primary hover:underline text-xs"
                   >
                     Load
                   </button>

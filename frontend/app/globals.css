@@ -1,34 +1,113 @@
 @import "tailwindcss";
 
-/* Dark mode is a manual toggle (ThemeContext sets/removes .dark on <html>),
-   not the OS preference — this redefines Tailwind's `dark:` variant to key
-   off that class instead of `prefers-color-scheme`, which is its v4 default. */
+/* Dark mode only, no toggle — layout.tsx hardcodes the `dark` class on
+   <html> permanently. Still keyed off that class (not `prefers-color-scheme`,
+   Tailwind v4's default) so it applies regardless of the visitor's OS setting. */
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Dark navy + teal/violet palette, ported from the IntelliVerse Shine
+     marketing site. Fixed (not toggle-scoped) — chrome (sidebar, cards,
+     buttons, badges) keeps this look in both light and dark mode, since
+     it's brand chrome, not page content; only body text/background toggle. */
+  --surface: oklch(0.18 0.03 260);
+  --surface-elevated: oklch(0.22 0.035 262);
+  --primary: oklch(0.78 0.16 180);
+  --primary-foreground: oklch(0.14 0.028 260);
+  --accent: oklch(0.7 0.18 295);
+  --muted: oklch(0.68 0.02 258);
+  /* Border needs to work against the *plain page background*, which does
+     toggle (white in light mode, navy in dark) — unlike the fixed chrome
+     colors above. A white-based translucent border is invisible against a
+     white page, which was the actual light-mode bug. */
+  --border-color: oklch(0 0 0 / 0.12);
+
+  /* Brand chrome that's intentionally the same vivid dark-navy/teal/violet
+     look in both modes (login screen, buttons, decorative glow) — these
+     aren't toggle-scoped on purpose. */
+  --gradient-hero: radial-gradient(ellipse 80% 60% at 50% 0%, oklch(0.7 0.18 295 / 0.25), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 30%, oklch(0.78 0.16 180 / 0.2), transparent 60%),
+    linear-gradient(180deg, oklch(0.14 0.028 260), oklch(0.12 0.025 260));
+  --gradient-text: linear-gradient(135deg, oklch(0.96 0.008 250), oklch(0.78 0.16 180));
+  --gradient-accent: linear-gradient(135deg, oklch(0.78 0.16 180), oklch(0.7 0.18 295));
+  --shadow-glow: 0 0 60px -10px oklch(0.78 0.16 180 / 0.4);
+  --grid-line: oklch(1 0 0 / 0.05);
+  /* Reference (SentraOps) has no separate display/serif font — brand and
+     headings are just the sans stack at font-semibold tracking-tight. */
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-border: var(--border-color);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
 }
 
+/* The whole app's background/text flips to the same navy palette in dark
+   mode, instead of the previous plain near-black. Border flips to a
+   white-based translucent one, since it now sits against that dark page
+   background instead of a white one. */
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: oklch(0.14 0.028 260);
+  --foreground: oklch(0.96 0.008 250);
+  --border-color: oklch(1 0 0 / 0.1);
+}
+
+.text-gradient {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.bg-hero {
+  background: var(--gradient-hero);
+}
+
+.bg-accent-gradient {
+  background: var(--gradient-accent);
+}
+
+.grid-bg {
+  background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.glow-ring {
+  box-shadow: var(--shadow-glow);
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 4s ease-in-out infinite;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  /* The Geist fonts loaded in layout.tsx were never actually applied —
-     this line (left over from create-next-app's default template)
-     silently overrode them with a plain Arial fallback the whole time. */
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Smooth, deliberate transitions on the things that actually change state
@@ -51,7 +130,7 @@ button:not(:disabled):active,
 }
 
 :focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -102,10 +181,11 @@ button:not(:disabled):active,
 
 @layer components {
   .btn-primary {
-    @apply rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-1.5 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 shadow-sm;
+    @apply rounded-full text-primary-foreground text-sm font-medium px-4 py-1.5 hover:opacity-90 disabled:opacity-50 shadow-sm;
+    background: var(--gradient-accent);
   }
   .btn-secondary {
-    @apply rounded-lg border border-slate-300 dark:border-slate-800 text-sm font-medium px-4 py-1.5 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 disabled:opacity-50;
+    @apply rounded-lg border border-border text-sm font-medium px-4 py-1.5 hover:border-primary hover:text-primary disabled:opacity-50;
   }
   .btn-danger-ghost {
     @apply text-red-600 dark:text-red-400 hover:underline text-xs;
@@ -114,9 +194,22 @@ button:not(:disabled):active,
     @apply rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-medium px-4 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50;
   }
   .card {
-    @apply rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply rounded-xl border border-border bg-white dark:bg-surface p-4 shadow-sm hover:shadow-md transition-shadow;
+  }
+  /* Momentary glow on click/tap so panels feel responsive to interaction,
+     not just hover — active is a state, not just an :active pseudo-class
+     modifier, so this applies to any card regardless of what's inside it. */
+  .card:active {
+    box-shadow: var(--shadow-glow);
+    border-color: color-mix(in oklab, var(--primary) 50%, transparent);
+  }
+  /* Same click-glow for clickable rows/surfaces that aren't wrapped in .card
+     (table rows, dropzones) — applied explicitly since those elements have
+     their own layout classes that .card would clash with. */
+  .glow-click:active {
+    box-shadow: var(--shadow-glow);
   }
   .badge {
-    @apply px-3 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-sm font-medium;
+    @apply px-3 py-1 rounded-full bg-primary/15 text-primary text-sm font-medium;
   }
 }

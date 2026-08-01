@@ -21,10 +21,10 @@ export function PersonaSelector() {
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="👤 I am a…"
         title="AI explanations are framed for this role — type any profession, or pick a suggestion"
-        className="w-36 text-sm font-medium text-slate-600 dark:text-slate-300 placeholder:text-slate-500 dark:placeholder:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 focus:bg-slate-200 dark:focus:bg-slate-700 rounded-full px-3 py-1.5 border-none outline-none"
+        className="w-36 text-sm font-medium text-muted placeholder:text-muted dark:placeholder:text-muted bg-surface hover:bg-surface focus:bg-surface-elevated rounded-full px-3 py-1.5 border-none outline-none"
       />
       {open && filtered.length > 0 && (
-        <ul className="absolute z-50 left-0 top-full mt-1 w-48 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg py-1 text-sm">
+        <ul className="absolute z-50 left-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface shadow-lg py-1 text-sm">
           {filtered.map((p) => (
             <li key={p}>
               <button
@@ -34,7 +34,7 @@ export function PersonaSelector() {
                   setPersona(p);
                   setOpen(false);
                 }}
-                className="w-full text-left px-3 py-1.5 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="w-full text-left px-3 py-1.5 text-foreground hover:bg-surface"
               >
                 {p}
               </button>

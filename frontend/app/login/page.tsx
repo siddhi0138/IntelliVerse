@@ -36,39 +36,41 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex-1 flex items-center justify-center px-6">
-      <div className="w-full max-w-sm card">
-        <h1 className="text-2xl font-semibold tracking-tight text-center mb-1">🧠 IntelliVerse</h1>
-        <p className="text-slate-500 text-center mb-8">
+    <main className="relative flex-1 flex items-center justify-center px-6 overflow-hidden bg-surface">
+      <div className="absolute inset-0 bg-hero opacity-80" />
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-[600px] rounded-full bg-accent-gradient opacity-30 blur-3xl animate-pulse-glow pointer-events-none" />
+      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/80 backdrop-blur p-8 shadow-[0_40px_120px_-40px_rgba(0,0,0,0.6)]">
+        <h1 className="font-display text-3xl tracking-tight text-center mb-1 text-white">IntelliVerse</h1>
+        <p className="text-muted text-center mb-8">
           {mode === "login" ? "Sign in to continue" : "Create an account"}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Username</label>
+            <label className="block text-sm font-medium text-white mb-1">Username</label>
             <input
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-2 text-sm focus:border-indigo-400"
+              className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-white focus:border-primary outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Password</label>
+            <label className="block text-sm font-medium text-white mb-1">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={8}
-              className="w-full rounded-lg border border-slate-300 dark:border-slate-800 bg-transparent px-3 py-2 text-sm focus:border-indigo-400"
+              className="w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm text-white focus:border-primary outline-none"
             />
           </div>
 
-          {notice && <p className="text-sm text-emerald-600 dark:text-emerald-400">{notice}</p>}
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {notice && <p className="text-sm text-emerald-400">{notice}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
 
           <button type="submit" disabled={loading} className="btn-primary w-full py-2">
             {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
@@ -81,7 +83,7 @@ export default function LoginPage() {
             setError(null);
             setNotice(null);
           }}
-          className="w-full text-center text-sm text-indigo-600 dark:text-indigo-400 hover:underline mt-4"
+          className="w-full text-center text-sm text-primary hover:underline mt-4"
         >
           {mode === "login" ? "Need an account? Register" : "Already have an account? Sign in"}
         </button>

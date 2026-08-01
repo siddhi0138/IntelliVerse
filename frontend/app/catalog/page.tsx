@@ -47,11 +47,11 @@ export default function CatalogPage() {
   }
 
   return (
-    <main className="flex-1 max-w-5xl w-full mx-auto px-6 py-12">
-      <header className="mb-8 flex items-start justify-between gap-4">
+    <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dataset Catalog</h1>
-          <p className="text-slate-500 mt-1 text-sm max-w-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight">🗂️ Dataset Catalog</h1>
+          <p className="text-muted mt-1 text-sm max-w-2xl">
             Every dataset you&apos;ve uploaded — click a row to reopen its full dashboard, no re-upload needed.
             SQL query, re-running simulations/forecasts, and the action plan still need the file re-uploaded, since
             only the computed result is saved.
@@ -65,7 +65,7 @@ export default function CatalogPage() {
           )}
           <Link
             href="/"
-            className="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-900 rounded-full px-3 py-1.5 whitespace-nowrap"
+            className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
           >
             &larr; Back to upload
           </Link>
@@ -76,15 +76,15 @@ export default function CatalogPage() {
 
       {datasets && datasets.length === 0 && (
         <div className="card text-center py-12">
-          <p className="text-sm text-slate-500">No datasets uploaded yet.</p>
+          <p className="text-sm text-muted">No datasets uploaded yet.</p>
         </div>
       )}
 
       {datasets && datasets.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-x-auto shadow-sm">
+        <div className="rounded-xl border border-border bg-surface overflow-x-auto shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-slate-500">
+              <tr className="border-b border-border text-left text-muted">
                 <th className="px-4 py-2 font-medium">Filename</th>
                 <th className="px-4 py-2 font-medium">Uploaded</th>
                 <th className="px-4 py-2 font-medium">Domain</th>
@@ -97,12 +97,12 @@ export default function CatalogPage() {
                 <tr
                   key={d.analysis_id}
                   onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
-                  className="border-b border-slate-100 dark:border-slate-800/60 last:border-0 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/40"
+                  className="border-b border-border/60 last:border-0 cursor-pointer hover:bg-surface-elevated/60"
                 >
                   <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
-                  <td className="px-4 py-2 text-slate-500">{new Date(d.uploaded_at).toLocaleString()}</td>
+                  <td className="px-4 py-2 text-muted">{new Date(d.uploaded_at).toLocaleString()}</td>
                   <td className="px-4 py-2">{d.domain}</td>
-                  <td className="px-4 py-2 text-slate-500">
+                  <td className="px-4 py-2 text-muted">
                     {d.row_count.toLocaleString()} &times; {d.column_count}
                   </td>
                   <td className={`px-4 py-2 font-medium ${scoreColor(d.quality_score)}`}>{d.quality_score}</td>
