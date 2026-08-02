@@ -398,11 +398,16 @@ export default function Home() {
               but this row itself spans the full width rather than being
               capped at max-w-7xl. Labels collapse to icon-only (with a
               hover/long-press tooltip via `title`) at every width up to
-              very large desktop monitors — 11 tabs' full labels don't
-              reliably fit one row below 2xl. Even icon-only, 11 tabs clip
-              a few px past 375px-wide phones, so overflow-x-auto is a
-              scroll fallback rather than the primary layout mechanism. */}
-          <div className="flex items-center justify-between gap-0.5 px-2 sm:px-4 lg:px-6 py-2 overflow-x-auto scrollbar-hide">
+              very large desktop monitors — 11 tabs' full labels at a normal
+              text size didn't reliably fit even at the low end of the 2xl
+              breakpoint's own range (a 1536px-wide window is "2xl" but only
+              ~1250px of that is left after the sidebar), so the label text
+              stays at the smallest size and padding stays tight instead of
+              growing at 2xl, to actually fit rather than just mostly fit.
+              Even icon-only, 11 tabs clip a few px past 375px-wide phones,
+              so overflow-x-auto is a scroll fallback rather than the
+              primary layout mechanism. */}
+          <div className="flex items-center justify-start gap-3 px-2 sm:px-4 lg:px-6 py-2 overflow-x-auto scrollbar-hide">
             {TAB_GROUPS.map((group) => (
               <div key={group.title} className="flex items-center gap-0.5">
                 {group.ids.map((id) => {
@@ -414,7 +419,7 @@ export default function Home() {
                       data-tab={id}
                       title={tab.label}
                       onClick={() => setActiveTab(id)}
-                      className={`flex items-center gap-1.5 rounded-lg px-2 2xl:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all ${
+                      className={`flex items-center gap-1 rounded-lg px-2 py-1.5 sm:py-2 text-xs font-medium transition-all ${
                         isActive ? "bg-primary/10 text-foreground ring-1 ring-primary/20" : "text-muted hover:bg-surface hover:text-foreground"
                       }`}
                     >
