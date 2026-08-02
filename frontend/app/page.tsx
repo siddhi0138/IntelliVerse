@@ -25,8 +25,9 @@ import {
   Compass,
   History,
   Terminal,
+  RefreshCw,
 } from "lucide-react";
-import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset } from "@/lib/api";
+import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset, refreshAnalysis } from "@/lib/api";
 import { userScopedKey } from "@/lib/auth";
 import type { AnalyzeResponse, ColumnType } from "@/lib/types";
 import { ChartCard, ChartBody, PALETTE } from "@/components/charts";
@@ -107,6 +108,7 @@ export default function Home() {
   const [tourActive, setTourActive] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
   const [lastDataset, setLastDataset] = useState<{ id: string; filename: string } | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { simpleMode, setSimpleMode } = useSimpleMode();
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -224,6 +226,20 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Could not delete this dataset.");
     }
   }, [result, resetView, forgetLastDataset]);
+
+  const handleRefreshAnalysis = useCallback(async () => {
+    if (!result) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      const updated = await refreshAnalysis(result.analysis_id);
+      setResult(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not refresh the analysis.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [result]);
 
   useEffect(() => {
     // The sidebar's own IntelliVerse logo also links to "/" — but Next's
@@ -436,6 +452,15 @@ export default function Home() {
               <span className="badge shrink-0">{result.domain}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleRefreshAnalysis}
+                disabled={refreshing}
+                title="Re-run the full analysis against the dataset's current data — picks up any rows a live stream has appended, which the dashboard otherwise doesn't do automatically"
+                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold text-primary-foreground bg-accent-gradient glow-ring hover:brightness-110 hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 transition-all"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Refreshing…" : "Refresh analysis"}
+              </button>
               <button
                 onClick={() => setTourActive(true)}
                 className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl text-xs font-semibold text-primary-foreground bg-accent-gradient glow-ring hover:brightness-110 hover:-translate-y-0.5 transition-all"

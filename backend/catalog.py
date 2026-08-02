@@ -226,7 +226,13 @@ def save_dataset(
             """
             INSERT INTO datasets (analysis_id, username, filename, uploaded_at, row_count, column_count, domain, quality_score, schema_json, result_json)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(analysis_id) DO UPDATE SET schema_json = excluded.schema_json, result_json = excluded.result_json
+            ON CONFLICT(analysis_id) DO UPDATE SET
+                row_count = excluded.row_count,
+                column_count = excluded.column_count,
+                domain = excluded.domain,
+                quality_score = excluded.quality_score,
+                schema_json = excluded.schema_json,
+                result_json = excluded.result_json
             """,
             (
                 analysis_id,

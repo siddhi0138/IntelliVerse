@@ -264,23 +264,19 @@ def login(req: AuthRequest) -> dict:
     return {"access_token": create_access_token(req.username.strip()), "token_type": "bearer"}
 
 
-def _run_analysis(
-    filename: str, content: bytes, username: str, progress: Callable[[str], None] = lambda step: None
+def _analyze_dataframe(
+    df: pd.DataFrame,
+    filename: str,
+    username: str,
+    analysis_id: str | None = None,
+    progress: Callable[[str], None] = lambda step: None,
 ) -> dict:
-    logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
-    if not content:
-        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
-    _check_upload_size(filename, content)
-
-    progress("Parsing file")
-    try:
-        df = _read_dataframe(filename, content)
-    except HTTPException:
-        raise
-    except Exception as exc:  # pandas parse errors, bad encoding, etc.
-        logger.error("Analysis failed to parse file={filename}: {error}", filename=filename, error=str(exc))
-        raise HTTPException(status_code=400, detail=f"Could not parse file: {exc}") from exc
-
+    """The actual analysis pipeline, operating on an in-memory DataFrame that
+    the caller has already produced — either freshly parsed from an upload
+    (_run_analysis below) or the same DataFrame a live Kafka stream has been
+    appending rows to (the manual "Refresh analysis" endpoint), in which case
+    `analysis_id` is passed in to reuse the existing id/catalog row/saved
+    items instead of minting a new dataset."""
     if df.empty:
         raise HTTPException(status_code=400, detail="Uploaded file has no rows.")
 
@@ -358,7 +354,7 @@ def _run_analysis(
     # no LLM narration, so it's exactly as reliable as its four inputs.
     business_health = compute_business_health(quality, forecast, period_comparison, risk_alerts)
 
-    analysis_id = str(uuid.uuid4())
+    analysis_id = analysis_id or str(uuid.uuid4())
     _ANALYSIS_DF_CACHE[analysis_id] = df
     _ANALYSIS_SCHEMA_CACHE[analysis_id] = schema
 
@@ -419,10 +415,46 @@ def _run_analysis(
     return response
 
 
+def _run_analysis(
+    filename: str, content: bytes, username: str, progress: Callable[[str], None] = lambda step: None
+) -> dict:
+    logger.info("Analysis started: filename={filename} size_bytes={size}", filename=filename, size=len(content))
+    if not content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+    _check_upload_size(filename, content)
+
+    progress("Parsing file")
+    try:
+        df = _read_dataframe(filename, content)
+    except HTTPException:
+        raise
+    except Exception as exc:  # pandas parse errors, bad encoding, etc.
+        logger.error("Analysis failed to parse file={filename}: {error}", filename=filename, error=str(exc))
+        raise HTTPException(status_code=400, detail=f"Could not parse file: {exc}") from exc
+
+    return _analyze_dataframe(df, filename, username, progress=progress)
+
+
 @protected.post("/api/analyze")
 async def analyze(file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
     content = await file.read()
     return _run_analysis(file.filename or "upload.csv", content, current_user)
+
+
+@protected.post("/api/analyze/{analysis_id}/refresh")
+def refresh_analysis(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    """Manually re-runs the full analysis pipeline against whatever is
+    currently in _ANALYSIS_DF_CACHE for this id — the one way the rest of
+    the dashboard (Overview KPIs, schema, stats, forecast, anomalies, action
+    plan) picks up rows a live stream has appended, since that's too
+    expensive to recompute automatically on every incoming row."""
+    df = _ANALYSIS_DF_CACHE.get(analysis_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+    existing = catalog.get_dataset(analysis_id, current_user)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+    return _analyze_dataframe(df.copy(), existing["filename"], current_user, analysis_id=analysis_id)
 
 
 @protected.post("/api/analyze/start")

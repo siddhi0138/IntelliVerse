@@ -104,6 +104,19 @@ export async function analyzeFileWithProgress(
   });
 }
 
+// Re-runs the full analysis pipeline against whatever's currently in the
+// backend's cached DataFrame for this id — the manual way to pick up rows a
+// live stream has appended, since the rest of the dashboard (KPIs, schema,
+// stats, forecast, anomalies, action plan) is a snapshot from upload time
+// and doesn't recompute automatically per incoming row.
+export async function refreshAnalysis(analysisId: string): Promise<AnalyzeResponse> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/refresh`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  return unwrap<AnalyzeResponse>(res);
+}
+
 export async function askQuestion(
   analysisId: string,
   domain: string,
