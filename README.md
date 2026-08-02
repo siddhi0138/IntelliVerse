@@ -42,38 +42,6 @@ LLM only ever narrates *already-computed* results in plain English — it never 
 raw data and never invents a statistic. If a computation isn't confident or doesn't
 apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 
-### Where fallbacks exist (and where they deliberately don't)
-
-- **Any LLM call** (summary, forecast/simulation/optimization narration, action
-  plan, Ask IntelliVerse, document Q&A) — a single `InsightsUnavailable`
-  exception type covers every failure mode (no API key configured, endpoint
-  unreachable, unparseable/empty response). The caller always keeps the
-  deterministic result and just sets the narration field to `null`/`None` —
-  the UI shows "AI explanation isn't available right now" next to the
-  unaffected numbers, never a broken page.
-- **Forecasting** — seven candidate models are tried per target (naive,
-  linear, Holt, Random Forest, XGBoost, LightGBM, Prophet); any model that
-  fails to fit (missing optional dependency, not enough data, degenerate
-  series) returns `None` instead of raising, and the best of whatever
-  succeeded wins on validation error. Below the minimum data threshold for
-  *any* model, the result is `method: "insufficient_data"` — an explicit,
-  named state the frontend checks for, not a crash.
-- **Kafka consumer** (real-time streaming) — retries every 5s if the broker
-  isn't reachable yet at backend startup (a real ordering race between
-  containers, not a permanent failure), and one malformed message is logged
-  and skipped rather than killing the whole consumer loop.
-- **Auth** — an expired/invalid JWT redirects to `/login` and clears the
-  stored token, instead of surfacing the raw backend error on whatever page
-  the user happened to be on.
-- **Per-user local state** (last-opened dataset, "seen the tour" flag) — if
-  reopening a stale/deleted dataset 404s, the stale pointer is cleared
-  automatically and the app falls back to the clean landing page instead of
-  showing a raw catalog error.
-- **Deliberately no fallback**: `JWT_SECRET_KEY` has no default — a missing
-  value crashes the backend at startup rather than silently signing tokens
-  with a guessable key. Auth is the one place "fail loud" beats "degrade
-  gracefully."
-
 ## Features
 
 **🔍 Data understanding**
