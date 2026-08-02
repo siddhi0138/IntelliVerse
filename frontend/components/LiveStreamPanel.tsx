@@ -81,6 +81,11 @@ export function LiveStreamPanel({
     setLive(false);
   }
 
+  // Stopping shouldn't wipe what already happened — rowCount/lastUpdate/feed
+  // stay in state and keep being shown (as a "last known" summary) even
+  // after `live` flips false; only a brand-new "Go live" resets them.
+  const hasHistory = rowCount !== null || feed.length > 0;
+
   return (
     <Panel
       title="Live data feed"
@@ -93,59 +98,66 @@ export function LiveStreamPanel({
         ) : undefined
       }
     >
-      {!live ? (
-        <button onClick={goLive} disabled={starting} className="btn-primary">
-          {starting ? "Starting…" : "Go live"}
-        </button>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-muted">Rows ingested</p>
-              <p className="font-display text-2xl font-bold text-foreground">{rowCount ?? "—"}</p>
-            </div>
-            {primaryMetric && lastUpdate && (
+      <div className="space-y-4">
+        {!live && !hasHistory && (
+          <button onClick={goLive} disabled={starting} className="btn-primary">
+            {starting ? "Starting…" : "Go live"}
+          </button>
+        )}
+
+        {(live || hasHistory) && (
+          <>
+            {!live && (
+              <p className="text-xs text-muted">Stopped — showing what was ingested before you stopped it.</p>
+            )}
+            <div className="flex flex-wrap items-center gap-4">
               <div>
-                <p className="text-xs uppercase tracking-wide text-muted">Live model error</p>
-                <p className="font-display text-2xl font-bold text-accent">
-                  {lastUpdate.abs_pct_error !== null ? `${lastUpdate.abs_pct_error}%` : "warming up…"}
+                <p className="text-xs uppercase tracking-wide text-muted">Rows ingested</p>
+                <p className="font-display text-2xl font-bold text-foreground">{rowCount ?? "—"}</p>
+              </div>
+              {primaryMetric && lastUpdate && (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted">Live model error</p>
+                  <p className="font-display text-2xl font-bold text-accent">
+                    {lastUpdate.abs_pct_error !== null ? `${lastUpdate.abs_pct_error}%` : "warming up…"}
+                  </p>
+                </div>
+              )}
+              <button onClick={live ? stop : goLive} disabled={starting} className="btn-secondary ml-auto">
+                {live ? "Stop" : starting ? "Starting…" : "Go live again"}
+              </button>
+            </div>
+
+            {lastRow && (
+              <div className="rounded-xl border border-border bg-white/[0.02] p-3">
+                <p className="text-xs text-muted mb-1">{live ? "Just arrived:" : "Last row received:"}</p>
+                <p className="font-mono text-xs text-foreground/80 truncate">
+                  {Object.entries(lastRow)
+                    .map(([k, v]) => `${k}=${v}`)
+                    .join(", ")}
                 </p>
               </div>
             )}
-            <button onClick={stop} className="btn-secondary ml-auto">
-              Stop
-            </button>
-          </div>
 
-          {lastRow && (
-            <div className="rounded-xl border border-border bg-white/[0.02] p-3">
-              <p className="text-xs text-muted mb-1">Just arrived:</p>
-              <p className="font-mono text-xs text-foreground/80 truncate">
-                {Object.entries(lastRow)
-                  .map(([k, v]) => `${k}=${v}`)
-                  .join(", ")}
-              </p>
-            </div>
-          )}
-
-          {feed.length > 1 && (
-            <details className="text-xs">
-              <summary className="cursor-pointer font-medium text-muted hover:text-foreground">
-                Show last {feed.length} rows
-              </summary>
-              <ul className="mt-2 space-y-1.5">
-                {feed.map((row, i) => (
-                  <li key={i} className="font-mono text-muted rounded-lg border border-border/60 p-2">
-                    {Object.entries(row)
-                      .map(([k, v]) => `${k}=${v}`)
-                      .join(", ")}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
-        </div>
-      )}
+            {feed.length > 1 && (
+              <details className="text-xs">
+                <summary className="cursor-pointer font-medium text-muted hover:text-foreground">
+                  Show last {feed.length} rows
+                </summary>
+                <ul className="mt-2 space-y-1.5">
+                  {feed.map((row, i) => (
+                    <li key={i} className="font-mono text-muted rounded-lg border border-border/60 p-2">
+                      {Object.entries(row)
+                        .map(([k, v]) => `${k}=${v}`)
+                        .join(", ")}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
+        )}
+      </div>
     </Panel>
   );
 }
