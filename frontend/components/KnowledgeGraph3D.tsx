@@ -87,7 +87,7 @@ export function KnowledgeGraph3D({ graph }: { graph: KnowledgeGraphData }) {
   const [, setHoveredLabel] = useState<string | null>(null);
 
   return (
-    <div className="rounded-xl border border-border bg-surface h-[420px] overflow-hidden">
+    <div className="card p-0 h-[420px] overflow-hidden">
       <Canvas camera={{ position: [0, 2, 9], fov: 50 }}>
         <ambientLight intensity={0.6} />
         <pointLight position={[10, 10, 10]} intensity={1} />

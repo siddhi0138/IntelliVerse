@@ -42,6 +42,38 @@ LLM only ever narrates *already-computed* results in plain English — it never 
 raw data and never invents a statistic. If a computation isn't confident or doesn't
 apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 
+### Where fallbacks exist (and where they deliberately don't)
+
+- **Any LLM call** (summary, forecast/simulation/optimization narration, action
+  plan, Ask IntelliVerse, document Q&A) — a single `InsightsUnavailable`
+  exception type covers every failure mode (no API key configured, endpoint
+  unreachable, unparseable/empty response). The caller always keeps the
+  deterministic result and just sets the narration field to `null`/`None` —
+  the UI shows "AI explanation isn't available right now" next to the
+  unaffected numbers, never a broken page.
+- **Forecasting** — seven candidate models are tried per target (naive,
+  linear, Holt, Random Forest, XGBoost, LightGBM, Prophet); any model that
+  fails to fit (missing optional dependency, not enough data, degenerate
+  series) returns `None` instead of raising, and the best of whatever
+  succeeded wins on validation error. Below the minimum data threshold for
+  *any* model, the result is `method: "insufficient_data"` — an explicit,
+  named state the frontend checks for, not a crash.
+- **Kafka consumer** (real-time streaming) — retries every 5s if the broker
+  isn't reachable yet at backend startup (a real ordering race between
+  containers, not a permanent failure), and one malformed message is logged
+  and skipped rather than killing the whole consumer loop.
+- **Auth** — an expired/invalid JWT redirects to `/login` and clears the
+  stored token, instead of surfacing the raw backend error on whatever page
+  the user happened to be on.
+- **Per-user local state** (last-opened dataset, "seen the tour" flag) — if
+  reopening a stale/deleted dataset 404s, the stale pointer is cleared
+  automatically and the app falls back to the clean landing page instead of
+  showing a raw catalog error.
+- **Deliberately no fallback**: `JWT_SECRET_KEY` has no default — a missing
+  value crashes the backend at startup rather than silently signing tokens
+  with a guessable key. Auth is the one place "fail loud" beats "degrade
+  gracefully."
+
 ## Features
 
 **🔍 Data understanding**
@@ -74,6 +106,26 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 - Schema-aware decision simulator with scenario presets and a decision graph
 - Autonomous action plan chaining findings, risk alerts, root cause, forecast, and
   a real simulation preview into a prioritized, grounded plan
+- Multi-lever optimizer ("Find the best plan") — searches combinations of
+  levers at once for the one that best moves a chosen goal metric, not just
+  one change at a time; survives a refresh (the last run and any explicitly
+  saved plans both persist server-side)
+
+**⚡ Real-time streaming & continuous learning**
+- A genuine Kafka broker (single-node KRaft, official Apache image) carries
+  new rows for a dataset from a producer to a consumer over the real wire
+  protocol — "Go live" starts a background producer that samples new rows
+  from the dataset's own distribution (there's no external live feed to plug
+  into locally, so this part is simulated), which is then genuinely queued,
+  consumed, and pushed to the UI over a WebSocket
+- Each new row also updates a persistent online-learning model
+  (`SGDRegressor` + `StandardScaler`, `partial_fit`, not retrained from
+  scratch) for the dataset's primary metric — every update first scores the
+  model's prediction against the actual value (a real out-of-sample check)
+  *before* learning from it, and the resulting accuracy history is charted
+  so you can see the model genuinely improving over time
+- Both survive a page refresh: the frontend re-checks stream/model status on
+  mount instead of assuming a blank slate
 
 **📤 Data access & export**
 - Ad-hoc read-only SQL querying over any uploaded dataset (DuckDB)
@@ -89,9 +141,12 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 - Full login wall — Postgres-backed users, bcrypt hashing, JWT on every endpoint
 - Per-user dataset catalog — reopening a past dataset restores the entire
   dashboard, no re-upload needed
-- Explicitly saved forecasts, simulations, and action plans, each tagged with
-  the persona active when it was saved (so two saves under different
-  personas stay distinguishable later), reloadable or deletable per dataset
+- Explicitly saved forecasts, simulations, action plans, optimizer plans, and
+  SQL queries, each tagged with the persona active when it was saved (so two
+  saves under different personas stay distinguishable later), reloadable or
+  deletable per dataset — same full save/list/delete pattern everywhere it
+  applies, including clearing or deleting individual entries from the Ask
+  IntelliVerse conversation history
 
 **📄 Knowledge Assistant (document intelligence)**
 - Upload PDF/DOCX/PPTX/TXT documents and ask questions across them — answers
@@ -127,11 +182,12 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 | Data processing | pandas, NumPy, DuckDB, Polars + PyArrow |
 | Statistics/ML | SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet, SHAP |
 | Databases | PostgreSQL (auth), Neo4j (knowledge graph), SQLite (catalog), Qdrant (documents) |
+| Streaming & online learning | Apache Kafka (KRaft, single-node), aiokafka, scikit-learn `SGDRegressor` + `joblib` persistence |
 | Document intelligence | sentence-transformers, pypdf, python-docx, python-pptx |
 | Validation | Great Expectations |
 | Reports | openpyxl, ReportLab, python-pptx |
 | Auth | bcrypt, python-jose (JWT) |
-| LLM layer | Any OpenAI-compatible endpoint (defaults to [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi)) |
+| LLM layer | Any OpenAI-compatible endpoint — [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) or a local [Ollama](https://ollama.com) both work |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS |
 | Visualization | Recharts, @xyflow/react, Three.js + React Three Fiber |
 | Observability | Loguru, Prometheus + Grafana (self-hosted) |
@@ -143,7 +199,12 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 - 🐍 Python 3.12+
 - 🟢 Node 20+
 - 🐘 PostgreSQL 17 and 🕸️ Neo4j 5.26 (native install or via [Docker](#docker))
-- 🤖 An OpenAI-compatible LLM endpoint (e.g. [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi))
+- 🤖 An OpenAI-compatible LLM endpoint — [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi)
+  or a local [Ollama](https://ollama.com) install both work; every AI-touching
+  feature degrades gracefully (returns `null`/`None` for just that narration,
+  never breaks the deterministic result underneath) if this isn't reachable
+- 📨 Apache Kafka — only needed for real-time streaming; comes up automatically
+  via [Docker](#docker), no native install expected
 
 ### Backend
 
@@ -158,9 +219,10 @@ uvicorn main:app --port 8001
 
 | Variable | Purpose |
 |---|---|
-| `FREELLMAPI_BASE_URL`, `FREELLMAPI_API_KEY`, `FREELLMAPI_MODEL` | LLM endpoint for narration |
+| `FREELLMAPI_BASE_URL`, `FREELLMAPI_API_KEY`, `FREELLMAPI_MODEL` | LLM endpoint for narration (FreeLLMAPI or a local Ollama) |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Knowledge graph database |
 | `POSTGRES_DSN` | Auth database |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker for real-time streaming (default `localhost:9092`) |
 | `JWT_SECRET_KEY` | Signs auth tokens — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | Token lifetime (default 1440 = 24h) |
 
@@ -181,16 +243,19 @@ Open **http://localhost:3000**, register an account, and drop in a file (try
 docker compose up --build
 ```
 
-One command brings up backend, frontend, Neo4j, Postgres, Prometheus, and
+One command brings up backend, frontend, Neo4j, Postgres, Kafka, Prometheus, and
 Grafana. Verified with a real build — every service starts cleanly and talks to
 the others correctly over the compose network.
 
-> ⚠️ If you already have native Postgres/Neo4j/dev servers running on the same
-> ports (5432, 7474, 7687, 3000, 8001), Docker's host-port publishing for those
-> services silently no-ops on Windows instead of erroring. Internal
+> ⚠️ If you already have native Postgres/Neo4j/dev servers, or any other
+> container, running on the same host ports this stack wants (5432, 7474,
+> 7687, 3000, 8001, 9091, 3002), Docker's host-port publishing for those
+> services silently no-ops on Windows instead of erroring, or the container
+> exits immediately with "port is already allocated." Internal
 > container-to-container traffic is unaffected either way — only your own
-> browser/curl access from the host is. Stop the conflicting native processes
-> first if you want host access to the containerized versions.
+> browser/curl access from the host is. Stop the conflicting process, or
+> remap the host-side port in `docker-compose.yml`, if you want host access
+> to the containerized version.
 
 ## Observability
 
@@ -198,9 +263,15 @@ the others correctly over the compose network.
   colorized console output; every request and key event (logins, analysis
   start/failure/completion) is logged.
 - **Metrics** — `GET /metrics` exposes Prometheus-format request counts and
-  latency. `docker compose up` also starts Prometheus (auto-scraping) and
-  Grafana, pre-provisioned with that datasource — open **http://localhost:3001**
-  (`admin` / `nexuslocal`).
+  latency. `docker compose up` also starts Prometheus (auto-scraping, on
+  **http://localhost:9091**) and Grafana, pre-provisioned with that Prometheus
+  datasource — open **http://localhost:3002** (`admin` / `nexuslocal`). Both
+  are genuinely wired (Prometheus's scrape target reports `"health":"up"`
+  against the real backend, Grafana's datasource is live) — no pre-built
+  dashboard panels ship yet, so Grafana opens with the datasource connected
+  but an empty dashboard list. Host ports are 9091/3002, not Prometheus/
+  Grafana's own defaults of 9090/3001, to avoid colliding with anything else
+  already using those ports on your machine.
 - Sentry/Langfuse weren't added: both need a separate hosted account, unlike
   Prometheus/Grafana which run entirely inside this stack.
 
@@ -272,7 +343,10 @@ backend/
   graph_analytics.py           PageRank/centrality via NetworkX
   digital_twin.py              Graph-based impact simulation
   simulation.py                Decision simulation engine
+  optimization.py               Multi-lever "find the best plan" search
   autonomous_analyst.py        Autonomous action plan pipeline
+  streaming.py                  Kafka producer/consumer for live row streaming
+  incremental_model.py          Persistent online-learning model (SGDRegressor)
   duckdb_query.py               Ad-hoc SQL querying
   report.py                     PDF/Excel/PPTX export
   progress_jobs.py              WebSocket progress streaming

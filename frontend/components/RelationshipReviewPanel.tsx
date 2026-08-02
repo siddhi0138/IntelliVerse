@@ -13,7 +13,7 @@ export function RelationshipReviewPanel({
 }) {
   if (candidates.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-2">Suggested Relationships</h3>
         <p className="text-sm text-muted">
           No relationships detected between these tables — matching column names had no meaningful value overlap.
@@ -23,7 +23,7 @@ export function RelationshipReviewPanel({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">Suggested Relationships</h3>
       <p className="text-xs text-muted mb-3">
         Detected from column-name matches plus measured value overlap — review and confirm before the graph is built.

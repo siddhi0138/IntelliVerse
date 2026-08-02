@@ -93,7 +93,7 @@ export function DecisionSimulator({
       const r = await runSimulation(analysisId, column, pctChange);
       setResult(r);
       setExplanationLoading(true);
-      explainSimulation(domain, r, persona, simpleMode)
+      explainSimulation(analysisId, domain, r, persona, simpleMode)
         .then(setExplanation)
         .catch((err) => setExplanationError(err instanceof Error ? err.message : "Could not explain this scenario."))
         .finally(() => setExplanationLoading(false));
@@ -125,7 +125,7 @@ export function DecisionSimulator({
 
   if (decisions.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-2">Decision Simulator</h3>
         <p className="text-sm text-muted">No numeric columns detected to simulate against.</p>
       </div>
@@ -134,7 +134,7 @@ export function DecisionSimulator({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-3">Custom decision</h3>
         <div className="flex flex-wrap items-center gap-3">
           <select
@@ -170,7 +170,7 @@ export function DecisionSimulator({
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-3">Scenario presets</h3>
         <div className="flex flex-wrap gap-2">
           {SCENARIO_PRESETS.map((p) => (
@@ -204,7 +204,7 @@ export function DecisionSimulator({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="card p-4">
           <h4 className="text-base font-semibold text-foreground mb-2">Saved simulations</h4>
           <ul className="space-y-1">
             {saved.map((s) => (

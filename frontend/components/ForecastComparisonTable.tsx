@@ -13,7 +13,7 @@ const MODEL_LABELS: Record<string, string> = {
 
 export function ForecastComparisonTable({ validation }: { validation: ForecastValidation }) {
   return (
-    <div className="rounded-xl border border-border bg-surface overflow-x-auto">
+    <div className="card p-0 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted">

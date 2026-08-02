@@ -32,6 +32,17 @@ export function getUsername(): string | null {
   }
 }
 
+// Browsers share localStorage across every account that ever signs in on
+// them — a plain key like "nexus_last_analysis" leaks straight from one
+// user's session into the next person who logs in on the same machine.
+// Suffixing every per-user key with the username keeps each account's state
+// independent without needing to wipe it on sign-out (so the same user
+// signing back in still finds their own last dataset / tour progress).
+export function userScopedKey(key: string): string {
+  const username = getUsername();
+  return username ? `${key}:${username}` : key;
+}
+
 async function authRequest(path: string, username: string, password: string): Promise<string> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",

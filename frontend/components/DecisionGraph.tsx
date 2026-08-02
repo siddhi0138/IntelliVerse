@@ -81,7 +81,7 @@ export function DecisionGraph({ result }: { result: SimulationResult }) {
   const { nodes, edges } = useMemo(() => layout(result), [result]);
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-2 h-[420px]">
+    <div className="card p-2 h-[420px]">
       <ReactFlow nodes={nodes} edges={edges} fitView proOptions={{ hideAttribution: true }}>
         <Background />
         <Controls showInteractive={false} />

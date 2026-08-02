@@ -9,7 +9,7 @@ const CONFIDENCE_COLORS: Record<string, string> = {
 
 export function EffectsList({ result }: { result: SimulationResult }) {
   return (
-    <div className="rounded-xl border border-border bg-surface overflow-x-auto">
+    <div className="card p-0 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted">

@@ -6,6 +6,7 @@ import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ExpandableDetail } from "./ExpandableDetail";
 import { Term } from "./Term";
 import { useSimpleMode } from "./SimpleModeContext";
+import { PALETTE } from "./charts";
 import type { GlossaryKey } from "@/lib/glossary";
 
 const METHOD_LABELS: Record<string, string> = {
@@ -46,7 +47,7 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
   if (anomalies.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">Multivariate Anomalies</h3>
       <p className="text-xs text-muted mb-3">
         Rows that look strange across a *combination* of columns at once, not just one — a stronger signal than a
@@ -56,7 +57,10 @@ export function MultivariateAnomaliesPanel({ anomalies }: { anomalies: Multivari
         {anomalies.map((a, i) => (
           <li key={i} className="group text-sm border-b border-border/60 last:border-0 pb-3 last:pb-0">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium">{a.row}</span>
+              <span className="font-medium flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                {a.row}
+              </span>
               <ConfidenceBadge level={consensusConfidence(a.consensus)} />
             </div>
             <div className="flex flex-wrap items-center gap-1">

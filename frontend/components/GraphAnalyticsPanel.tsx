@@ -3,7 +3,7 @@ import { Term } from "./Term";
 
 export function GraphAnalyticsPanel({ analytics }: { analytics: GraphAnalytics }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">Graph Analytics</h3>
       <p className="text-xs text-muted mb-3">Which records matter most, based on how they connect to everything else.</p>
 

@@ -107,7 +107,7 @@ export function ForecastSection({
       setExplanationLoading(true);
       setExplanationError(null);
       try {
-        const summary = await explainForecast(domain, forecast, persona, simpleMode);
+        const summary = await explainForecast(analysisId, domain, forecast, persona, simpleMode);
         if (!cancelled) setExplanation(summary);
       } catch (err) {
         if (!cancelled) {
@@ -122,7 +122,7 @@ export function ForecastSection({
     return () => {
       cancelled = true;
     };
-  }, [forecast, domain, persona, simpleMode]);
+  }, [forecast, domain, persona, simpleMode, analysisId]);
 
   return (
     <div className="space-y-4">
@@ -131,7 +131,7 @@ export function ForecastSection({
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <ForecastChart forecast={forecast} eligibility={eligibility} />
       {forecast?.validation && (
-        <div className="group rounded-xl border border-border bg-surface p-4">
+        <div className="group card p-4">
           <p className="text-sm font-medium text-foreground mb-1">
             Model comparison <span className="font-normal text-muted">— which models were tried</span>
           </p>
@@ -155,7 +155,7 @@ export function ForecastSection({
       )}
 
       {saved.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="card p-4">
           <h4 className="text-base font-semibold text-foreground mb-2">Saved forecasts</h4>
           <ul className="space-y-1">
             {saved.map((s) => (

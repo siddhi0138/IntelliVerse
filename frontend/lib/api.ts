@@ -12,6 +12,9 @@ import type {
   EntityImpactResult,
   EntityProfile,
   Forecast,
+  LiveStreamEvent,
+  ModelHistoryEntry,
+  OptimizationResult,
   QueryResult,
   RankedFinding,
   RelationshipCandidate,
@@ -19,6 +22,8 @@ import type {
   RootCauseAnalysis,
   SavedActionPlan,
   SavedForecast,
+  SavedOptimization,
+  SavedQuery,
   SavedSimulation,
   SimulationExplanation,
   SimulationResult,
@@ -26,7 +31,7 @@ import type {
   WorkspaceMetadata,
   WorkspaceResponse,
 } from "./types";
-import { getToken } from "./auth";
+import { clearToken, getToken } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
@@ -48,6 +53,18 @@ function authHeaders(): Record<string, string> {
 }
 
 async function unwrap<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    // A stale/expired token surfaced as a raw backend error message
+    // ("Invalid or expired token.") on whatever page the user happened to
+    // be on — e.g. mid-upload — instead of sending them back to sign in.
+    // Every API call funnels through here, so this is the one place that
+    // needs to catch it.
+    clearToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+    throw new Error("Your session expired — please sign in again.");
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `Request failed with status ${res.status}`);
@@ -102,6 +119,30 @@ export async function askQuestion(
   return unwrap<AskResponse>(res);
 }
 
+export async function fetchAskHistory(analysisId: string): Promise<(AskResponse & { question: string })[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/ask-history`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ messages: (AskResponse & { question: string })[] }>(res);
+  return body.messages;
+}
+
+export async function clearAskHistory(analysisId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/ask-history`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await unwrap<{ cleared: boolean }>(res);
+}
+
+export async function deleteAskHistoryEntry(analysisId: string, index: number): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/ask-history/${index}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  await unwrap<{ deleted: boolean }>(res);
+}
+
 export async function runSimulation(
   analysisId: string,
   driverColumn: string,
@@ -117,6 +158,7 @@ export async function runSimulation(
 }
 
 export async function explainSimulation(
+  analysisId: string,
   domain: string,
   simulation: SimulationResult,
   persona?: string | null,
@@ -125,13 +167,86 @@ export async function explainSimulation(
   const res = await fetch(`${API_BASE}/api/simulate/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, simulation, persona, simple_mode: simpleMode }),
+    body: JSON.stringify({ analysis_id: analysisId, domain, simulation, persona, simple_mode: simpleMode }),
   });
 
   return unwrap<SimulationExplanation>(res);
 }
 
+export async function fetchStreamStatus(analysisId: string): Promise<{ running: boolean; row_count: number | null }> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/stream/status`, {
+    headers: authHeaders(),
+  });
+  return unwrap<{ running: boolean; row_count: number | null }>(res);
+}
+
+export async function startLiveStream(analysisId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/stream/start`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  await unwrap<{ running: boolean }>(res);
+}
+
+export async function stopLiveStream(analysisId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/stream/stop`, {
+    method: "POST",
+    headers: authHeaders(),
+  });
+  await unwrap<{ running: boolean }>(res);
+}
+
+export function openLiveStreamSocket(analysisId: string, onEvent: (event: LiveStreamEvent) => void): () => void {
+  const ws = new WebSocket(
+    `${WS_BASE}/ws/live/${encodeURIComponent(analysisId)}?token=${encodeURIComponent(getToken() ?? "")}`
+  );
+  ws.onmessage = (event) => {
+    try {
+      onEvent(JSON.parse(event.data) as LiveStreamEvent);
+    } catch {
+      // ignore malformed frames
+    }
+  };
+  return () => ws.close();
+}
+
+export async function fetchModelHistory(analysisId: string, targetColumn: string): Promise<ModelHistoryEntry[]> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/model-history?target_column=${encodeURIComponent(targetColumn)}`,
+    { headers: authHeaders() }
+  );
+  const body = await unwrap<{ updates: ModelHistoryEntry[] }>(res);
+  return body.updates;
+}
+
+export async function optimizeScenario(
+  analysisId: string,
+  domain: string,
+  targetColumn: string,
+  leverColumns: string[],
+  budgetPct: number | null,
+  persona?: string | null,
+  simpleMode?: boolean
+): Promise<OptimizationResult> {
+  const res = await fetch(`${API_BASE}/api/optimize`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({
+      analysis_id: analysisId,
+      domain,
+      target_column: targetColumn,
+      lever_columns: leverColumns,
+      budget_pct: budgetPct,
+      persona,
+      simple_mode: simpleMode,
+    }),
+  });
+
+  return unwrap<OptimizationResult>(res);
+}
+
 export async function fetchDatasetSummary(
+  analysisId: string,
   domain: string,
   rowCount: number,
   columnCount: number,
@@ -144,6 +259,7 @@ export async function fetchDatasetSummary(
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify({
+      analysis_id: analysisId,
       domain,
       row_count: rowCount,
       column_count: columnCount,
@@ -276,6 +392,48 @@ export async function deleteSavedActionPlan(analysisId: string, savedId: string)
   await unwrap<{ deleted: boolean }>(res);
 }
 
+// Whatever "Find the best plan" run the user last computed for this dataset
+// — fetched on mount so the result survives a refresh without requiring an
+// explicit Save first (the explicit save/list/delete below is a separate,
+// opt-in bookmark of a specific labeled run).
+export async function fetchLastOptimization(analysisId: string): Promise<OptimizationResult | null> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/optimize/last`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ result: OptimizationResult | null }>(res);
+  return body.result;
+}
+
+export async function saveOptimization(
+  analysisId: string,
+  label: string,
+  result: OptimizationResult,
+  persona?: string | null
+): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/optimizations`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ label, result, persona }),
+  });
+  await unwrap<{ id: string }>(res);
+}
+
+export async function listSavedOptimizations(analysisId: string): Promise<SavedOptimization[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/optimizations`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ optimizations: SavedOptimization[] }>(res);
+  return body.optimizations;
+}
+
+export async function deleteSavedOptimization(analysisId: string, savedId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/optimizations/${encodeURIComponent(savedId)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  await unwrap<{ deleted: boolean }>(res);
+}
+
 export async function updateSemanticLabel(analysisId: string, columnName: string, label: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/datasets/${encodeURIComponent(analysisId)}/columns/${encodeURIComponent(columnName)}`, {
     method: "PATCH",
@@ -296,6 +454,7 @@ export async function forecastColumn(analysisId: string, column: string): Promis
 }
 
 export async function explainForecast(
+  analysisId: string,
   domain: string,
   forecast: Forecast,
   persona?: string | null,
@@ -304,7 +463,7 @@ export async function explainForecast(
   const res = await fetch(`${API_BASE}/api/forecast/explain`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify({ domain, forecast, persona, simple_mode: simpleMode }),
+    body: JSON.stringify({ analysis_id: analysisId, domain, forecast, persona, simple_mode: simpleMode }),
   });
 
   const body = await unwrap<{ summary: string }>(res);
@@ -452,6 +611,31 @@ export async function runSqlQuery(analysisId: string, sql: string): Promise<Quer
     body: JSON.stringify({ sql }),
   });
   return unwrap<QueryResult>(res);
+}
+
+export async function saveQuery(analysisId: string, label: string, sql: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/queries`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ label, sql }),
+  });
+  await unwrap<{ id: string }>(res);
+}
+
+export async function listSavedQueries(analysisId: string): Promise<SavedQuery[]> {
+  const res = await fetch(`${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/queries`, {
+    headers: authHeaders(),
+  });
+  const body = await unwrap<{ queries: SavedQuery[] }>(res);
+  return body.queries;
+}
+
+export async function deleteSavedQuery(analysisId: string, savedId: string): Promise<void> {
+  const res = await fetch(
+    `${API_BASE}/api/analyze/${encodeURIComponent(analysisId)}/queries/${encodeURIComponent(savedId)}`,
+    { method: "DELETE", headers: authHeaders() }
+  );
+  await unwrap<{ deleted: boolean }>(res);
 }
 
 export async function uploadDocuments(files: File[]): Promise<{ documents: DocumentEntry[] }> {

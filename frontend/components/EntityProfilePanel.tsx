@@ -9,7 +9,7 @@ export function EntityProfilePanel({
 }) {
   if (!profile) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-2">Entity Profile</h3>
         <p className="text-sm text-muted">Click a node in the graph to inspect it.</p>
       </div>
@@ -17,7 +17,7 @@ export function EntityProfilePanel({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">
         {profile.table}: {profile.key}
       </h3>

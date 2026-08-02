@@ -1,9 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { userScopedKey } from "@/lib/auth";
+
+export type TabId =
+  | "overview"
+  | "schema"
+  | "stats"
+  | "forecast"
+  | "anomalies"
+  | "rootcause"
+  | "graph"
+  | "simulation"
+  | "action"
+  | "ask"
+  | "sql";
 
 interface TourStep {
   target: string;
+  tab: TabId;
   title: string;
   body: string;
 }
@@ -11,71 +26,85 @@ interface TourStep {
 const STEPS: TourStep[] = [
   {
     target: "quick-summary",
+    tab: "overview",
     title: "What you got, in plain terms",
     body: "Start here. A plain-language recap of the analysis — no AI needed, so it's always here and always accurate.",
   },
   {
     target: "health-score",
+    tab: "overview",
     title: "Business Health",
     body: "One score for data quality, growth, forecast confidence, and risk — also computed directly, no AI.",
   },
   {
     target: "export",
+    tab: "overview",
     title: "Export report",
     body: "Download this analysis as a PDF, Excel workbook, or PowerPoint deck — same findings, no re-computation.",
   },
   {
     target: "summary",
+    tab: "schema",
     title: "Dataset summary",
     body: "IntelliVerse infers what your data is about — domain, schema, and a data-quality score — automatically, no setup.",
   },
   {
     target: "risk-alerts",
+    tab: "overview",
     title: "Risk alerts",
     body: "Deterministic alerts, shown only when the forecast or root-cause analysis actually crosses a real threshold.",
   },
   {
     target: "ask",
+    tab: "ask",
     title: "Ask IntelliVerse",
     body: "Ask a plain-English question about this dataset. Answers are grounded in the findings already computed below — never guessed.",
   },
   {
     target: "findings",
+    tab: "rootcause",
     title: "Ranked findings",
     body: "Every correlation, association, and root cause this dataset contains, ranked by how much it actually matters.",
   },
   {
     target: "forecast",
+    tab: "forecast",
     title: "Forecast",
     body: "Multiple models are backtested per target automatically; whichever has the lowest validation error is chosen for you.",
   },
   {
     target: "action-plan",
+    tab: "action",
     title: "Action Plan",
     body: "Now that you've seen the findings, risk alerts, and forecast — here's the AI's take on what to do next, grounded in exactly that.",
   },
   {
     target: "analysis-grid",
+    tab: "stats",
     title: "Deep-dive panels",
     body: "Anomalies, root cause, distributions, clustering, and data-quality checks all live here — open any card for detail.",
   },
   {
     target: "graph",
+    tab: "graph",
     title: "Knowledge graph",
     body: "See how rows in your data relate to each other, in 2D or 3D — degree, centrality, and clusters, computed via NetworkX.",
   },
   {
     target: "simulator",
+    tab: "simulation",
     title: "Decision simulator",
     body: "Pick a decision and see its estimated effect on other metrics, based on real associations found in this dataset.",
   },
   {
     target: "sql",
+    tab: "sql",
     title: "SQL query",
     body: "Run ad-hoc SQL directly against this dataset via DuckDB — no separate database to set up.",
   },
   {
     target: "schema",
+    tab: "schema",
     title: "Detected schema",
     body: "Every column's inferred type and meaning. If IntelliVerse got one wrong, click it here to correct it.",
   },
@@ -85,10 +114,20 @@ const SEEN_KEY = "nexus_tour_seen";
 
 export function hasSeenTour(): boolean {
   if (typeof window === "undefined") return true;
-  return localStorage.getItem(SEEN_KEY) === "1";
+  return localStorage.getItem(userScopedKey(SEEN_KEY)) === "1";
 }
 
-export function GuidedTour({ active, onClose }: { active: boolean; onClose: () => void }) {
+export function GuidedTour({
+  active,
+  onClose,
+  activeTab,
+  onNavigate,
+}: {
+  active: boolean;
+  onClose: () => void;
+  activeTab: TabId;
+  onNavigate: (tab: TabId) => void;
+}) {
   const [stepIdx, setStepIdx] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
@@ -112,8 +151,20 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
     }, 300);
   }, [stepIdx]);
 
+  // Each step lives on a specific tab; switch to it first (before the
+  // target can even exist in the DOM to measure) whenever the step changes.
   useEffect(() => {
     if (!active) return;
+    const wantedTab = STEPS[stepIdx].tab;
+    if (wantedTab !== activeTab) {
+      setRect(null);
+      onNavigate(wantedTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, stepIdx]);
+
+  useEffect(() => {
+    if (!active || STEPS[stepIdx].tab !== activeTab) return;
     measure();
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
@@ -121,7 +172,7 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [active, measure]);
+  }, [active, activeTab, stepIdx, measure]);
 
   if (!active) return null;
 
@@ -129,7 +180,7 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
   const isLast = stepIdx === STEPS.length - 1;
 
   function finish() {
-    localStorage.setItem(SEEN_KEY, "1");
+    localStorage.setItem(userScopedKey(SEEN_KEY), "1");
     onClose();
   }
 
@@ -166,8 +217,20 @@ export function GuidedTour({ active, onClose }: { active: boolean; onClose: () =
     <>
       <div style={highlightStyle} />
       <div
-        style={{ position: "fixed", top: tooltipTop, left: tooltipLeft, zIndex: 61, width: tooltipWidth }}
-        className="rounded-xl border border-border bg-surface shadow-xl p-4"
+        style={{
+          position: "fixed",
+          top: tooltipTop,
+          left: tooltipLeft,
+          zIndex: 61,
+          width: tooltipWidth,
+          // The shared .card class is deliberately translucent (it sits on
+          // the page's own background everywhere else) — here it floats
+          // over the tour's dimmed overlay/spotlighted content instead, so
+          // that transparency let whatever's behind it show through. This
+          // needs a fully solid background regardless of what's underneath.
+          background: "var(--surface-elevated)",
+        }}
+        className="rounded-2xl border border-border shadow-xl p-4"
       >
         <p className="text-xs text-muted mb-1">
           Step {stepIdx + 1} of {STEPS.length}

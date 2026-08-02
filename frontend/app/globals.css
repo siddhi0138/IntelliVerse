@@ -6,38 +6,33 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* "ink" (dark neutral) + "brand" (cyan) + "accent" (emerald) scale, ported
+     from the project-bolt IntelliVerse reference — a proper app-UI mockup
+     of this exact product (same panels: Forecast, Anomalies, RootCause,
+     etc.), not a marketing page, so its tokens map directly onto ours. */
+  --background: #0a0f1c;
+  --foreground: #e9eef5;
 
-  /* Dark navy + teal/violet palette, ported from the IntelliVerse Shine
-     marketing site. Fixed (not toggle-scoped) — chrome (sidebar, cards,
-     buttons, badges) keeps this look in both light and dark mode, since
-     it's brand chrome, not page content; only body text/background toggle. */
-  --surface: oklch(0.18 0.03 260);
-  --surface-elevated: oklch(0.22 0.035 262);
-  --primary: oklch(0.78 0.16 180);
-  --primary-foreground: oklch(0.14 0.028 260);
-  --accent: oklch(0.7 0.18 295);
-  --muted: oklch(0.68 0.02 258);
-  /* Border needs to work against the *plain page background*, which does
-     toggle (white in light mode, navy in dark) — unlike the fixed chrome
-     colors above. A white-based translucent border is invisible against a
-     white page, which was the actual light-mode bug. */
-  --border-color: oklch(0 0 0 / 0.12);
+  --primary: #06b6d4;
+  --primary-foreground: #0a0f1c;
+  --accent: #34d399;
+  --muted: #788cac;
+  /* Sidebar/modals need an actually-opaque background (a translucent one
+     let earlier glow effects bleed through and wash out text) — solid ink
+     shades, not the reference's bg-white/[0.03] (that's reserved for .card
+     below, which sits over the page's own gradient, not other chrome). */
+  --surface: #131a2a;
+  --surface-elevated: #1f2a3d;
+  --border-color: rgba(255, 255, 255, 0.1);
 
-  /* Brand chrome that's intentionally the same vivid dark-navy/teal/violet
-     look in both modes (login screen, buttons, decorative glow) — these
-     aren't toggle-scoped on purpose. */
-  --gradient-hero: radial-gradient(ellipse 80% 60% at 50% 0%, oklch(0.7 0.18 295 / 0.25), transparent 60%),
-    radial-gradient(ellipse 60% 50% at 80% 30%, oklch(0.78 0.16 180 / 0.2), transparent 60%),
-    linear-gradient(180deg, oklch(0.14 0.028 260), oklch(0.12 0.025 260));
-  --gradient-text: linear-gradient(135deg, oklch(0.96 0.008 250), oklch(0.78 0.16 180));
-  --gradient-accent: linear-gradient(135deg, oklch(0.78 0.16 180), oklch(0.7 0.18 295));
-  --shadow-glow: 0 0 60px -10px oklch(0.78 0.16 180 / 0.4);
-  --grid-line: oklch(1 0 0 / 0.05);
-  /* Reference (SentraOps) has no separate display/serif font — brand and
-     headings are just the sans stack at font-semibold tracking-tight. */
-  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --gradient-hero: radial-gradient(60rem 60rem at 80% -10%, rgba(6, 182, 212, 0.14), transparent 60%),
+    radial-gradient(50rem 50rem at -10% 20%, rgba(16, 185, 129, 0.1), transparent 55%),
+    linear-gradient(180deg, var(--background), color-mix(in oklab, var(--background) 92%, black));
+  --gradient-text: linear-gradient(90deg, #67e8f9, #22d3ee, #34d399);
+  --gradient-accent: linear-gradient(135deg, #22d3ee, #10b981);
+  --shadow-glow: 0 0 40px -10px rgba(34, 211, 238, 0.35);
+  --grid-line: rgba(148, 163, 184, 0.08);
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
@@ -52,16 +47,6 @@
   --color-border: var(--border-color);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-jetbrains-mono);
-}
-
-/* The whole app's background/text flips to the same navy palette in dark
-   mode, instead of the previous plain near-black. Border flips to a
-   white-based translucent one, since it now sits against that dark page
-   background instead of a white one. */
-.dark {
-  --background: oklch(0.14 0.028 260);
-  --foreground: oklch(0.96 0.008 250);
-  --border-color: oklch(1 0 0 / 0.1);
 }
 
 .text-gradient {
@@ -82,7 +67,7 @@
 .grid-bg {
   background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size: 64px 64px;
+  background-size: 44px 44px;
 }
 
 .glow-ring {
@@ -150,6 +135,16 @@ button:not(:disabled):active,
   background: rgb(148 163 184 / 0.7);
 }
 
+/* Scroll fallbacks (e.g. the top tab-strip on narrow phones) that should
+   stay scrollable but not show a visible scrollbar track. */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* React Flow's default zoom/fit-view control icons are 12px and drawn with
    thin strokes — at normal screen scale they anti-alias down to a few
    percent contrast against the button background and become effectively
@@ -180,36 +175,82 @@ button:not(:disabled):active,
 }
 
 @layer components {
+  /* Solid brand-cyan + shadow-glow + hover lift, matching the reference's
+     .btn-primary exactly (rounded-xl, not a pill — its buttons are all
+     rounded-xl). */
   .btn-primary {
-    @apply rounded-full text-primary-foreground text-sm font-medium px-4 py-1.5 hover:opacity-90 disabled:opacity-50 shadow-sm;
-    background: var(--gradient-accent);
+    @apply rounded-xl text-sm font-semibold px-4 py-1.5 disabled:opacity-50 transition-all;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow-glow);
   }
+  .btn-primary:hover {
+    background: #22d3ee;
+    transform: translateY(-1px);
+  }
+  /* Solid surface fill, not a translucent outline — visually secondary to
+     .btn-primary without reading as a ghost/hollow button. Lightened with a
+     white mix rather than using --surface-elevated as-is, since that's dark
+     enough to nearly disappear into the page background. */
   .btn-secondary {
-    @apply rounded-lg border border-border text-sm font-medium px-4 py-1.5 hover:border-primary hover:text-primary disabled:opacity-50;
+    @apply rounded-xl border text-sm font-semibold px-4 py-1.5 disabled:opacity-50 transition-all;
+    background: color-mix(in oklab, white 14%, var(--surface-elevated));
+    border-color: var(--border-color);
+    color: #67e8f9;
+  }
+  .btn-secondary:hover {
+    background: color-mix(in oklab, white 14%, color-mix(in oklab, var(--primary) 18%, var(--surface-elevated)));
+    border-color: color-mix(in oklab, var(--primary) 60%, transparent);
+    transform: translateY(-1px);
   }
   .btn-danger-ghost {
     @apply text-red-600 dark:text-red-400 hover:underline text-xs;
   }
+  /* Solid red fill instead of an outline — same "not transparent" treatment
+     as .btn-secondary, just its own color so destructive actions still read
+     as distinct from neutral ones. */
   .btn-danger {
-    @apply rounded-lg border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-medium px-4 py-1.5 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-50;
+    @apply rounded-lg text-sm font-medium px-4 py-1.5 disabled:opacity-50 transition-all;
+    background: #dc2626;
+    color: white;
   }
+  .btn-danger:hover {
+    background: #ef4444;
+  }
+  /* The reference's exact glass-card technique: a near-transparent white
+     tint + backdrop-blur over the page's own gradient background, not a
+     solid tinted fill — matches its .card class verbatim. */
   .card {
-    @apply rounded-xl border border-border bg-white dark:bg-surface p-4 shadow-sm hover:shadow-md transition-shadow;
+    @apply rounded-2xl border p-6 transition-all;
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(4px);
   }
-  /* Momentary glow on click/tap so panels feel responsive to interaction,
-     not just hover — active is a state, not just an :active pseudo-class
-     modifier, so this applies to any card regardless of what's inside it. */
-  .card:active {
-    box-shadow: var(--shadow-glow);
-    border-color: color-mix(in oklab, var(--primary) 50%, transparent);
-  }
-  /* Same click-glow for clickable rows/surfaces that aren't wrapped in .card
-     (table rows, dropzones) — applied explicitly since those elements have
-     their own layout classes that .card would clash with. */
-  .glow-click:active {
-    box-shadow: var(--shadow-glow);
+  .card:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, rgba(255, 255, 255, 0.2));
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08), 0 20px 40px -12px rgba(15, 23, 42, 0.18), var(--shadow-glow);
+    transform: translateY(-1px);
   }
   .badge {
-    @apply px-3 py-1 rounded-full bg-primary/15 text-primary text-sm font-medium;
+    @apply px-2.5 py-0.5 rounded-full border text-xs font-semibold;
+    border-color: color-mix(in oklab, var(--primary) 30%, transparent);
+    background: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: #67e8f9;
+  }
+  /* Same glass recipe as .card, but with zero baked-in padding — used by
+     the reference-matching <Panel> primitive, which applies its own
+     header/body padding so a title bar and content can share one card. */
+  .panel {
+    @apply rounded-2xl border transition-all;
+    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(4px);
+  }
+  .panel:hover {
+    border-color: color-mix(in oklab, var(--primary) 40%, rgba(255, 255, 255, 0.2));
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08), 0 20px 40px -12px rgba(15, 23, 42, 0.18), var(--shadow-glow);
+    transform: translateY(-1px);
   }
 }

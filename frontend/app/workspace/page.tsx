@@ -209,10 +209,7 @@ export default function WorkspacePage() {
             Upload related tables — IntelliVerse finds how they connect and builds a knowledge graph in Neo4j.
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
-        >
+        <Link href="/" className="btn-secondary whitespace-nowrap rounded-full">
           &larr; Single dataset
         </Link>
       </header>

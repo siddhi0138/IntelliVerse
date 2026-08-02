@@ -135,7 +135,7 @@ function EvidenceRow({ finding }: { finding: RankedFinding }) {
 
 export function RankedFindingsPanel({ findings }: { findings: RankedFinding[] }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">Insight Explorer</h3>
       <p className="text-xs text-muted mb-3">
         Ranked by how much they matter, not just how they look. Click one to see the numbers behind it.

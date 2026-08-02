@@ -13,7 +13,7 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
   const { simpleMode } = useSimpleMode();
   if (!clustering) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-2">Segmentation</h3>
         <p className="text-sm text-muted">Not enough structure in this dataset to group rows meaningfully.</p>
       </div>
@@ -21,7 +21,7 @@ export function ClusteringPanel({ clustering }: { clustering: ClusteringResult |
   }
 
   return (
-    <div className="group rounded-xl border border-border bg-surface p-4">
+    <div className="group card p-4">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex flex-wrap items-center gap-1">
           <h3 className="text-base font-semibold text-foreground">

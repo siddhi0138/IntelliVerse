@@ -37,9 +37,13 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex-1 flex items-center justify-center px-6 overflow-hidden bg-surface">
-      <div className="absolute inset-0 bg-hero opacity-80" />
-      <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-64 w-[600px] rounded-full bg-accent-gradient opacity-30 blur-3xl animate-pulse-glow pointer-events-none" />
-      <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface/80 backdrop-blur p-8 shadow-[0_40px_120px_-40px_rgba(0,0,0,0.6)]">
+      {/* The root layout's own fixed ambient gradient already washes every
+          route including this one — this page used to stack a second full
+          .bg-hero overlay plus a 600px-wide glow blob (wider than an entire
+          phone screen) on top of that, which read as one overpowering teal
+          wash on small viewports. Just the blob remains, much smaller. */}
+      <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-32 sm:h-48 w-[60vw] max-w-[420px] rounded-full bg-accent-gradient opacity-20 blur-3xl animate-pulse-glow pointer-events-none" />
+      <div className="relative w-full max-w-sm rounded-xl border border-border bg-surface/80 backdrop-blur p-8 shadow-[0_40px_120px_-40px_rgba(0,0,0,0.6)]">
         <h1 className="font-display text-3xl tracking-tight text-center mb-1 text-white">IntelliVerse</h1>
         <p className="text-muted text-center mb-8">
           {mode === "login" ? "Sign in to continue" : "Create an account"}

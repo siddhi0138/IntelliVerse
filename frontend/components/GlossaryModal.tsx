@@ -23,7 +23,7 @@ export function GlossaryModal({ open, onClose }: { open: boolean; onClose: () =>
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl rounded-xl border border-border bg-surface shadow-xl mt-16"
+        className="w-full max-w-xl card p-0 shadow-xl mt-16"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-border">

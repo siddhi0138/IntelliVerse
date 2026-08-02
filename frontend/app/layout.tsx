@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Inter, Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Footer } from "@/components/Footer";
@@ -9,6 +9,12 @@ import { SimpleModeProvider } from "@/components/SimpleModeContext";
 
 const inter = Inter({
   variable: "--font-inter",
+  subsets: ["latin"],
+});
+
+// Space Grotesk for brand/headings, matching the reference exactly.
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
@@ -30,21 +36,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`dark ${inter.variable} ${spaceGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-col overflow-hidden bg-background text-foreground">
-        {/* Same glow on every route, not just the hero/login screens — fixed
-            behind everything so it never scrolls or shifts between pages.
-            Sidebar/panels are opaque so this never bleeds into text. */}
-        {/* A CSS gradient (not a blurred div) so the falloff is an exact
-            percentage, not blur spillover — kept anchored to the bottom
-            corner only, nowhere near headings/page titles, which all sit
-            at the top of every page. */}
+        {/* Same two ambient radial gradients (cyan top-right, emerald
+            bottom-left) the reference uses on its body — fixed behind
+            everything so every route gets it, not just the hero. Bumped up
+            from the original 0.10/0.07 — at that strength it read as barely
+            there once real content (cards, tables) filled the page. */}
         <div
           className="fixed inset-0 -z-10 pointer-events-none"
           style={{
-            background:
-              "radial-gradient(circle at 100% 100%, oklch(0.7 0.18 295 / 0.12), transparent 25%)",
+            backgroundImage:
+              "radial-gradient(60rem 60rem at 80% -10%, rgba(6, 182, 212, 0.18), transparent 60%), radial-gradient(50rem 50rem at -10% 20%, rgba(16, 185, 129, 0.14), transparent 55%), radial-gradient(40rem 40rem at 60% 100%, rgba(167, 139, 250, 0.10), transparent 60%)",
           }}
         />
         <SimpleModeProvider>

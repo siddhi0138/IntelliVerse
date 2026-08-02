@@ -75,7 +75,7 @@ export default function KnowledgePage() {
   }
 
   return (
-    <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
+    <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">📄 Knowledge Assistant</h1>
@@ -84,10 +84,7 @@ export default function KnowledgePage() {
             retrieved, cited by filename. Optionally combine with a dataset&apos;s findings below.
           </p>
         </div>
-        <Link
-          href="/"
-          className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
-        >
+        <Link href="/" className="btn-secondary whitespace-nowrap rounded-full">
           &larr; Back to upload
         </Link>
       </header>

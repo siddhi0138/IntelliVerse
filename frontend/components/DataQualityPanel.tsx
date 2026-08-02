@@ -1,4 +1,7 @@
+"use client";
+
 import type { DataQualityReport } from "@/lib/types";
+import { ExpandableDetail } from "./ExpandableDetail";
 
 const SEVERITY_COLORS: Record<string, string> = {
   high: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
@@ -14,7 +17,7 @@ function scoreColor(score: number): string {
 
 export function DataQualityPanel({ quality }: { quality: DataQualityReport }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-foreground">Data Quality</h3>
         <span className={`text-2xl font-semibold ${scoreColor(quality.score)}`}>{quality.score}</span>
@@ -31,9 +34,16 @@ export function DataQualityPanel({ quality }: { quality: DataQualityReport }) {
       ) : (
         <ul className="space-y-2">
           {quality.recommendations.map((rec, i) => (
-            <li key={i} className="text-sm border-b border-border/60 last:border-0 pb-2 last:pb-0">
+            <li key={i} className="group text-sm border-b border-border/60 last:border-0 pb-2 last:pb-0">
               <div className="flex items-center justify-between gap-2">
-                <span>{rec.issue}</span>
+                <span className="flex items-center gap-1">
+                  {rec.issue}
+                  {rec.column && (
+                    <ExpandableDetail label="Show affected column">
+                      Column: <span className="font-mono">{rec.column}</span>
+                    </ExpandableDetail>
+                  )}
+                </span>
                 <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${SEVERITY_COLORS[rec.severity]}`}>
                   {rec.severity}
                 </span>

@@ -7,12 +7,14 @@ import { useSimpleMode } from "./SimpleModeContext";
 import type { ColumnSchema, DataQualityReport } from "@/lib/types";
 
 export function DatasetSummaryPanel({
+  analysisId,
   domain,
   rowCount,
   columnCount,
   schema,
   quality,
 }: {
+  analysisId: string;
   domain: string;
   rowCount: number;
   columnCount: number;
@@ -33,7 +35,7 @@ export function DatasetSummaryPanel({
       setLoading(true);
       setError(null);
       try {
-        const result = await fetchDatasetSummary(domain, rowCount, columnCount, schema, quality, persona, simpleMode);
+        const result = await fetchDatasetSummary(analysisId, domain, rowCount, columnCount, schema, quality, persona, simpleMode);
         if (!cancelled) setSummary(result);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Could not generate a summary.");
@@ -47,7 +49,7 @@ export function DatasetSummaryPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, rowCount, columnCount, persona, simpleMode]);
+  }, [analysisId, domain, rowCount, columnCount, persona, simpleMode]);
 
   return (
     <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">

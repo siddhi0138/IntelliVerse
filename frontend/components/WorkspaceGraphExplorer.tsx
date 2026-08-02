@@ -77,7 +77,7 @@ export function WorkspaceGraphExplorer({
   const { nodes, edges } = useMemo(() => layout(graph), [graph]);
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-2 h-[520px]">
+    <div className="card p-2 h-[520px]">
       <ReactFlow
         nodes={nodes}
         edges={edges}

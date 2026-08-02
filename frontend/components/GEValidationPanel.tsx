@@ -4,7 +4,7 @@ import { Term } from "./Term";
 export function GEValidationPanel({ validation }: { validation: GEValidation }) {
   if (!validation.available) {
     return (
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="card p-4">
         <h3 className="text-base font-semibold text-foreground mb-2">Structural Validation</h3>
         <p className="text-sm text-muted"><Term id="great_expectations">Great Expectations</Term> check unavailable: {validation.reason}</p>
       </div>
@@ -12,7 +12,7 @@ export function GEValidationPanel({ validation }: { validation: GEValidation }) 
   }
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-1">Structural Validation</h3>
       <p className="text-xs text-muted mb-3">
         <Term id="great_expectations">Great Expectations</Term> — generic structural checks (row count, uniqueness, nullness), supplementary to the

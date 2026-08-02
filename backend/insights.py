@@ -67,7 +67,10 @@ async def call_llm_json(system_prompt: str, user_content: str) -> dict:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # A small local model (e.g. Ollama on CPU) can genuinely take over
+        # 30s for longer prompts like the action plan's — 30s was timing
+        # those out as "unavailable" even though the router was healthy.
+        async with httpx.AsyncClient(timeout=120.0) as client:
             res = await client.post(
                 f"{LLM_BASE_URL}/chat/completions",
                 headers={"Authorization": f"Bearer {LLM_API_KEY}"},
@@ -158,6 +161,43 @@ async def generate_simulation_explanation(
         "summary": parsed["summary"],
         "assumptions": parsed.get("assumptions", []),
     }
+
+
+_OPTIMIZATION_SYSTEM_PROMPT = """You are explaining the output of a scenario optimization search \
+to a business user. You are given a target metric, how many combinations of decision levers were \
+searched, the best combination found (each lever's percent change), the projected outcome on the \
+target metric, and an R-squared confidence value for the underlying model.
+
+This is a statistical association model, NOT a proven causal effect — say so explicitly. Do not \
+invent business mechanisms, causes, or reasoning beyond what the statistics show. Only describe \
+the recommended plan and cite the confidence value given.
+
+Respond with strict JSON only, no markdown fences, matching exactly this shape:
+{"summary": "2-3 sentences recommending the plan, citing the projected outcome and confidence"}"""
+
+
+def _summarize_optimization_for_prompt(domain: str, optimization: dict) -> str:
+    lines = [
+        f"Domain guess: {domain}",
+        f"Goal: maximize {optimization['target_label']}",
+        f"Combinations searched: {optimization['samples_tried']}",
+        f"Model confidence: r²={optimization['r_squared']}",
+        f"Baseline {optimization['target_label']}: {optimization['baseline_target']}",
+        f"Best plan found — projected {optimization['target_label']}: {optimization['best']['projected_target']}"
+        f" ({optimization['best']['delta_pct']}% vs. baseline):",
+    ]
+    for lever in optimization["best"]["levers"]:
+        lines.append(f"- {lever['semantic_label']}: {lever['pct_change']}%")
+    return "\n".join(lines)
+
+
+async def generate_optimization_explanation(
+    domain: str, optimization: dict, persona: str | None = None, simple_mode: bool = True
+) -> str:
+    summary = _summarize_optimization_for_prompt(domain, optimization)
+    prompt = _OPTIMIZATION_SYSTEM_PROMPT + persona_instruction(persona) + detail_instruction(simple_mode)
+    parsed = await _call_llm_for_summary(prompt, summary)
+    return parsed["summary"]
 
 
 _DATASET_SUMMARY_SYSTEM_PROMPT = """You write a single concise overview paragraph (4-6 \

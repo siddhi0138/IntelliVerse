@@ -356,6 +356,56 @@ export interface SimulationResult {
   note: string;
 }
 
+// --- V8: scenario optimization — search over multiple levers at once ------
+
+export interface LeverSetting {
+  column: string;
+  semantic_label: string;
+  pct_change: number;
+}
+
+export interface OptimizationCandidate {
+  levers: LeverSetting[];
+  projected_target: number;
+  delta_pct: number | null;
+}
+
+export interface OptimizationResult {
+  target_column: string;
+  target_label: string;
+  baseline_target: number;
+  r_squared: number;
+  best: OptimizationCandidate;
+  runners_up: OptimizationCandidate[];
+  samples_tried: number;
+  note: string;
+  explanation?: string | null;
+}
+
+// --- V9: real-time streaming + persistent incremental learning ------------
+
+export interface ModelUpdate {
+  prediction_before_update: number | null;
+  actual: number;
+  abs_pct_error: number | null;
+  n_updates: number;
+}
+
+export interface LiveStreamEvent {
+  type: "new_row" | "stopped";
+  row?: Record<string, unknown>;
+  row_count?: number;
+  model_update?: ModelUpdate | null;
+}
+
+export interface ModelHistoryEntry {
+  updated_at: string;
+  prediction: number | null;
+  actual: number;
+  abs_pct_error: number | null;
+  n_updates: number;
+}
+
 export interface SimulationExplanation {
   summary: string;
   assumptions: string[];
@@ -398,6 +448,21 @@ export interface SavedActionPlan {
   saved_at: string;
   plan: ActionPlanResult;
   persona: string | null;
+}
+
+export interface SavedOptimization {
+  id: string;
+  label: string;
+  saved_at: string;
+  result: OptimizationResult;
+  persona: string | null;
+}
+
+export interface SavedQuery {
+  id: string;
+  label: string;
+  saved_at: string;
+  sql_text: string;
 }
 
 // --- V5: multi-table workspaces --------------------------------------------

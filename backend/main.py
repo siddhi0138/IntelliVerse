@@ -43,8 +43,10 @@ from insights import (
     generate_anomaly_reasons,
     generate_dataset_summary,
     generate_forecast_explanation,
+    generate_optimization_explanation,
     generate_simulation_explanation,
 )
+from optimization import OptimizationUnavailable, optimize
 from autonomous_analyst import generate_action_plan
 from digital_twin import simulate_entity_impact
 import document_intelligence
@@ -62,6 +64,7 @@ from report import build_excel_report, build_pdf_report, build_pptx_report
 from risk_alerts import generate_risk_alerts
 from schema_inference import ColumnSchema, build_schema, guess_domain, monthly_series, suggest_charts
 from simulation import CorrelationRegressionEngine, build_decision_actions
+import streaming
 
 app = FastAPI(title="IntelliVerse API", version="0.1.0")
 
@@ -166,6 +169,20 @@ _ANALYSIS_SCHEMA_CACHE: dict[str, list[ColumnSchema]] = {}
 # Full /api/analyze response, kept so /report can format already-computed
 # results instead of re-running analysis.
 _ANALYSIS_RESULT_CACHE: dict[str, dict] = {}
+
+def _primary_metric_for(analysis_id: str) -> str | None:
+    result = _ANALYSIS_RESULT_CACHE.get(analysis_id)
+    return result.get("primary_metric") if result else None
+
+
+@app.on_event("startup")
+async def _start_live_stream_consumer() -> None:
+    # One global Kafka consumer for the process's lifetime — routes each
+    # incoming synthetic row to whichever dataset it belongs to. Runs as a
+    # background task rather than blocking startup; Kafka may still be
+    # booting as a sibling container, so the consumer retries internally.
+    asyncio.create_task(streaming.run_consumer(_ANALYSIS_DF_CACHE, _primary_metric_for))
+
 
 # V5: multi-table workspaces (distinct from the single-table analysis cache
 # above). Tables/schemas are the source of truth for re-running relationship
@@ -469,6 +486,39 @@ async def analyze_progress_ws(websocket: WebSocket, job_id: str) -> None:
         await websocket.close()
 
 
+@app.websocket("/ws/live/{analysis_id}")
+async def live_stream_ws(websocket: WebSocket, analysis_id: str) -> None:
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008)
+        return
+    try:
+        decode_access_token(token)
+    except AuthError:
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    sent = 0
+    try:
+        while True:
+            stream = streaming.get_stream(analysis_id)
+            if stream is None:
+                await websocket.send_json({"type": "stopped"})
+                break
+            while sent < len(stream.log):
+                await websocket.send_json(stream.log[sent])
+                sent += 1
+            if not stream.running:
+                await websocket.send_json({"type": "stopped"})
+                break
+            await stream.wait_for_update()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await websocket.close()
+
+
 class AskRequest(BaseModel):
     analysis_id: str
     domain: str
@@ -476,8 +526,33 @@ class AskRequest(BaseModel):
     primary_metric: str | None = None
 
 
+_ASK_HISTORY_KEY = "ask_history"
+
+
+@protected.get("/api/analyze/{analysis_id}/ask-history")
+def get_ask_history(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    cached = catalog.get_ai_cache(analysis_id, current_user, _ASK_HISTORY_KEY)
+    return cached or {"messages": []}
+
+
+@protected.delete("/api/analyze/{analysis_id}/ask-history")
+def clear_ask_history(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    catalog.save_ai_cache(analysis_id, current_user, _ASK_HISTORY_KEY, {"messages": []})
+    return {"cleared": True}
+
+
+@protected.delete("/api/analyze/{analysis_id}/ask-history/{index}")
+def delete_ask_history_entry(analysis_id: str, index: int, current_user: str = Depends(get_current_user)) -> dict:
+    history = catalog.get_ai_cache(analysis_id, current_user, _ASK_HISTORY_KEY) or {"messages": []}
+    if index < 0 or index >= len(history["messages"]):
+        raise HTTPException(status_code=404, detail="No such message in this dataset's ask history.")
+    history["messages"].pop(index)
+    catalog.save_ai_cache(analysis_id, current_user, _ASK_HISTORY_KEY, history)
+    return {"deleted": True}
+
+
 @protected.post("/api/ask")
-async def ask(req: AskRequest) -> dict:
+async def ask(req: AskRequest, current_user: str = Depends(get_current_user)) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -487,6 +562,13 @@ async def ask(req: AskRequest) -> dict:
         result = await answer_question(df, schema, req.domain, req.question, req.primary_metric)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    # Ask IntelliVerse otherwise re-asked (and lost) its whole conversation on
+    # every refresh or tab switch — append this exchange to the same
+    # per-dataset history a fresh page load reads back from.
+    history = catalog.get_ai_cache(req.analysis_id, current_user, _ASK_HISTORY_KEY) or {"messages": []}
+    history["messages"].append({"question": req.question, **result})
+    catalog.save_ai_cache(req.analysis_id, current_user, _ASK_HISTORY_KEY, history)
     return result
 
 
@@ -510,6 +592,7 @@ def simulate(req: SimulateRequest) -> dict:
 
 
 class ExplainSimulationRequest(BaseModel):
+    analysis_id: str | None = None
     domain: str
     simulation: dict
     persona: str | None = None
@@ -517,12 +600,104 @@ class ExplainSimulationRequest(BaseModel):
 
 
 @protected.post("/api/simulate/explain")
-async def explain_simulation(req: ExplainSimulationRequest) -> dict:
+async def explain_simulation(req: ExplainSimulationRequest, current_user: str = Depends(get_current_user)) -> dict:
+    cache_key = f"simulate_explain:{req.simulation.get('driver_column')}:{_cache_key(req.persona, req.simple_mode)}"
+    if req.analysis_id:
+        cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
+        if cached is not None:
+            return cached
     try:
         result = await generate_simulation_explanation(req.domain, req.simulation, req.persona, req.simple_mode)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if req.analysis_id:
+        catalog.save_ai_cache(req.analysis_id, current_user, cache_key, result)
     return result
+
+
+class OptimizeRequest(BaseModel):
+    analysis_id: str
+    domain: str
+    target_column: str
+    lever_columns: list[str]
+    budget_pct: float | None = None
+    persona: str | None = None
+    simple_mode: bool = True
+
+
+# Fixed (non-parameterized) ai_cache key that always holds whatever
+# optimize() run the user looked at most recently — separate from the
+# per-combination "optimize_explain:..." cache key below, which only
+# memoizes the LLM narration for one specific target/levers combo. This is
+# what lets "Find the best plan" survive a refresh without the user having
+# to explicitly click Save first.
+_LAST_OPTIMIZE_KEY = "optimize_last"
+
+
+@protected.post("/api/optimize")
+async def optimize_scenario(req: OptimizeRequest, current_user: str = Depends(get_current_user)) -> dict:
+    df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
+    schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
+    if df is None or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+
+    try:
+        result = optimize(df, schema, req.target_column, req.lever_columns, req.budget_pct)
+    except OptimizationUnavailable as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    payload = asdict(result)
+
+    cache_key = (
+        f"optimize_explain:{req.target_column}:{','.join(sorted(req.lever_columns))}:"
+        f"{_cache_key(req.persona, req.simple_mode)}"
+    )
+    cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
+    if cached is not None:
+        payload["explanation"] = cached.get("summary")
+        catalog.save_ai_cache(req.analysis_id, current_user, _LAST_OPTIMIZE_KEY, payload)
+        return payload
+
+    try:
+        explanation = await generate_optimization_explanation(req.domain, payload, req.persona, req.simple_mode)
+        catalog.save_ai_cache(req.analysis_id, current_user, cache_key, {"summary": explanation})
+        payload["explanation"] = explanation
+    except InsightsUnavailable:
+        payload["explanation"] = None
+    catalog.save_ai_cache(req.analysis_id, current_user, _LAST_OPTIMIZE_KEY, payload)
+    return payload
+
+
+@protected.get("/api/analyze/{analysis_id}/optimize/last")
+def get_last_optimization(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"result": catalog.get_ai_cache(analysis_id, current_user, _LAST_OPTIMIZE_KEY)}
+
+
+class SaveOptimizationRequest(BaseModel):
+    label: str
+    result: dict
+    persona: str | None = None
+
+
+@protected.post("/api/analyze/{analysis_id}/optimizations")
+def save_optimization(
+    analysis_id: str, req: SaveOptimizationRequest, current_user: str = Depends(get_current_user)
+) -> dict:
+    saved_id = catalog.save_optimization(analysis_id, current_user, req.label, req.result, req.persona)
+    return {"id": saved_id}
+
+
+@protected.get("/api/analyze/{analysis_id}/optimizations")
+def list_saved_optimizations(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"optimizations": catalog.list_saved_optimizations(analysis_id, current_user)}
+
+
+@protected.delete("/api/analyze/{analysis_id}/optimizations/{saved_id}")
+def delete_saved_optimization(analysis_id: str, saved_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_optimization(saved_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved optimization not found.")
+    return {"deleted": True}
 
 
 class ForecastRequest(BaseModel):
@@ -556,22 +731,41 @@ def forecast_column(req: ForecastRequest) -> dict:
 
 
 class ExplainForecastRequest(BaseModel):
+    analysis_id: str | None = None
     domain: str
     forecast: dict
     persona: str | None = None
     simple_mode: bool = True
 
 
+# Same narration regenerated (and briefly flashing "isn't available"/re-
+# thinking) on every refresh or tab switch, since nothing tied it back to
+# the dataset it was generated for — cached in ai_cache keyed by analysis_id
+# + persona + mode, so the same dataset/settings replays instantly instead
+# of re-calling the LLM every time.
+def _cache_key(persona: str | None, simple_mode: bool) -> str:
+    return f"{persona or 'default'}:{'simple' if simple_mode else 'expert'}"
+
+
 @protected.post("/api/forecast/explain")
-async def explain_forecast(req: ExplainForecastRequest) -> dict:
+async def explain_forecast(req: ExplainForecastRequest, current_user: str = Depends(get_current_user)) -> dict:
+    cache_key = f"forecast_explain:{req.forecast.get('column')}:{_cache_key(req.persona, req.simple_mode)}"
+    if req.analysis_id:
+        cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
+        if cached is not None:
+            return cached
     try:
         summary = await generate_forecast_explanation(req.domain, req.forecast, req.persona, req.simple_mode)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"summary": summary}
+    result = {"summary": summary}
+    if req.analysis_id:
+        catalog.save_ai_cache(req.analysis_id, current_user, cache_key, result)
+    return result
 
 
 class SummaryRequest(BaseModel):
+    analysis_id: str | None = None
     domain: str
     row_count: int
     column_count: int
@@ -582,14 +776,22 @@ class SummaryRequest(BaseModel):
 
 
 @protected.post("/api/summary")
-async def dataset_summary(req: SummaryRequest) -> dict:
+async def dataset_summary(req: SummaryRequest, current_user: str = Depends(get_current_user)) -> dict:
+    cache_key = f"summary:{_cache_key(req.persona, req.simple_mode)}"
+    if req.analysis_id:
+        cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
+        if cached is not None:
+            return cached
     try:
         summary = await generate_dataset_summary(
             req.domain, req.row_count, req.column_count, req.columns, req.quality, req.persona, req.simple_mode
         )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return {"summary": summary}
+    result = {"summary": summary}
+    if req.analysis_id:
+        catalog.save_ai_cache(req.analysis_id, current_user, cache_key, result)
+    return result
 
 
 class AnomalyReasonsRequest(BaseModel):
@@ -1053,7 +1255,12 @@ class ActionPlanRequest(BaseModel):
 
 
 @protected.post("/api/action-plan")
-async def action_plan(req: ActionPlanRequest) -> dict:
+async def action_plan(req: ActionPlanRequest, current_user: str = Depends(get_current_user)) -> dict:
+    cache_key = f"action_plan:{_cache_key(req.persona, req.simple_mode)}"
+    cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
+    if cached is not None:
+        return cached
+
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -1083,6 +1290,7 @@ async def action_plan(req: ActionPlanRequest) -> dict:
         )
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    catalog.save_ai_cache(req.analysis_id, current_user, cache_key, plan)
     return plan
 
 
@@ -1099,6 +1307,30 @@ def query_dataset(analysis_id: str, req: QueryRequest) -> dict:
         return run_query(df, req.sql)
     except UnsafeQueryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class SaveQueryRequest(BaseModel):
+    label: str
+    sql: str
+
+
+@protected.post("/api/analyze/{analysis_id}/queries")
+def save_query(analysis_id: str, req: SaveQueryRequest, current_user: str = Depends(get_current_user)) -> dict:
+    saved_id = catalog.save_query(analysis_id, current_user, req.label, req.sql)
+    return {"id": saved_id}
+
+
+@protected.get("/api/analyze/{analysis_id}/queries")
+def list_saved_queries(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"queries": catalog.list_saved_queries(analysis_id, current_user)}
+
+
+@protected.delete("/api/analyze/{analysis_id}/queries/{saved_id}")
+def delete_saved_query(analysis_id: str, saved_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    deleted = catalog.delete_query(saved_id, current_user)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Saved query not found.")
+    return {"deleted": True}
 
 
 _REPORT_CONTENT_TYPES = {
@@ -1205,6 +1437,39 @@ async def ask_documents(req: AskDocumentsRequest, current_user: str = Depends(ge
         return await answer_with_documents(current_user, req.question, structured_context)
     except InsightsUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+# --- V9: real-time streaming + persistent incremental learning -------------
+
+
+@protected.post("/api/analyze/{analysis_id}/stream/start")
+async def start_live_stream(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+    # Must be async — a sync `def` endpoint runs in FastAPI's worker thread
+    # pool, which has no running event loop, and streaming.start_stream()
+    # needs one (asyncio.get_event_loop() + create_task()) to schedule the
+    # producer task on the same loop the Kafka consumer runs on.
+    schema = _ANALYSIS_SCHEMA_CACHE.get(analysis_id)
+    if analysis_id not in _ANALYSIS_DF_CACHE or schema is None:
+        raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
+    streaming.start_stream(analysis_id, current_user, _ANALYSIS_DF_CACHE, schema)
+    return {"running": True}
+
+
+@protected.post("/api/analyze/{analysis_id}/stream/stop")
+def stop_live_stream(analysis_id: str) -> dict:
+    streaming.stop_stream(analysis_id)
+    return {"running": False}
+
+
+@protected.get("/api/analyze/{analysis_id}/stream/status")
+def live_stream_status(analysis_id: str) -> dict:
+    stream = streaming.get_stream(analysis_id)
+    return {"running": bool(stream and stream.running), "row_count": stream.row_count if stream else None}
+
+
+@protected.get("/api/analyze/{analysis_id}/model-history")
+def model_history(analysis_id: str, target_column: str, current_user: str = Depends(get_current_user)) -> dict:
+    return {"updates": catalog.get_model_history(analysis_id, current_user, target_column)}
 
 
 app.include_router(protected)

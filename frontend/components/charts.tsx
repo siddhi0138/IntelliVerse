@@ -16,10 +16,22 @@ import type { ChartSpec } from "@/lib/types";
 const AXIS_COLOR = "#64748b";
 const GRID_COLOR = "#e2e8f0";
 
+// Recharts' default tooltip box is a light/white card — its text otherwise
+// inherits the page's near-white --foreground, which reads as invisible
+// white-on-white. Force dark text (and pin the box itself light) so it's
+// always legible regardless of the page's own color scheme.
+export const TOOLTIP_STYLE = {
+  contentStyle: { background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, color: "#0f172a" },
+  labelStyle: { color: "#0f172a", fontWeight: 600 },
+  itemStyle: { color: "#0f172a" },
+} as const;
+
 // Teal/violet (brand) plus amber/rose/emerald so a page with several charts
 // and KPIs doesn't read as one flat color — cycled by index/title hash
 // rather than tied to meaning (there's no fixed metric-to-color mapping).
-const PALETTE = ["#2dd4bf", "#a78bfa", "#fbbf24", "#fb7185", "#34d399"];
+// Exported so other panels (StatCard rows, progress bars) can pick up the
+// same variety instead of everything defaulting to plain --primary cyan.
+export const PALETTE = ["#5eead4", "#a78bfa", "#fbbf24", "#fb7185", "#34d399"];
 
 function colorFromString(s: string): string {
   let hash = 0;
@@ -48,16 +60,13 @@ export function KpiRow({ chart }: { chart: ChartSpec }) {
   );
 }
 
-export function ChartCard({ chart }: { chart: ChartSpec }) {
+// The chart + its "how to read this" caption, with no outer card — so it can
+// be dropped straight into a <Panel> body (Overview's main trend chart) as
+// well as into the standalone <ChartCard> below (Statistics tab grid).
+export function ChartBody({ chart }: { chart: ChartSpec }) {
   const color = colorFromString(chart.title);
-  const emoji = chart.chart_type === "line" ? "📈" : "📊";
-
   return (
-    <div className="card">
-      <h3 className="text-base font-semibold text-foreground mb-1 flex items-center gap-2">
-        <span>{emoji}</span>
-        {chart.title}
-      </h3>
+    <>
       <p className="text-xs text-muted mb-3">
         {chart.chart_type === "line"
           ? "How to read this: follow the line left to right to see the trend over time."
@@ -70,7 +79,7 @@ export function ChartCard({ chart }: { chart: ChartSpec }) {
               <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" />
               <XAxis dataKey={chart.x ?? "period"} stroke={AXIS_COLOR} fontSize={12} />
               <YAxis stroke={AXIS_COLOR} fontSize={12} />
-              <Tooltip />
+              <Tooltip {...TOOLTIP_STYLE} />
               <Line type="monotone" dataKey={chart.y ?? "value"} stroke={color} strokeWidth={2} dot={false} />
             </LineChart>
           ) : (
@@ -78,12 +87,25 @@ export function ChartCard({ chart }: { chart: ChartSpec }) {
               <CartesianGrid stroke={GRID_COLOR} strokeDasharray="3 3" />
               <XAxis dataKey="name" stroke={AXIS_COLOR} fontSize={12} />
               <YAxis stroke={AXIS_COLOR} fontSize={12} />
-              <Tooltip />
+              <Tooltip {...TOOLTIP_STYLE} />
               <Bar dataKey="count" fill={color} radius={[4, 4, 0, 0]} />
             </BarChart>
           )}
         </ResponsiveContainer>
       </div>
+    </>
+  );
+}
+
+export function ChartCard({ chart }: { chart: ChartSpec }) {
+  const emoji = chart.chart_type === "line" ? "📈" : "📊";
+  return (
+    <div className="card">
+      <h3 className="text-base font-semibold text-foreground mb-1 flex items-center gap-2">
+        <span>{emoji}</span>
+        {chart.title}
+      </h3>
+      <ChartBody chart={chart} />
     </div>
   );
 }

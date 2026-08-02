@@ -8,7 +8,7 @@ export function ForecastExplanationPanel({
   error: string | null;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-2">AI Forecast Narrator</h3>
       {loading && <p className="text-sm text-muted">Explaining the forecast…</p>}
       {error && !loading && (

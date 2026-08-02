@@ -93,6 +93,33 @@ def _init_db(conn: sqlite3.Connection) -> None:
     )
     conn.execute(
         """
+        CREATE TABLE IF NOT EXISTS saved_optimizations (
+            id TEXT PRIMARY KEY,
+            analysis_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            label TEXT NOT NULL,
+            saved_at TEXT NOT NULL,
+            result_json TEXT NOT NULL
+        )
+        """
+    )
+    # Only the query text is kept, not its result set — SQL results can run
+    # to hundreds of rows and are cheap to recompute by re-running the saved
+    # query, unlike a forecast/simulation/optimization run.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS saved_queries (
+            id TEXT PRIMARY KEY,
+            analysis_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            label TEXT NOT NULL,
+            saved_at TEXT NOT NULL,
+            sql_text TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS documents (
             doc_id TEXT PRIMARY KEY,
             username TEXT NOT NULL,
@@ -130,6 +157,44 @@ def _init_db(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "saved_forecasts", "persona", "persona TEXT")
     _add_column_if_missing(conn, "saved_simulations", "persona", "persona TEXT")
     _add_column_if_missing(conn, "saved_action_plans", "persona", "persona TEXT")
+    _add_column_if_missing(conn, "saved_optimizations", "persona", "persona TEXT")
+
+    # Generic cache for AI-narrated text (dataset summary, forecast
+    # explanation, action plan) keyed by analysis_id + a caller-chosen
+    # cache_key — added because that narration was being re-generated (and
+    # visibly flashing "isn't available"/re-thinking) on every refresh or
+    # tab switch instead of surviving like the rest of the analysis result.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ai_cache (
+            analysis_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            cache_key TEXT NOT NULL,
+            content_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (analysis_id, username, cache_key)
+        )
+        """
+    )
+
+    # V9: one row per incremental-model update (see incremental_model.py) —
+    # this is what lets the UI chart "accuracy improves as more data streams
+    # in" instead of just asserting it.
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS model_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            analysis_id TEXT NOT NULL,
+            username TEXT NOT NULL,
+            target_column TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            prediction REAL,
+            actual REAL NOT NULL,
+            abs_pct_error REAL,
+            n_updates INTEGER NOT NULL
+        )
+        """
+    )
     conn.commit()
 
 
@@ -219,6 +284,18 @@ def delete_dataset(analysis_id: str, username: str) -> bool:
         conn.execute(
             "DELETE FROM saved_action_plans WHERE analysis_id = ? AND username = ?", (analysis_id, username)
         )
+        conn.execute(
+            "DELETE FROM saved_optimizations WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
+        conn.execute(
+            "DELETE FROM saved_queries WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
+        conn.execute(
+            "DELETE FROM ai_cache WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
+        conn.execute(
+            "DELETE FROM model_history WHERE analysis_id = ? AND username = ?", (analysis_id, username)
+        )
         conn.commit()
         return cur.rowcount > 0
 
@@ -234,8 +311,34 @@ def delete_all_datasets(username: str) -> list[str]:
         conn.execute("DELETE FROM saved_forecasts WHERE username = ?", (username,))
         conn.execute("DELETE FROM saved_simulations WHERE username = ?", (username,))
         conn.execute("DELETE FROM saved_action_plans WHERE username = ?", (username,))
+        conn.execute("DELETE FROM saved_optimizations WHERE username = ?", (username,))
+        conn.execute("DELETE FROM saved_queries WHERE username = ?", (username,))
+        conn.execute("DELETE FROM ai_cache WHERE username = ?", (username,))
+        conn.execute("DELETE FROM model_history WHERE username = ?", (username,))
         conn.commit()
         return analysis_ids
+
+
+def get_ai_cache(analysis_id: str, username: str, cache_key: str) -> dict | None:
+    with _connect() as conn:
+        row = conn.execute(
+            "SELECT content_json FROM ai_cache WHERE analysis_id = ? AND username = ? AND cache_key = ?",
+            (analysis_id, username, cache_key),
+        ).fetchone()
+        return json.loads(row["content_json"]) if row else None
+
+
+def save_ai_cache(analysis_id: str, username: str, cache_key: str, content: dict) -> None:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_cache (analysis_id, username, cache_key, content_json, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(analysis_id, username, cache_key) DO UPDATE SET content_json = excluded.content_json, created_at = excluded.created_at
+            """,
+            (analysis_id, username, cache_key, json.dumps(content), datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
 
 
 def update_semantic_label(analysis_id: str, username: str, column_name: str, new_label: str) -> bool:
@@ -359,6 +462,65 @@ def delete_action_plan(saved_id: str, username: str) -> bool:
         return cur.rowcount > 0
 
 
+def save_optimization(analysis_id: str, username: str, label: str, result: dict, persona: str | None = None) -> str:
+    saved_id = str(uuid.uuid4())
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO saved_optimizations (id, analysis_id, username, label, saved_at, result_json, persona) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), json.dumps(result), persona),
+        )
+        conn.commit()
+    return saved_id
+
+
+def list_saved_optimizations(analysis_id: str, username: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, label, saved_at, result_json, persona FROM saved_optimizations WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
+            (analysis_id, username),
+        ).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["result"] = json.loads(d.pop("result_json"))
+            out.append(d)
+        return out
+
+
+def delete_optimization(saved_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM saved_optimizations WHERE id = ? AND username = ?", (saved_id, username))
+        conn.commit()
+        return cur.rowcount > 0
+
+
+def save_query(analysis_id: str, username: str, label: str, sql_text: str) -> str:
+    saved_id = str(uuid.uuid4())
+    with _connect() as conn:
+        conn.execute(
+            "INSERT INTO saved_queries (id, analysis_id, username, label, saved_at, sql_text) VALUES (?, ?, ?, ?, ?, ?)",
+            (saved_id, analysis_id, username, label, datetime.now(timezone.utc).isoformat(), sql_text),
+        )
+        conn.commit()
+    return saved_id
+
+
+def list_saved_queries(analysis_id: str, username: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT id, label, saved_at, sql_text FROM saved_queries WHERE analysis_id = ? AND username = ? ORDER BY saved_at DESC",
+            (analysis_id, username),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def delete_query(saved_id: str, username: str) -> bool:
+    with _connect() as conn:
+        cur = conn.execute("DELETE FROM saved_queries WHERE id = ? AND username = ?", (saved_id, username))
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def save_document(doc_id: str, username: str, filename: str, chunk_count: int) -> None:
     with _connect() as conn:
         conn.execute(
@@ -441,3 +603,36 @@ def delete_workspace(workspace_id: str, username: str) -> bool:
         cur = conn.execute("DELETE FROM workspaces WHERE workspace_id = ? AND username = ?", (workspace_id, username))
         conn.commit()
         return cur.rowcount > 0
+
+
+def log_model_update(analysis_id: str, username: str, target_column: str, update: dict) -> None:
+    with _connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO model_history (analysis_id, username, target_column, updated_at, prediction, actual, abs_pct_error, n_updates)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                analysis_id,
+                username,
+                target_column,
+                datetime.now(timezone.utc).isoformat(),
+                update.get("prediction_before_update"),
+                update["actual"],
+                update.get("abs_pct_error"),
+                update["n_updates"],
+            ),
+        )
+        conn.commit()
+
+
+def get_model_history(analysis_id: str, username: str, target_column: str) -> list[dict]:
+    with _connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT updated_at, prediction, actual, abs_pct_error, n_updates FROM model_history
+            WHERE analysis_id = ? AND username = ? AND target_column = ? ORDER BY id ASC
+            """,
+            (analysis_id, username, target_column),
+        ).fetchall()
+        return [dict(r) for r in rows]

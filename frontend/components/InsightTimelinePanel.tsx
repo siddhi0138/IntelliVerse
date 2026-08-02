@@ -4,7 +4,7 @@ export function InsightTimelinePanel({ timeline }: { timeline: InsightTimelineEn
   if (timeline.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="card p-4">
       <h3 className="text-base font-semibold text-foreground mb-3">Insight Timeline</h3>
       <ol className="relative border-l border-border ml-2 space-y-4">
         {timeline.map((entry) => (

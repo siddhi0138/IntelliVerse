@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { deleteAllDatasets, listDatasets } from "@/lib/api";
+import { userScopedKey } from "@/lib/auth";
 import type { CatalogEntry } from "@/lib/types";
+import { PALETTE } from "@/components/charts";
 
 function scoreColor(score: number): string {
   if (score >= 80) return "text-emerald-600 dark:text-emerald-400";
@@ -37,7 +39,8 @@ export default function CatalogPage() {
       setDatasets([]);
       // Same cross-tab pattern as a single delete — any other open tab
       // showing one of these (now-gone) datasets resets itself too.
-      localStorage.removeItem("nexus_last_analysis");
+      localStorage.removeItem(userScopedKey("nexus_last_analysis"));
+      localStorage.removeItem(userScopedKey("nexus_last_filename"));
       localStorage.setItem("nexus_dataset_deleted", "ALL");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not empty the catalog.");
@@ -63,10 +66,7 @@ export default function CatalogPage() {
               {emptying ? "Emptying…" : "Empty catalog"}
             </button>
           )}
-          <Link
-            href="/"
-            className="text-sm font-medium text-muted hover:text-primary hover:bg-surface rounded-full px-3 py-1.5 whitespace-nowrap"
-          >
+          <Link href="/" className="btn-secondary whitespace-nowrap rounded-full">
             &larr; Back to upload
           </Link>
         </div>
@@ -81,36 +81,63 @@ export default function CatalogPage() {
       )}
 
       {datasets && datasets.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface overflow-x-auto shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-muted">
-                <th className="px-4 py-2 font-medium">Filename</th>
-                <th className="px-4 py-2 font-medium">Uploaded</th>
-                <th className="px-4 py-2 font-medium">Domain</th>
-                <th className="px-4 py-2 font-medium">Rows &times; Cols</th>
-                <th className="px-4 py-2 font-medium">Quality</th>
-              </tr>
-            </thead>
-            <tbody>
-              {datasets.map((d) => (
-                <tr
-                  key={d.analysis_id}
-                  onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
-                  className="border-b border-border/60 last:border-0 cursor-pointer hover:bg-surface-elevated/60"
-                >
-                  <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
-                  <td className="px-4 py-2 text-muted">{new Date(d.uploaded_at).toLocaleString()}</td>
-                  <td className="px-4 py-2">{d.domain}</td>
-                  <td className="px-4 py-2 text-muted">
+        <>
+          {/* Mobile: stacked cards — a wide table forced to scroll
+              horizontally isn't a real mobile layout, and this dataset
+              catalog is one of the first pages a phone-sized screen hits. */}
+          <div className="space-y-3 sm:hidden">
+            {datasets.map((d, i) => (
+              <button
+                key={d.analysis_id}
+                onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
+                className="card block w-full p-4 text-left"
+                style={{ boxShadow: `inset 3px 0 0 0 ${PALETTE[i % PALETTE.length]}` }}
+              >
+                <p className="font-mono text-xs text-foreground truncate">{d.filename}</p>
+                <p className="text-xs text-muted mt-1">{new Date(d.uploaded_at).toLocaleString()}</p>
+                <div className="mt-3 flex items-center justify-between text-xs">
+                  <span className="badge">{d.domain}</span>
+                  <span className="text-muted">
                     {d.row_count.toLocaleString()} &times; {d.column_count}
-                  </td>
-                  <td className={`px-4 py-2 font-medium ${scoreColor(d.quality_score)}`}>{d.quality_score}</td>
+                  </span>
+                  <span className={`font-semibold ${scoreColor(d.quality_score)}`}>{d.quality_score}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="hidden sm:block card p-0 overflow-x-auto shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted">
+                  <th className="px-4 py-2 font-medium">Filename</th>
+                  <th className="px-4 py-2 font-medium">Uploaded</th>
+                  <th className="px-4 py-2 font-medium">Domain</th>
+                  <th className="px-4 py-2 font-medium">Rows &times; Cols</th>
+                  <th className="px-4 py-2 font-medium">Quality</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {datasets.map((d, i) => (
+                  <tr
+                    key={d.analysis_id}
+                    onClick={() => (window.location.href = `/?reopen=${encodeURIComponent(d.analysis_id)}`)}
+                    className="border-b border-border/60 last:border-0 cursor-pointer hover:bg-surface-elevated/60"
+                    style={{ boxShadow: `inset 3px 0 0 0 ${PALETTE[i % PALETTE.length]}` }}
+                  >
+                    <td className="px-4 py-2 font-mono text-xs">{d.filename}</td>
+                    <td className="px-4 py-2 text-muted">{new Date(d.uploaded_at).toLocaleString()}</td>
+                    <td className="px-4 py-2">{d.domain}</td>
+                    <td className="px-4 py-2 text-muted">
+                      {d.row_count.toLocaleString()} &times; {d.column_count}
+                    </td>
+                    <td className={`px-4 py-2 font-medium ${scoreColor(d.quality_score)}`}>{d.quality_score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </main>
   );

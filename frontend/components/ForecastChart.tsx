@@ -3,6 +3,7 @@
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { Forecast, ForecastEligibility } from "@/lib/types";
 import { forecastConfidence } from "@/lib/plainLanguage";
+import { TOOLTIP_STYLE } from "./charts";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import { ExpandableDetail } from "./ExpandableDetail";
 import { Term } from "./Term";
@@ -114,9 +115,9 @@ export function ForecastChart({
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
             <XAxis dataKey="period" stroke="#64748b" fontSize={12} />
             <YAxis stroke="#64748b" fontSize={12} />
-            <Tooltip />
+            <Tooltip {...TOOLTIP_STYLE} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey="actual" name="Actual" stroke="#2dd4bf" strokeWidth={2} dot={false} connectNulls={false} />
+            <Line type="monotone" dataKey="actual" name="Actual" stroke="#7dd3fc" strokeWidth={2} dot={false} connectNulls={false} />
             <Line type="monotone" dataKey="forecast" name="Forecast" stroke="#a78bfa" strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls />
             <Line type="monotone" dataKey="upper" name="Upper bound" stroke="#a78bfa" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />
             <Line type="monotone" dataKey="lower" name="Lower bound" stroke="#a78bfa" strokeOpacity={0.4} strokeWidth={1} strokeDasharray="2 3" dot={false} connectNulls />

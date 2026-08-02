@@ -78,7 +78,7 @@ export function SchemaTable({ schema, analysisId }: { schema: ColumnSchema[]; an
   const [localSchema, setLocalSchema] = useState(schema);
 
   return (
-    <div className="rounded-xl border border-border bg-surface overflow-x-auto">
+    <div className="card p-0 overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted">
