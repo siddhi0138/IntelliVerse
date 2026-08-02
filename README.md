@@ -283,7 +283,17 @@ separately:
 
 ### Frontend → Vercel
 1. Import this repo, set the project root to `frontend/`.
-2. Set `NEXT_PUBLIC_API_BASE` to your deployed backend's URL.
+2. Set `NEXT_PUBLIC_API_BASE` to your deployed backend's URL — **before your
+   first build**, or before any build you want it to take effect in. Next.js
+   bakes `NEXT_PUBLIC_*` variables into the client-side JS at *build* time,
+   not at request time — setting it in Vercel's dashboard after the fact
+   does nothing until you trigger a new deploy. Skip this and every visitor's
+   browser tries to call `http://localhost:8001` (the dev fallback) instead
+   of your real backend — every request fails, with no obvious error beyond
+   "can't reach localhost." If this happens, the app itself now logs a clear
+   console error naming the problem, but only after you've deployed with it
+   missing at least once — so it's worth double-checking this variable
+   *before* your first production build, not after debugging a broken deploy.
 3. Vercel auto-detects Next.js — no further config needed.
 
 ### Backend → Render
@@ -293,6 +303,15 @@ separately:
 3. Create a second Render service for Neo4j from the `neo4j:5.26-community`
    Docker image, with a persistent disk mounted for `/data`.
 4. Add the environment variables below to the backend Web Service.
+5. Real-time streaming (Kafka) is **not** part of this Render setup — Kafka
+   only runs inside the local `docker-compose` stack, and Render hosts just
+   the one backend web service, no broker alongside it. The backend retries
+   connecting (with capped exponential backoff, not a fixed 5s hammer) and
+   logs a warning periodically, but the "Go live" feature genuinely won't
+   work on a Render-only deployment. To make it work there too, provision a
+   separate hosted Kafka (e.g. Upstash Kafka's free tier speaks the same
+   protocol) and set `KAFKA_BOOTSTRAP_SERVERS` to it — otherwise this is an
+   expected gap, not a bug, and every other feature is unaffected.
 
 **Environment variables to add on Render:**
 

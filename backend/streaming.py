@@ -139,7 +139,17 @@ async def run_consumer(df_cache: dict[str, pd.DataFrame], primary_metric_getter)
     """One global consumer for the whole process — routes each message to
     the right dataset's live state by analysis_id. Started once at app
     startup; keeps retrying if Kafka isn't reachable yet (it's a sibling
-    container that may still be booting)."""
+    container that may still be booting).
+
+    Some deployments (e.g. a single Render web service, with no Kafka
+    container alongside it) never have a broker to reach at all — the
+    real-time streaming feature simply isn't available there, same as any
+    other optional dependency. Retrying forever at a fixed 5s interval would
+    spam the logs indefinitely in that case, so the backoff grows (capped at
+    2 minutes) instead, and the "still waiting" log line only repeats every
+    10th attempt once it's clearly not a brief startup race anymore."""
+    backoff = 5.0
+    attempt = 0
     while True:
         try:
             consumer = AIOKafkaConsumer(
@@ -151,10 +161,19 @@ async def run_consumer(df_cache: dict[str, pd.DataFrame], primary_metric_getter)
             )
             await consumer.start()
         except Exception as exc:
-            logger.warning(f"Kafka consumer could not start yet ({exc}); retrying in 5s.")
-            await asyncio.sleep(5)
+            attempt += 1
+            if attempt <= 3 or attempt % 10 == 0:
+                logger.warning(
+                    f"Kafka consumer could not start yet ({exc}); retrying in {backoff:.0f}s "
+                    f"(attempt {attempt} — if this keeps failing, this deployment likely has no "
+                    f"Kafka broker configured, and real-time streaming just isn't available here)."
+                )
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 120.0)
             continue
 
+        backoff = 5.0
+        attempt = 0
         try:
             async for msg in consumer:
                 try:

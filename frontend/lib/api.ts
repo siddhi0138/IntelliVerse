@@ -36,6 +36,20 @@ import { clearToken, getToken } from "./auth";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8001";
 const WS_BASE = API_BASE.replace(/^http/, "ws");
 
+// NEXT_PUBLIC_API_BASE is baked in at Vercel *build* time, not read at
+// runtime — forgetting to set it before a production build silently ships
+// "http://localhost:8001" to every visitor, so every API call fails against
+// their own machine instead of the real backend. That failure mode looked
+// like a mysterious "localhost" network error with no clue why — this is
+// the same problem made loud and obvious instead.
+if (typeof window !== "undefined" && !["localhost", "127.0.0.1"].includes(window.location.hostname) && API_BASE.includes("localhost")) {
+  console.error(
+    "IntelliVerse is running on a deployed domain but NEXT_PUBLIC_API_BASE was never set at build time, " +
+      "so every API call is pointed at http://localhost:8001 instead of the real backend. " +
+      "Set NEXT_PUBLIC_API_BASE in your Vercel project's environment variables and redeploy."
+  );
+}
+
 // Mirrors MAX_UPLOAD_BYTES in backend/main.py — checked client-side too so
 // a large file is rejected instantly instead of after a slow upload.
 export const MAX_UPLOAD_BYTES = 25_000_000;
