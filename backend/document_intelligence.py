@@ -6,13 +6,19 @@ reports, SOPs, meeting notes) are different: there IS something to
 retrieve, so retrieval-then-narrate is a genuine, not performative, use
 of the pattern every other LLM call in this backend already follows.
 
-Embeddings run locally via sentence-transformers — no external API key,
-consistent with the rest of this project's "self-hosted over SaaS"
-bias (Prometheus/Grafana over Sentry/Langfuse). Qdrant runs in local
-on-disk mode (no separate server process) for the same reason SQLite
-backs the dataset catalog: this is a local-first tool, and a full
-Qdrant server is unneeded complexity until there's a reason to scale
-retrieval across processes.
+Embeddings run locally via fastembed — no external API key, consistent
+with the rest of this project's "self-hosted over SaaS" bias
+(Prometheus/Grafana over Sentry/Langfuse). fastembed (not
+sentence-transformers) specifically: it runs the same MiniLM-family model
+through ONNX Runtime instead of PyTorch, which avoids the ~500MB+ of
+resident memory PyTorch alone costs — on a memory-constrained deployment
+(e.g. Render's free tier, ~512MB) that difference was the gap between this
+feature working and it OOM-killing the entire backend process the first
+time anyone uploaded a document, not just this feature returning an error.
+Qdrant runs in local on-disk mode (no separate server process) for the
+same reason SQLite backs the dataset catalog: this is a local-first tool,
+and a full Qdrant server is unneeded complexity until there's a reason to
+scale retrieval across processes.
 
 LlamaIndex wasn't adopted for the chunk/embed/retrieve pipeline itself:
 its real value is multi-source query orchestration, which a single
@@ -43,18 +49,18 @@ from qdrant_client.models import (
 )
 
 if TYPE_CHECKING:
-    # sentence_transformers pulls in torch, one of the heaviest imports in
-    # this backend — deferred to _get_model() below so a process that never
-    # touches document Q&A never pays for it.
-    from sentence_transformers import SentenceTransformer
+    # fastembed still isn't free (ONNX Runtime + the model weights), so it
+    # stays deferred to _get_model() below — a process that never touches
+    # document Q&A never pays for it.
+    from fastembed import TextEmbedding
 
 _QDRANT_PATH = Path(__file__).parent / "data" / "qdrant"
 _COLLECTION = "documents"
-_EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+_EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 _EMBEDDING_DIM = 384
 
 _client: QdrantClient | None = None
-_model: SentenceTransformer | None = None
+_model: TextEmbedding | None = None
 
 
 class UnsupportedDocumentError(Exception):
@@ -74,12 +80,12 @@ def _get_client() -> QdrantClient:
     return _client
 
 
-def _get_model() -> "SentenceTransformer":
+def _get_model() -> "TextEmbedding":
     global _model
     if _model is None:
-        from sentence_transformers import SentenceTransformer
+        from fastembed import TextEmbedding
 
-        _model = SentenceTransformer(_EMBEDDING_MODEL_NAME)
+        _model = TextEmbedding(model_name=_EMBEDDING_MODEL_NAME)
     return _model
 
 
@@ -127,7 +133,7 @@ def ingest_document(username: str, doc_id: str, filename: str, content: bytes) -
         return 0
 
     model = _get_model()
-    embeddings = model.encode(chunks, show_progress_bar=False)
+    embeddings = list(model.embed(chunks))
     client = _get_client()
     points = [
         PointStruct(
@@ -150,7 +156,7 @@ def ingest_document(username: str, doc_id: str, filename: str, content: bytes) -
 def search(username: str, query: str, limit: int = 5) -> list[dict]:
     client = _get_client()
     model = _get_model()
-    query_vector = model.encode([query])[0].tolist()
+    query_vector = next(model.embed([query])).tolist()
     results = client.query_points(
         _COLLECTION,
         query=query_vector,
