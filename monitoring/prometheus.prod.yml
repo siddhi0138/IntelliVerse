@@ -1,0 +1,15 @@
+## Production variant of prometheus.yml, for the Prometheus instance deployed
+## as its own Render service. The local one (prometheus.yml) scrapes the
+## docker-compose backend over its internal network name and plain HTTP;
+## this one scrapes the real deployed backend over the public internet via
+## HTTPS instead. Paste this as a Render "Secret File" at
+## /etc/prometheus/prometheus.yml on the Prometheus service — see the
+## Deployment section of README.md for the full walkthrough.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: intelliverse-backend
+    scheme: https
+    static_configs:
+      - targets: ["intelliverse-ci8c.onrender.com"]
