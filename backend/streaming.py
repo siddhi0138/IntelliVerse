@@ -19,6 +19,7 @@ import asyncio
 import json
 import os
 import random
+import ssl
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -30,8 +31,40 @@ from incremental_model import IncrementalMetricModel
 from schema_inference import ColumnSchema
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+# Local/docker-compose Kafka is unauthenticated PLAINTEXT (the default,
+# unchanged). A hosted broker — Aiven for Apache Kafka (verified working),
+# Redpanda Cloud, Confluent Cloud, etc. — needs SASL_SSL plus real
+# credentials instead, e.g. KAFKA_SECURITY_PROTOCOL=SASL_SSL,
+# KAFKA_SASL_MECHANISM=SCRAM-SHA-256, KAFKA_SASL_USERNAME/KAFKA_SASL_PASSWORD
+# from that provider (plus KAFKA_SSL_CA_CERT below if it signs its own
+# certificate) — configured generically via env vars rather than hardcoding
+# one provider's shape.
+KAFKA_SECURITY_PROTOCOL = os.environ.get("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT")
+KAFKA_SASL_MECHANISM = os.environ.get("KAFKA_SASL_MECHANISM", "PLAIN")
+KAFKA_SASL_USERNAME = os.environ.get("KAFKA_SASL_USERNAME")
+KAFKA_SASL_PASSWORD = os.environ.get("KAFKA_SASL_PASSWORD")
+# Some hosted brokers (Aiven, etc.) sign their server certificate with their
+# own private CA rather than a publicly-trusted one — the system's default
+# trust store rejects it (CERTIFICATE_VERIFY_FAILED) unless that CA is
+# explicitly trusted too. Holds the CA cert's PEM content directly (not a
+# file path), since that's what a platform's env var UI can actually hold.
+# Some UIs only accept single-line values, so a literal "\n" is unescaped
+# back into a real newline before use.
+KAFKA_SSL_CA_CERT = os.environ.get("KAFKA_SSL_CA_CERT")
 TOPIC = "intelliverse.live-rows"
 PRODUCE_INTERVAL_SECONDS = 4.0
+
+
+def _kafka_auth_kwargs() -> dict:
+    kwargs: dict = {"security_protocol": KAFKA_SECURITY_PROTOCOL}
+    if "SSL" in KAFKA_SECURITY_PROTOCOL:
+        cadata = KAFKA_SSL_CA_CERT.replace("\\n", "\n") if KAFKA_SSL_CA_CERT else None
+        kwargs["ssl_context"] = ssl.create_default_context(cadata=cadata)
+    if "SASL" in KAFKA_SECURITY_PROTOCOL:
+        kwargs["sasl_mechanism"] = KAFKA_SASL_MECHANISM
+        kwargs["sasl_plain_username"] = KAFKA_SASL_USERNAME
+        kwargs["sasl_plain_password"] = KAFKA_SASL_PASSWORD
+    return kwargs
 
 
 @dataclass
@@ -86,6 +119,7 @@ async def _get_producer() -> AIOKafkaProducer:
         _PRODUCER = AIOKafkaProducer(
             bootstrap_servers=KAFKA_BOOTSTRAP,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            **_kafka_auth_kwargs(),
         )
         await _PRODUCER.start()
     return _PRODUCER
@@ -158,10 +192,18 @@ async def run_consumer(df_cache: dict[str, pd.DataFrame], primary_metric_getter)
                 value_deserializer=lambda v: json.loads(v.decode("utf-8")),
                 auto_offset_reset="latest",
                 group_id="intelliverse-backend",
+                **_kafka_auth_kwargs(),
             )
             await consumer.start()
         except Exception as exc:
             attempt += 1
+            if attempt == 1:
+                # Full traceback + chained cause on the very first failure
+                # only — "Connection ... closed" alone doesn't say whether
+                # this failed during the TLS handshake, SASL login, or
+                # something else entirely, and that's the one thing needed
+                # to actually diagnose a hosted-broker misconfiguration.
+                logger.opt(exception=True).error(f"Kafka consumer failed to start (attempt 1): {exc!r}")
             if attempt <= 3 or attempt % 10 == 0:
                 logger.warning(
                     f"Kafka consumer could not start yet ({exc}); retrying in {backoff:.0f}s "

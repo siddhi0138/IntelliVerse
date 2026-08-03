@@ -191,6 +191,7 @@ uvicorn main:app --port 8001
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Knowledge graph database |
 | `POSTGRES_DSN` | Auth database |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker for real-time streaming (default `localhost:9092`) |
+| `KAFKA_SECURITY_PROTOCOL`, `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SSL_CA_CERT` | Only needed against a hosted Kafka (e.g. Aiven for Apache Kafka, Redpanda Cloud) instead of the unauthenticated local broker — see `.env.example` for the exact values it expects. `KAFKA_SSL_CA_CERT` is only required if the provider signs its server certificate with its own private CA (Aiven does) rather than a publicly-trusted one |
 | `JWT_SECRET_KEY` | Signs auth tokens — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | Token lifetime (default 1440 = 24h) |
 
@@ -271,15 +272,18 @@ separately:
 3. Create a second Render service for Neo4j from the `neo4j:5.26-community`
    Docker image, with a persistent disk mounted for `/data`.
 4. Add the environment variables below to the backend Web Service.
-5. Real-time streaming (Kafka) is **not** part of this Render setup — Kafka
-   only runs inside the local `docker-compose` stack, and Render hosts just
-   the one backend web service, no broker alongside it. The backend retries
-   connecting (with capped exponential backoff, not a fixed 5s hammer) and
-   logs a warning periodically, but the "Go live" feature genuinely won't
-   work on a Render-only deployment. To make it work there too, provision a
-   separate hosted Kafka (e.g. Upstash Kafka's free tier speaks the same
-   protocol) and set `KAFKA_BOOTSTRAP_SERVERS` to it — otherwise this is an
-   expected gap, not a bug, and every other feature is unaffected.
+5. Real-time streaming (Kafka) is **not** part of this Render setup by
+   default — Kafka only runs inside the local `docker-compose` stack, and
+   Render hosts just the one backend web service, no broker alongside it.
+   Without it, the backend retries connecting (with capped exponential
+   backoff, not a fixed 5s hammer) and logs a warning periodically, but the
+   "Go live" feature genuinely won't work. To make it work on Render too,
+   sign up for a free hosted Kafka (e.g. **Aiven for Apache Kafka** — a
+   genuinely free tier, no trial expiry, though it auto-pauses after 24h of
+   inactivity and needs a manual "power on" from Aiven's console) and add
+   the variables below — a hosted broker needs login credentials over an
+   encrypted connection, unlike the unauthenticated local one, which is
+   exactly what those variables are for.
 
 **Environment variables to add on Render:**
 
@@ -295,6 +299,11 @@ separately:
 | `POSTGRES_DSN` | The Internal Database URL from your Render Postgres instance |
 | `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | `1440` |
+| `KAFKA_BOOTSTRAP_SERVERS` *(optional)* | Only if using a hosted Kafka, e.g. `<service-name>.aivencloud.com:<port>` |
+| `KAFKA_SECURITY_PROTOCOL` *(optional)* | `SASL_SSL` |
+| `KAFKA_SASL_MECHANISM` *(optional)* | `SCRAM-SHA-256` |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` *(optional)* | From your Kafka provider's console |
+| `KAFKA_SSL_CA_CERT` *(optional)* | The provider's CA Certificate download, pasted as-is — needed for providers (like Aiven) that sign their server certificate with a private CA |
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
