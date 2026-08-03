@@ -121,8 +121,12 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
   grounded only in retrieved excerpts, cited by filename
 - Optionally combine document retrieval with a dataset's own ranked findings
   in the same answer — genuinely grounded in both, not just documents alone
-- Runs fully locally: sentence-transformers for embeddings, Qdrant for storage —
-  no external API key required
+- Runs fully locally: fastembed (ONNX, no PyTorch) for embeddings, Qdrant for
+  storage — no external API key required. Deliberately not
+  sentence-transformers: that pulls in the full PyTorch stack, and the
+  ~500MB+ of extra resident memory was enough on its own to OOM-kill a
+  memory-constrained deployment (Render's free tier) the first time anyone
+  uploaded a document
 
 **🎨 Personalization**
 - Manual light/dark mode toggle (top bar) — persisted per browser, applied
@@ -149,9 +153,9 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 | Backend | FastAPI, Python 3.12+ |
 | Data processing | pandas, NumPy, DuckDB, Polars + PyArrow |
 | Statistics/ML | SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet, SHAP |
-| Databases | PostgreSQL (auth), Neo4j (knowledge graph), SQLite (catalog), Qdrant (documents) |
+| Databases | PostgreSQL (auth + catalog), Neo4j (knowledge graph), Qdrant (documents) |
 | Streaming & online learning | Apache Kafka (KRaft, single-node), aiokafka, scikit-learn `SGDRegressor` + `joblib` persistence |
-| Document intelligence | sentence-transformers, pypdf, python-docx, python-pptx |
+| Document intelligence | fastembed (ONNX embeddings, no PyTorch), pypdf, python-docx, python-pptx |
 | Validation | Great Expectations |
 | Reports | openpyxl, ReportLab, python-pptx |
 | Auth | bcrypt, python-jose (JWT) |
@@ -189,7 +193,7 @@ uvicorn main:app --port 8001
 |---|---|
 | `FREELLMAPI_BASE_URL`, `FREELLMAPI_API_KEY`, `FREELLMAPI_MODEL` | LLM endpoint for narration (FreeLLMAPI or a local Ollama) |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Knowledge graph database |
-| `POSTGRES_DSN` | Auth database |
+| `POSTGRES_DSN` | Auth *and* the dataset catalog (datasets, saved items, ask history, model history) |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker for real-time streaming (default `localhost:9092`) |
 | `KAFKA_SECURITY_PROTOCOL`, `KAFKA_SASL_MECHANISM`, `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SSL_CA_CERT` | Only needed against a hosted Kafka (e.g. Aiven for Apache Kafka, Redpanda Cloud) instead of the unauthenticated local broker — see `.env.example` for the exact values it expects. `KAFKA_SSL_CA_CERT` is only required if the provider signs its server certificate with its own private CA (Aiven does) rather than a publicly-trusted one |
 | `JWT_SECRET_KEY` | Signs auth tokens — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
@@ -269,6 +273,10 @@ separately:
 1. Create a **Web Service** from this repo, root directory `backend/` — Render
    detects `Dockerfile` and builds/deploys it directly.
 2. Create a **Render Postgres** instance and copy its Internal Database URL.
+   This backs both auth *and* the dataset catalog (see below) — every
+   dataset, saved forecast/simulation/optimization/query, ask-history
+   exchange, and incremental-learning update lives here, not on the
+   backend's own disk.
 3. Create a second Render service for Neo4j from the `neo4j:5.26-community`
    Docker image, with a persistent disk mounted for `/data`.
 4. Add the environment variables below to the backend Web Service.
@@ -290,7 +298,7 @@ separately:
 | Variable | Value |
 |---|---|
 | `FRONTEND_ORIGINS` | Your Vercel domain, e.g. `https://your-app.vercel.app` (comma-separate if you have more than one) |
-| `FREELLMAPI_BASE_URL` | Your LLM endpoint's base URL |
+| `FREELLMAPI_BASE_URL` | Your LLM endpoint's base URL — must be a real, publicly reachable endpoint. `localhost` (even the code's own default) means "this container," not your laptop, so a local Ollama only works if it's likewise reachable, e.g. via a tunnel — most deployments point this at a real hosted LLM instead |
 | `FREELLMAPI_API_KEY` | Your LLM endpoint's API key |
 | `FREELLMAPI_MODEL` | `auto` (or a specific model name) |
 | `NEO4J_URI` | `bolt://<your-neo4j-service>.onrender.com:7687` |
@@ -303,7 +311,52 @@ separately:
 | `KAFKA_SECURITY_PROTOCOL` *(optional)* | `SASL_SSL` |
 | `KAFKA_SASL_MECHANISM` *(optional)* | `SCRAM-SHA-256` |
 | `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` *(optional)* | From your Kafka provider's console |
-| `KAFKA_SSL_CA_CERT` *(optional)* | The provider's CA Certificate download, pasted as-is — needed for providers (like Aiven) that sign their server certificate with a private CA |
+| `KAFKA_SSL_CA_CERT` *(optional)* | The provider's CA Certificate download, pasted as-is (real or `\n`-escaped newlines both work) — needed for providers (like Aiven) that sign their server certificate with a private CA |
+
+### Monitoring → Render (Prometheus + Grafana)
+
+Render's "deploy an existing image" path only accepts flat **Secret Files**
+(no subdirectories), which can't reproduce Grafana's `datasources/` +
+`dashboards/` provisioning structure — so the two services are set up
+differently:
+
+1. **Prometheus**: New Web Service → **"Deploy an existing image from a
+   registry"** → image `prom/prometheus:v3.6.0`. Add a Secret File named
+   `prometheus.yml` (just the filename — Render mounts it at
+   `/etc/secrets/prometheus.yml`) with the contents of
+   `monitoring/prometheus.prod.yml` (scrapes your real backend URL over
+   HTTPS, not the docker-compose internal hostname). Set the service's
+   **Docker Command** to
+   `--config.file=/etc/secrets/prometheus.yml --storage.tsdb.path=/prometheus`
+   — Render's Docker Command replaces the launch command entirely, so the
+   binary path must be included, not just the flags.
+2. **Grafana**: New Web Service → **"Build and deploy from a Git
+   repository"** (not an existing image) → root directory
+   `monitoring/grafana-prod`. This builds a tiny image from the repo's own
+   Dockerfile that copies in the same dashboard as local dev, pre-pointed
+   at your deployed Prometheus service's URL. Add environment variable
+   `GF_SECURITY_ADMIN_PASSWORD` to whatever you want the admin login to be.
+3. Both are genuinely free-tier services with no persistent disk — restarts
+   don't lose anything meaningful since the whole setup is provisioned from
+   files in the repo, not manual UI configuration; only historical metrics
+   (not the dashboard itself) reset on a restart.
+
+### What still doesn't survive a Render restart
+
+Datasets, saved forecasts/simulations/optimizations/queries, ask history,
+and incremental-learning progress all live in Postgres now (see step 2
+above) — a backend redeploy no longer loses any of that. Two things still
+sit on the backend's own (ephemeral) disk, so a redeploy does reset them:
+
+- **Qdrant** (Knowledge Assistant's document vectors) — runs in local
+  on-disk mode inside the backend container. Fixing this the same way as
+  Kafka/Postgres would mean pointing `document_intelligence.py` at a hosted
+  Qdrant instead (Qdrant Cloud has a free tier) — not done yet.
+- **Incremental-learning model files** (`backend/data/models/*.joblib`) —
+  the *history* of each update is in Postgres (`model_history`) and
+  survives fine; only the live model's current learned weights reset, so
+  it resumes learning from scratch on the next row rather than losing any
+  visible history.
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
@@ -347,7 +400,7 @@ backend/
   report.py                     PDF/Excel/PPTX export
   progress_jobs.py              WebSocket progress streaming
   auth.py                       Users, JWT, bcrypt
-  catalog.py                    SQLite dataset/document metadata store
+  catalog.py                    Postgres dataset/document metadata store
   document_intelligence.py      Document chunking, embedding, Qdrant storage/search
   document_qa.py                Retrieval-then-narrate over documents + structured findings
   logging_config.py             Loguru setup
