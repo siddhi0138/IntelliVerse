@@ -16,7 +16,6 @@ export function AskIntelliVerse({
   primaryMetric: string | null;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [historyLoaded, setHistoryLoaded] = useState(false);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,15 +27,11 @@ export function AskIntelliVerse({
   // fresh mount just replays it instead of starting blank.
   useEffect(() => {
     let cancelled = false;
-    setHistoryLoaded(false);
     fetchAskHistory(analysisId)
       .then((history) => {
         if (!cancelled) setMessages(history);
       })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setHistoryLoaded(true);
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -83,7 +78,7 @@ export function AskIntelliVerse({
     <div className="card p-4">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-base font-semibold text-foreground">Ask IntelliVerse</h3>
-        {historyLoaded && messages.length > 0 && (
+        {messages.length > 0 && (
           <button
             onClick={handleClearHistory}
             disabled={clearing}
@@ -94,7 +89,7 @@ export function AskIntelliVerse({
         )}
       </div>
 
-      {historyLoaded && messages.length > 0 && (
+      {messages.length > 0 && (
         <div className="space-y-4 mb-4 max-h-[480px] overflow-y-auto">
           {messages.map((m, i) => (
             <div key={i} className="group border-b border-border/60 last:border-0 pb-4 last:pb-0">
