@@ -30,6 +30,7 @@ what's actually being done here.
 from __future__ import annotations
 
 import io
+import os
 import re
 import uuid
 from pathlib import Path
@@ -55,6 +56,8 @@ if TYPE_CHECKING:
     from fastembed import TextEmbedding
 
 _QDRANT_PATH = Path(__file__).parent / "data" / "qdrant"
+_QDRANT_URL = os.environ.get("QDRANT_URL")
+_QDRANT_API_KEY = os.environ.get("QDRANT_API_KEY")
 _COLLECTION = "documents"
 _EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 _EMBEDDING_DIM = 384
@@ -70,8 +73,16 @@ class UnsupportedDocumentError(Exception):
 def _get_client() -> QdrantClient:
     global _client
     if _client is None:
-        _QDRANT_PATH.mkdir(parents=True, exist_ok=True)
-        _client = QdrantClient(path=str(_QDRANT_PATH))
+        # QDRANT_URL set (e.g. a Qdrant Cloud free-tier cluster) means a
+        # real hosted instance — required in production, since local
+        # on-disk mode lives on the backend's own ephemeral disk and gets
+        # wiped on every Render redeploy. Local dev without QDRANT_URL set
+        # keeps using on-disk mode, same as always.
+        if _QDRANT_URL:
+            _client = QdrantClient(url=_QDRANT_URL, api_key=_QDRANT_API_KEY)
+        else:
+            _QDRANT_PATH.mkdir(parents=True, exist_ok=True)
+            _client = QdrantClient(path=str(_QDRANT_PATH))
         if not _client.collection_exists(_COLLECTION):
             _client.create_collection(
                 _COLLECTION,

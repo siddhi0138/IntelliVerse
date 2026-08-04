@@ -121,8 +121,10 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
   grounded only in retrieved excerpts, cited by filename
 - Optionally combine document retrieval with a dataset's own ranked findings
   in the same answer — genuinely grounded in both, not just documents alone
-- Runs fully locally: fastembed (ONNX, no PyTorch) for embeddings, Qdrant for
-  storage — no external API key required. Deliberately not
+- Embeddings run fully locally via fastembed (ONNX, no PyTorch) — no
+  external API key required, unlike the LLM calls elsewhere in this app.
+  Qdrant handles storage (on-disk locally by default, or a hosted free
+  tier like Qdrant Cloud in production — see Deployment below). Deliberately not
   sentence-transformers: that pulls in the full PyTorch stack, and the
   ~500MB+ of extra resident memory was enough on its own to OOM-kill a
   memory-constrained deployment (Render's free tier) the first time anyone
@@ -309,6 +311,11 @@ separately:
    the variables below — a hosted broker needs login credentials over an
    encrypted connection, unlike the unauthenticated local one, which is
    exactly what those variables are for.
+6. Knowledge Assistant's document vectors (Qdrant) also default to
+   on-disk mode inside the backend container — fine locally, but reset on
+   every Render redeploy. Sign up for a free [Qdrant
+   Cloud](https://qdrant.tech/cloud/) cluster (permanently free, no card)
+   and add `QDRANT_URL`/`QDRANT_API_KEY` below to point at it instead.
 
 **Environment variables to add on Render:**
 
@@ -324,6 +331,8 @@ separately:
 | `POSTGRES_DSN` | Your Neon project's connection string (includes `?sslmode=require`) |
 | `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | `1440` |
+| `QDRANT_URL` *(optional)* | A hosted Qdrant instance's URL, e.g. a free [Qdrant Cloud](https://qdrant.tech/cloud/) cluster's endpoint. Leave unset and Knowledge Assistant falls back to on-disk mode on the backend's own (ephemeral) disk |
+| `QDRANT_API_KEY` *(optional)* | That cluster's API key |
 | `KAFKA_BOOTSTRAP_SERVERS` *(optional)* | Only if using a hosted Kafka, e.g. `<service-name>.aivencloud.com:<port>` |
 | `KAFKA_SECURITY_PROTOCOL` *(optional)* | `SASL_SSL` |
 | `KAFKA_SASL_MECHANISM` *(optional)* | `SCRAM-SHA-256` |
@@ -360,20 +369,25 @@ differently:
 
 ### What still doesn't survive a Render restart
 
-Datasets, saved forecasts/simulations/optimizations/queries, ask history,
-and incremental-learning progress all live in Postgres now (see step 2
-above) — a backend redeploy no longer loses any of that. Two things still
-sit on the backend's own (ephemeral) disk, so a redeploy does reset them:
+Nothing, anymore. Datasets, saved forecasts/simulations/optimizations/
+queries, ask history, and the incremental-learning model's actual learned
+weights (not just their history) all live in Postgres now — a backend
+redeploy loses none of it. The two gaps that used to exist here are both
+closed:
 
-- **Qdrant** (Knowledge Assistant's document vectors) — runs in local
-  on-disk mode inside the backend container. Fixing this the same way as
-  Kafka/Postgres would mean pointing `document_intelligence.py` at a hosted
-  Qdrant instead (Qdrant Cloud has a free tier) — not done yet.
-- **Incremental-learning model files** (`backend/data/models/*.joblib`) —
-  the *history* of each update is in Postgres (`model_history`) and
-  survives fine; only the live model's current learned weights reset, so
-  it resumes learning from scratch on the next row rather than losing any
-  visible history.
+- **Qdrant** (Knowledge Assistant's document vectors) — set `QDRANT_URL`
+  (and `QDRANT_API_KEY` if required) to point at a hosted instance, e.g. a
+  free [Qdrant Cloud](https://qdrant.tech/cloud/) cluster (permanently
+  free, 1GB RAM/4GB disk, no card — auto-suspends after 1 week of
+  inactivity and deletes after 4 weeks, so touch it at least that often).
+  Leave both unset for local dev and `document_intelligence.py` keeps using
+  on-disk mode under `backend/data/qdrant`, same as before.
+- **Incremental-learning model weights** — `incremental_model.py` now
+  serializes its (tiny, a few KB) scikit-learn state as a BYTEA row via
+  `catalog.save_model_weights`/`load_model_weights`, reusing the Postgres
+  instance already backing everything else instead of a file on disk. The
+  model resumes exactly where it left off after a redeploy instead of
+  restarting from scratch.
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
