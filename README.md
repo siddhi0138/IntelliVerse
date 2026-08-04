@@ -272,13 +272,30 @@ separately:
 ### Backend → Render
 1. Create a **Web Service** from this repo, root directory `backend/` — Render
    detects `Dockerfile` and builds/deploys it directly.
-2. Create a **Render Postgres** instance and copy its Internal Database URL.
-   This backs both auth *and* the dataset catalog (see below) — every
-   dataset, saved forecast/simulation/optimization/query, ask-history
-   exchange, and incremental-learning update lives here, not on the
-   backend's own disk.
-3. Create a second Render service for Neo4j from the `neo4j:5.26-community`
-   Docker image, with a persistent disk mounted for `/data`.
+2. **Postgres: use Neon, not Render Postgres.** Render's free Postgres
+   instances expire 30 days after creation (14-day grace period, then the
+   database — and everything in it — is deleted unless upgraded to a paid
+   plan); that's a real risk for `catalog.py`'s whole reason for existing.
+   [Neon](https://neon.tech) has a genuinely permanent free tier instead (no
+   card, no expiry, 0.5GB/project) — sign up, create a project, and copy its
+   connection string (already includes `?sslmode=require`; `psycopg2`
+   accepts it as-is, no code change needed). This backs both auth *and* the
+   dataset catalog — every dataset, saved forecast/simulation/optimization/
+   query, ask-history exchange, and incremental-learning update lives here,
+   not on the backend's own disk. Neon's compute scales to zero after 5 min
+   idle, so expect a short cold-start on the first query after inactivity,
+   same tradeoff as Render's own free web services.
+3. **Neo4j: use AuraDB Free, not a self-hosted Render service.** Render's
+   free web services can't attach a persistent disk at all — disks require
+   a paid instance type — so a self-hosted Neo4j-on-Render "free" service is
+   actually either silently billed or has no real persistent disk (data
+   doesn't survive a restart) depending on how it's configured. [Neo4j
+   AuraDB Free](https://neo4j.com/product/auradb/) is Neo4j's own perpetual
+   free tier instead (no card, no expiry, one instance, 200k nodes/400k
+   relationships) — sign up, create a free instance, and it gives you a
+   `neo4j+s://...` connection URI plus a one-time-shown password. The
+   `neo4j` Python driver accepts that URI scheme natively, so `NEO4J_URI`
+   just changes value, no code change needed.
 4. Add the environment variables below to the backend Web Service.
 5. Real-time streaming (Kafka) is **not** part of this Render setup by
    default — Kafka only runs inside the local `docker-compose` stack, and
@@ -301,10 +318,10 @@ separately:
 | `FREELLMAPI_BASE_URL` | Your LLM endpoint's base URL — must be a real, publicly reachable endpoint. `localhost` (even the code's own default) means "this container," not your laptop, so a local Ollama only works if it's likewise reachable, e.g. via a tunnel — most deployments point this at a real hosted LLM instead |
 | `FREELLMAPI_API_KEY` | Your LLM endpoint's API key |
 | `FREELLMAPI_MODEL` | `auto` (or a specific model name) |
-| `NEO4J_URI` | `bolt://<your-neo4j-service>.onrender.com:7687` |
+| `NEO4J_URI` | Your AuraDB Free instance's URI, e.g. `neo4j+s://xxxxxxxx.databases.neo4j.io` |
 | `NEO4J_USER` | `neo4j` |
-| `NEO4J_PASSWORD` | A password you set on the Neo4j service |
-| `POSTGRES_DSN` | The Internal Database URL from your Render Postgres instance |
+| `NEO4J_PASSWORD` | The password AuraDB shows you once at instance creation — save it, it isn't shown again |
+| `POSTGRES_DSN` | Your Neon project's connection string (includes `?sslmode=require`) |
 | `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | `1440` |
 | `KAFKA_BOOTSTRAP_SERVERS` *(optional)* | Only if using a hosted Kafka, e.g. `<service-name>.aivencloud.com:<port>` |
