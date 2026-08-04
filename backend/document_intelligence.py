@@ -45,6 +45,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -88,6 +89,15 @@ def _get_client() -> QdrantClient:
                 _COLLECTION,
                 vectors_config=VectorParams(size=_EMBEDDING_DIM, distance=Distance.COSINE),
             )
+        # Local on-disk mode filters on any payload field with a full scan,
+        # no index required — Qdrant Cloud's server enforces an explicit
+        # index for any field used in a query/delete filter and 400s
+        # otherwise ("Index required but not found"). Both fields below are
+        # filtered on in search()/delete_document(). Idempotent (safe to
+        # call even if the index already exists), and cheap since this only
+        # runs once per process (guarded by `_client is None` above).
+        _client.create_payload_index(_COLLECTION, "username", field_schema=PayloadSchemaType.KEYWORD)
+        _client.create_payload_index(_COLLECTION, "doc_id", field_schema=PayloadSchemaType.KEYWORD)
     return _client
 
 
