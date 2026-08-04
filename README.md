@@ -389,6 +389,33 @@ closed:
   model resumes exactly where it left off after a redeploy instead of
   restarting from scratch.
 
+### Avoiding cold starts (optional)
+
+Render's free web services spin down after 15 minutes of no traffic and take
+20-50s to wake on the next request — the actual, honest cost of $0/month
+hosting. This gets compounded across three separate free services here
+(backend, Prometheus, Grafana): if Prometheus wakes up and tries its next
+scrape cycle while the backend happens to be asleep, that scrape fails and
+the Grafana dashboard shows "no data" until both happen to be awake at the
+same time.
+
+**Don't "fix" this by pinging every service to keep it always-on.** Render's
+free tier gives **750 instance-hours per month, shared across every free
+service in the workspace** — not per service. A month is ~730-744 hours by
+itself, so keeping even one service alive 24/7 eats almost the entire shared
+pool, and exceeding it **suspends every free service in the workspace until
+the next month**, which is far worse than an occasional cold start.
+
+What's actually safe: keep just the backend warm during the hours it's
+realistically used, and let everything sleep overnight. A free cron service
+(e.g. [cron-job.org](https://cron-job.org/), genuinely free, real cron
+syntax, no card) hitting `GET /api/health` on schedule
+`*/10 8-23 * * *` (every 10 minutes, 8 AM-11:59 PM, set to your own
+timezone) costs about 480 hours/month for the backend — comfortably inside
+the 750-hour shared budget, with ~270 hours left over for Prometheus and
+Grafana's normal sleep/wake cycles. `/api/health` needs no auth token, so
+no credentials are involved in the cron job at all.
+
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
 backend redeploys manually. To run your own copy, follow the steps above with
