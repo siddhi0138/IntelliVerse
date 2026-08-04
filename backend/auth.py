@@ -22,28 +22,34 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "1440"))
 POSTGRES_DSN = os.environ["POSTGRES_DSN"]
 
+# Checked once per process, not once per connection — see catalog.py's
+# _schema_ready for why: against a serverless Postgres provider, each
+# CREATE TABLE IF NOT EXISTS round trip costs real network latency, and
+# paying it on every single request adds up fast.
+_schema_ready = False
+
 
 class AuthError(Exception):
     pass
 
 
 def _connect():
-    # Mirrors catalog.py's pattern of ensuring the table exists on every
-    # connection (idempotent CREATE TABLE IF NOT EXISTS) rather than
-    # requiring a separate startup step.
+    global _schema_ready
     conn = psycopg2.connect(POSTGRES_DSN)
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    if not _schema_ready:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
             )
-            """
-        )
-    conn.commit()
+        conn.commit()
+        _schema_ready = True
     return conn
 
 

@@ -37,6 +37,16 @@ from schema_inference import ColumnSchema
 
 POSTGRES_DSN = os.environ["POSTGRES_DSN"]
 
+# _init_db runs ~18 schema-check round trips (CREATE TABLE IF NOT EXISTS +
+# ALTER TABLE checks). Against Render's own low-latency Postgres that was
+# free; against a serverless provider like Neon (each round trip pays real
+# network latency, not just local-socket time) it added 9-11+ seconds to
+# *every single* catalog call. The schema doesn't change between calls, so
+# checking it once per process instead of once per connection removes that
+# tax without changing behavior — a fresh connection still initializes the
+# schema on the first catalog call after a cold start/redeploy.
+_schema_ready = False
+
 
 def _add_column_if_missing(conn, table: str, column: str, ddl: str) -> None:
     with conn.cursor() as cur:
@@ -215,9 +225,12 @@ def _init_db(conn) -> None:
 
 @contextmanager
 def _connect():
+    global _schema_ready
     conn = psycopg2.connect(POSTGRES_DSN, cursor_factory=psycopg2.extras.RealDictCursor)
     try:
-        _init_db(conn)
+        if not _schema_ready:
+            _init_db(conn)
+            _schema_ready = True
         yield conn
     finally:
         conn.close()
