@@ -220,6 +220,22 @@ def _init_db(conn) -> None:
             )
             """
         )
+
+        # Holds the actual joblib-serialized model state (a few KB: an
+        # SGDRegressor + StandardScaler, see incremental_model.py) — this
+        # used to live on the backend's own disk, which Render wipes on
+        # every redeploy. It's small enough that a BYTEA column on the
+        # Postgres already backing everything else is simpler than standing
+        # up another external store just for this.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS model_weights (
+                key TEXT PRIMARY KEY,
+                state BYTEA NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
     conn.commit()
 
 
@@ -656,3 +672,22 @@ def get_model_history(analysis_id: str, username: str, target_column: str) -> li
             (analysis_id, username, target_column),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def save_model_weights(key: str, state: bytes) -> None:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO model_weights (key, state, updated_at) VALUES (%s, %s, %s)
+            ON CONFLICT (key) DO UPDATE SET state = EXCLUDED.state, updated_at = EXCLUDED.updated_at
+            """,
+            (key, psycopg2.Binary(state), datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+
+
+def load_model_weights(key: str) -> bytes | None:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("SELECT state FROM model_weights WHERE key = %s", (key,))
+        row = cur.fetchone()
+        return bytes(row["state"]) if row else None

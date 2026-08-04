@@ -3,9 +3,14 @@ each new row instead of retraining from scratch every time.
 
 Uses scikit-learn's `partial_fit` (genuine online learning: the model's
 weights are nudged by each new observation, not recomputed from the full
-history) and persists its state to disk between updates, so the model
-really does keep what it learned across restarts and across successive
-uploads/streamed batches of the same series.
+history) and persists its state to Postgres between updates (via
+catalog.save_model_weights/load_model_weights), so the model really does
+keep what it learned across restarts and across successive uploads/
+streamed batches of the same series. This used to be a file on the
+backend's own disk — fine locally, but Render wipes that disk on every
+redeploy; the serialized state is only a few KB, so it fits comfortably
+as a BYTEA row on the Postgres already backing everything else instead
+of needing its own external store.
 
 Evaluation follows the standard online-learning "predict, then learn"
 loop: each new row's actual value is scored against the model's current
@@ -16,15 +21,15 @@ model improves as more data arrives, not a fitted-vs-training comparison.
 
 from __future__ import annotations
 
+import io
 from dataclasses import dataclass
-from pathlib import Path
 
 import joblib
 import numpy as np
 from sklearn.linear_model import SGDRegressor
 from sklearn.preprocessing import StandardScaler
 
-_MODEL_DIR = Path(__file__).parent / "data" / "models"
+import catalog
 
 
 @dataclass
@@ -40,24 +45,25 @@ def _safe_key(*parts: str) -> str:
 
 
 class IncrementalMetricModel:
-    """One online model per (analysis_id, target_column), persisted to disk
-    under backend/data/models/. `x` is just the row's position in the
-    series (1, 2, 3, ...) — enough to let a simple online model track a
-    trend/level as new rows stream in without needing to know the dataset's
-    other columns in advance."""
+    """One online model per (analysis_id, target_column), persisted in
+    Postgres via catalog.save_model_weights. `x` is just the row's position
+    in the series (1, 2, 3, ...) — enough to let a simple online model
+    track a trend/level as new rows stream in without needing to know the
+    dataset's other columns in advance."""
 
     def __init__(self, analysis_id: str, target_column: str):
         self.analysis_id = analysis_id
         self.target_column = target_column
-        self._path = _MODEL_DIR / f"{_safe_key(analysis_id, target_column)}.joblib"
+        self._key = _safe_key(analysis_id, target_column)
         self.model: SGDRegressor
         self.scaler: StandardScaler
         self.n_updates: int
         self._load_or_init()
 
     def _load_or_init(self) -> None:
-        if self._path.exists():
-            state = joblib.load(self._path)
+        blob = catalog.load_model_weights(self._key)
+        if blob is not None:
+            state = joblib.load(io.BytesIO(blob))
             self.model = state["model"]
             self.scaler = state["scaler"]
             self.n_updates = state["n_updates"]
@@ -67,8 +73,9 @@ class IncrementalMetricModel:
             self.n_updates = 0
 
     def _save(self) -> None:
-        _MODEL_DIR.mkdir(parents=True, exist_ok=True)
-        joblib.dump({"model": self.model, "scaler": self.scaler, "n_updates": self.n_updates}, self._path)
+        buf = io.BytesIO()
+        joblib.dump({"model": self.model, "scaler": self.scaler, "n_updates": self.n_updates}, buf)
+        catalog.save_model_weights(self._key, buf.getvalue())
 
     def update(self, row_index: float, actual: float) -> OnlineUpdateResult:
         x = np.array([[row_index]], dtype=float)
