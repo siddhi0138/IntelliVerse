@@ -16,6 +16,12 @@ jobs:
     steps:
       - name: Ping backend health endpoint
         run: |
-          curl --fail --silent --show-error --max-time 90 \
-            -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36" \
-            https://intelliverse-ci8c.onrender.com/api/health
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+          URL="https://intelliverse-ci8c.onrender.com/api/health"
+          # This backend's cold start (heavier deps than a bare FastAPI
+          # app) has been observed to outlast a single 90s request. First
+          # attempt just kicks the container awake - its own
+          # success/failure is ignored - then a second attempt against the
+          # now-warm process is the one that actually has to succeed.
+          curl --silent --max-time 90 -H "User-Agent: $UA" "$URL" || true
+          curl --fail --silent --show-error --max-time 60 -H "User-Agent: $UA" "$URL"
