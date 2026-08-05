@@ -407,14 +407,19 @@ pool, and exceeding it **suspends every free service in the workspace until
 the next month**, which is far worse than an occasional cold start.
 
 What's actually safe: keep just the backend warm during the hours it's
-realistically used, and let everything sleep overnight. A free cron service
-(e.g. [cron-job.org](https://cron-job.org/), genuinely free, real cron
-syntax, no card) hitting `GET /api/health` on schedule
-`*/10 8-23 * * *` (every 10 minutes, 8 AM-11:59 PM, set to your own
-timezone) costs about 480 hours/month for the backend — comfortably inside
-the 750-hour shared budget, with ~270 hours left over for Prometheus and
-Grafana's normal sleep/wake cycles. `/api/health` needs no auth token, so
-no credentials are involved in the cron job at all.
+realistically used, and let everything sleep overnight. This repo pings
+itself via [`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml)
+(unmetered on a public repo, and a failed run just shows red in the Actions
+tab instead of silently disabling itself) on schedule `*/10 6-23 * * *`
+(every 10 minutes, 6 AM-11:59 PM UTC), costing about 480 hours/month for the
+backend — comfortably inside the 750-hour shared budget, with ~270 hours
+left over for Prometheus and Grafana's normal sleep/wake cycles. A
+third-party cron service (e.g. [cron-job.org](https://cron-job.org/))
+hitting the same `GET /api/health` works too, but its bot-check heuristics
+have occasionally flagged the ping itself as suspicious traffic and
+auto-disabled the whole schedule after a few failures - worth having the
+Actions workflow as the one that can't quietly stop working unnoticed.
+`/api/health` needs no auth token, so no credentials are involved either way.
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
