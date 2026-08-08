@@ -20,6 +20,17 @@ No configuration, no manual column mapping, no invented numbers.
 
 **[Live app](https://intelli-verse-phi.vercel.app)** · every number below was captured from a real run against it, not written by hand.
 
+<!--
+TODO(demo): record a 2-3 min screen capture of: upload sample_business.csv
+→ overview dashboard appears → forecast tab (chart + model comparison) →
+knowledge graph tab → ask a question in Ask IntelliVerse → get answer.
+Save as docs/demo.gif (or upload to YouTube/Loom and swap this block for
+an embedded thumbnail link). Once the file exists, replace this HTML
+comment with:
+![IntelliVerse demo](docs/demo.gif)
+-->
+> 🎥 **Demo video/GIF goes here** — full walkthrough: upload → dashboard → forecast → knowledge graph → Ask IntelliVerse.
+
 </div>
 
 ## What actually happens when you upload a file
@@ -89,6 +100,17 @@ Nothing here is asserted — `variance_explained_pct` and `p_value` come straigh
 from `scipy.stats.f_oneway` on this exact dataset, and the forecast model was
 picked because it had the lowest RMSE among all seven candidates on this
 specific series, not because it's the "smart" choice by default.
+
+<!--
+TODO(screenshots): capture these four PNGs at 1440px+ width, save under
+docs/screenshots/, then replace this HTML comment with a markdown table
+or side-by-side <img> tags:
+1. overview.png     - the auto-generated dashboard right after upload
+2. forecast.png     - the forecast chart + model comparison table
+3. knowledge-graph.png - the 2D or 3D knowledge graph view
+4. ask.png          - Ask IntelliVerse with a real question answered
+-->
+> 🖼️ **Screenshots go here** — overview dashboard · forecast + model comparison · knowledge graph · Ask IntelliVerse.
 
 ## Measured, not claimed
 
