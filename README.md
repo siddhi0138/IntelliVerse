@@ -154,59 +154,87 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 ## Features
 
 **🔍 Data understanding**
-- Auto schema + semantic inference, with a confidence score per column
-- Domain detection (Retail, Healthcare, Finance, Logistics, ...)
-- Rule-based data quality score, with editable column labels
+- Figures out what each column *means* on its own — "this is a date," "this
+  is revenue" — with a confidence score, no manual mapping (schema + semantic inference)
+- Guesses what kind of business the data is from — Retail, Healthcare,
+  Finance, Logistics, etc. (domain detection)
+- Flags messy data — duplicates, typos, missing values — as one quality score
+  you can act on, with each column's label editable if the guess is wrong
 
 **📈 Statistics & analytics**
-- Correlations (Pearson/Spearman) and associations (Cramér's V) — both significance-tested
-- Root-cause variance decomposition (ANOVA/Kruskal-Wallis)
-- Anomaly detection: single-column (Z-score/IQR) and multi-column
-  (Isolation Forest + LOF + One-Class SVM, explained via SHAP)
-- Auto-K KMeans clustering, evidence-ranked findings
+- Finds which metrics move together, and how strongly — with a real
+  significance test behind every claim, not a guess (Pearson/Spearman
+  correlation, Cramér's V for categories)
+- Explains *why* a number changed — which category or region is actually
+  driving it, with a % of the change attributed to each (ANOVA/Kruskal-Wallis
+  root-cause breakdown)
+- Flags unusual rows — both obvious single-column outliers and subtler ones
+  only visible across several columns at once, each with a plain-English
+  reason why (Isolation Forest + LOF + One-Class SVM, explained via SHAP)
+- Groups similar rows into segments automatically, and surfaces the
+  strongest findings first instead of listing everything
 
 **🔮 Forecasting**
-- 7 models backtested per target (naive → Holt's → Random Forest → XGBoost → LightGBM → Prophet)
-- Lowest validation error wins automatically — not a fixed pick
-- Automatic target discovery, threshold-crossing risk alerts
+- Predicts future values by racing 7 different models against each other and
+  keeping whichever is actually most accurate on *this* data — not one
+  fixed algorithm every time (naive → Holt's → Random Forest → XGBoost →
+  LightGBM → Prophet)
+- Tells you upfront which metrics are even worth forecasting, and warns you
+  if one is trending toward a critical level (e.g. running out of stock)
 
 **🕸️ Knowledge graph & multi-table**
-- Cross-table relationship discovery, confidence-scored
-- Neo4j-backed graph: PageRank, centrality, connected components
-- Entity profiles, graph-based "digital twin" impact simulation
+- Automatically figures out how multiple uploaded tables connect, like
+  finding foreign keys without being told what they are
+- Turns that into a visual map of your data's relationships (Neo4j-backed,
+  with importance scoring via PageRank)
+- Simulates how a change to one entity ripples through everything connected
+  to it ("digital twin")
 
 **🎛️ Decision support**
-- Decision simulator (change one metric, see propagated effects)
-- Autonomous action plan, grounded in already-computed findings
-- Multi-lever optimizer ("Find the best plan") — searches combinations, not one change at a time
+- What-if simulator: change one number, see the projected ripple effect on
+  every other metric
+- An AI-written action plan — but one that can only reason from numbers
+  already computed above, never invents a business reason
+- Finds the *best combination* of several changes to hit a goal, instead of
+  testing one change at a time ("Find the best plan")
 
 **⚡ Real-time streaming & continuous learning**
-- Real Kafka broker (single-node KRaft) — producer → consumer → WebSocket UI
-- Each row updates a persistent online-learning model (`SGDRegressor`, `partial_fit`)
-- The model scores its own prediction *before* learning — a real out-of-sample accuracy chart
+- Simulates a live data feed and streams new rows through a real message
+  broker (Kafka) straight to the dashboard over a WebSocket
+- A model updates itself with every new row and is graded on each
+  prediction *before* it learns from it — so the accuracy chart you see is
+  a genuine, not rigged, measure of it improving over time
 
 **📤 Data access & export**
-- Read-only ad-hoc SQL over any dataset (DuckDB)
-- Full export: multi-page PDF, multi-sheet Excel, 12-slide PowerPoint deck
-- Live WebSocket progress, 2D/3D knowledge graph views
+- Run your own SQL queries directly on the uploaded data, no setup
+- Export the whole analysis as a polished PDF report, Excel workbook, or a
+  12-slide PowerPoint deck — not just a findings summary
+- Watch the analysis happen step-by-step live, instead of a loading spinner
 
 **🔐 Auth & workspace**
-- Postgres-backed JWT auth
-- Per-user dataset catalog — reopen a past dataset, no re-upload
-- Save/list/delete for every artifact: forecasts, simulations, action plans, SQL queries, ask history
+- Secure login; every user only ever sees their own data
+- Come back later and reopen a past analysis instantly — no re-upload
+- Save any result you like (a forecast, a query, a plan) and revisit,
+  rename, or delete it anytime
 
 **📄 Knowledge Assistant**
-- RAG over uploaded PDF/DOCX/PPTX/TXT, answers cited by filename
-- Can combine document retrieval with a dataset's own findings in one answer
-- Embeddings run locally via fastembed (ONNX, not PyTorch — PyTorch's memory
-  footprint OOM-killed Render's free tier the first time this ran)
+- Upload documents (PDF, Word, PowerPoint, text) and ask questions about
+  them — answers come only from what's actually in the file, cited by filename
+- Can blend a document's answer with your dataset's own findings in one
+  response
+- Runs the document-search step entirely on this machine, no external API
+  key required (fastembed, chosen specifically because the more common
+  PyTorch-based alternative used enough memory to crash the free hosting
+  tier the first time anyone tried this feature)
 
 **🎨 Personalization**
 - Dark/light mode
-- Persona field reframes every AI narration without changing the numbers
-- Real Simple/Expert language switch (not a collapse toggle)
-- Clickable glossary on every statistical term
-- Deterministic 0-100 Business Health score
+- Tell it who you are ("I am a CFO"), and every AI explanation adapts its
+  language for that reader — the underlying numbers never change
+- A genuine Simple ↔ Expert toggle — Expert mode shows real statistical
+  detail (p-values, r², test names), Simple mode never does
+- Click any statistics term anywhere in the app to see what it means
+- One overall 0-100 health score for the whole dataset, deterministic, no AI involved
 
 ## Tech stack
 
