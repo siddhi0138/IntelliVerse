@@ -253,8 +253,19 @@ def _read_dataframe(filename: str, content: bytes) -> pd.DataFrame:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health(request: Request) -> dict[str, str]:
+    # TEMPORARY debug fields - diagnosing why per-IP rate limiting isn't
+    # accumulating in production; remove xff/client_host/computed_key once
+    # root-caused.
+    from rate_limit import _client_ip
+    from slowapi.util import get_remote_address
+
+    return {
+        "status": "ok",
+        "xff": request.headers.get("x-forwarded-for") or "<none>",
+        "client_host": get_remote_address(request),
+        "computed_key": _client_ip(request),
+    }
 
 
 class AuthRequest(BaseModel):
