@@ -33,6 +33,22 @@ comment with:
 
 </div>
 
+## 📚 Contents
+
+- [🧩 What actually happens when you upload a file](#what-actually-happens-when-you-upload-a-file)
+- [🧪 Worked example](#worked-example--a-real-run-not-a-mockup)
+- [📏 Measured, not claimed](#measured-not-claimed)
+- [🎯 Design principle](#design-principle-compute-first-narrate-second)
+- [✨ Features](#features)
+- [🛠️ Tech stack](#tech-stack)
+- [🚀 Getting started](#getting-started)
+- [🐳 Docker](#docker)
+- [📊 Observability](#observability)
+- [☁️ Deployment](#deployment)
+- [🧪 Testing](#testing)
+- [📁 Project structure](#project-structure)
+- [🤝 Contributing](#contributing)
+
 ## What actually happens when you upload a file
 
 This is the real order `POST /api/analyze` executes in — not a marketing diagram:
@@ -125,19 +141,6 @@ these numbers reflect that, not the algorithms):
 Reproduce these yourself: `time curl -X POST .../api/analyze -F file=@sample_business.csv`
 against your own deployment — the numbers above aren't cherry-picked, they're the
 median of 3 consecutive runs on an already-warm backend.
-
-## 📚 Contents
-
-- [🎯 Design principle](#design-principle-compute-first-narrate-second)
-- [✨ Features](#features)
-- [🛠️ Tech stack](#tech-stack)
-- [🚀 Getting started](#getting-started)
-- [🐳 Docker](#docker)
-- [📊 Observability](#observability)
-- [☁️ Deployment](#deployment)
-- [🧪 Testing](#testing)
-- [📁 Project structure](#project-structure)
-- [🤝 Contributing](#contributing)
 
 ## Design principle: compute first, narrate second
 
