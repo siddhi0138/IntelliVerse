@@ -31,6 +31,9 @@ export function Sidebar() {
   const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
+    // Re-reads on every nav since login can happen on a different page than
+    // the one that first mounted the sidebar (same pattern as PersonaContext).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUsername(getUsername());
   }, [pathname]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Radio } from "lucide-react";
 import { fetchStreamStatus, openLiveStreamSocket, startLiveStream, stopLiveStream } from "@/lib/api";
 import type { LiveStreamEvent, ModelUpdate } from "@/lib/types";
@@ -20,6 +20,21 @@ export function LiveStreamPanel({
   const [lastUpdate, setLastUpdate] = useState<ModelUpdate | null>(null);
   const [feed, setFeed] = useState<Record<string, unknown>[]>([]);
   const closeSocketRef = useRef<(() => void) | null>(null);
+
+  const handleEvent = useCallback((event: LiveStreamEvent) => {
+    if (event.type === "stopped") {
+      setLive(false);
+      closeSocketRef.current?.();
+      closeSocketRef.current = null;
+      return;
+    }
+    if (event.type === "new_row" && event.row) {
+      setRowCount(event.row_count ?? null);
+      setLastRow(event.row);
+      setLastUpdate(event.model_update ?? null);
+      setFeed((prev) => [event.row!, ...prev].slice(0, 5));
+    }
+  }, []);
 
   useEffect(() => {
     // The producer keeps running server-side across a refresh (it only
@@ -46,22 +61,7 @@ export function LiveStreamPanel({
       // closes here; the server-side producer only stops via "Stop".
       closeSocketRef.current?.();
     };
-  }, [analysisId]);
-
-  function handleEvent(event: LiveStreamEvent) {
-    if (event.type === "stopped") {
-      setLive(false);
-      closeSocketRef.current?.();
-      closeSocketRef.current = null;
-      return;
-    }
-    if (event.type === "new_row" && event.row) {
-      setRowCount(event.row_count ?? null);
-      setLastRow(event.row);
-      setLastUpdate(event.model_update ?? null);
-      setFeed((prev) => [event.row!, ...prev].slice(0, 5));
-    }
-  }
+  }, [analysisId, handleEvent]);
 
   async function goLive() {
     setStarting(true);

@@ -163,6 +163,8 @@ export default function Home() {
     if (result) return;
     const id = localStorage.getItem(userScopedKey("nexus_last_analysis"));
     const filename = localStorage.getItem(userScopedKey("nexus_last_filename"));
+    // Hydration-safe read of localStorage after mount (same pattern as PersonaContext).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLastDataset(id && filename ? { id, filename } : null);
   }, [result]);
 

@@ -157,6 +157,10 @@ export function GuidedTour({
     if (!active) return;
     const wantedTab = STEPS[stepIdx].tab;
     if (wantedTab !== activeTab) {
+      // Clears the stale highlight immediately so it doesn't flash at the
+      // old target's position while the tab switch (and the DOM it needs to
+      // measure) is still in flight.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRect(null);
       onNavigate(wantedTab);
     }
