@@ -19,7 +19,7 @@ duckdb==1.5.5
 polars==1.43.0
 pyarrow==25.0.0
 openpyxl==3.1.5
-reportlab==4.4.4
+reportlab==5.0.0
 python-pptx==1.0.2
 websockets==16.1.1
 python-jose[cryptography]==3.5.0
