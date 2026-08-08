@@ -58,3 +58,16 @@ jobs:
       # dev default (see lib/api.ts) rather than needing a real backend URL.
       - name: Build
         run: npm run build
+
+  deploy-backend:
+    # Render's own GitHub webhook for this service stopped firing (auto-deploy
+    # was correctly set to "On Commit" but pushes weren't triggering builds),
+    # so this calls Render's per-service Deploy Hook directly instead -
+    # bypasses that broken connection entirely, and only runs after the real
+    # push to master (not PRs) has actually passed both jobs above.
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
