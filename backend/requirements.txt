@@ -16,7 +16,7 @@ lightgbm==4.7.0
 shap==0.52.0
 great_expectations==1.19.0
 duckdb==1.5.5
-polars==1.43.0
+polars==1.43.2
 pyarrow==25.0.0
 openpyxl==3.1.5
 reportlab==4.4.4
