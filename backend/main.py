@@ -24,6 +24,8 @@ from fastapi.responses import JSONResponse, Response
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from analytics import detect_anomalies, detect_seasonality, detect_time_series_spikes, period_over_period
 from anomalies_ml import detect_multivariate_anomalies
@@ -59,6 +61,7 @@ from neo4j_client import get_driver
 from profiling import build_quality_report
 from progress_jobs import create_job, get_job
 from qa import answer_question
+from rate_limit import limiter
 from relationships import categorical_associations, numeric_correlations, root_cause_breakdown
 from report import build_excel_report, build_pdf_report, build_pptx_report
 from risk_alerts import generate_risk_alerts
@@ -67,6 +70,23 @@ from simulation import CorrelationRegressionEngine, build_decision_actions
 import streaming
 
 app = FastAPI(title="IntelliVerse API", version="0.1.0")
+
+# In-memory rate limiting (see rate_limit.py) - applied selectively below to
+# auth endpoints (brute-force protection) and the LLM-calling / heavy-compute
+# endpoints (cost/latency protection), not blanket-applied to the whole API,
+# since the frontend legitimately polls several GET endpoints frequently.
+app.state.limiter = limiter
+
+
+def _rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    response = JSONResponse(
+        {"detail": "Too many requests - please slow down and try again shortly."}, status_code=429
+    )
+    return limiter._inject_headers(response, request.state.view_rate_limit)
+
+
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Comma-separated list so the deployed frontend's origin can be added via a
 # Render env var, with no code change/redeploy needed once that domain is
@@ -243,7 +263,8 @@ class AuthRequest(BaseModel):
 
 
 @app.post("/api/auth/register")
-def register(req: AuthRequest) -> dict:
+@limiter.limit("10/minute")
+def register(request: Request, req: AuthRequest) -> dict:
     if len(req.username.strip()) < 3 or len(req.password) < 8:
         raise HTTPException(status_code=400, detail="Username must be 3+ chars, password 8+ chars.")
     try:
@@ -256,7 +277,8 @@ def register(req: AuthRequest) -> dict:
 
 
 @app.post("/api/auth/login")
-def login(req: AuthRequest) -> dict:
+@limiter.limit("10/minute")
+def login(request: Request, req: AuthRequest) -> dict:
     if not authenticate_user(req.username.strip(), req.password):
         logger.warning("Failed login attempt for username={username}", username=req.username.strip())
         raise HTTPException(status_code=401, detail="Invalid username or password.")
@@ -436,13 +458,15 @@ def _run_analysis(
 
 
 @protected.post("/api/analyze")
-async def analyze(file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+async def analyze(request: Request, file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
     content = await file.read()
     return _run_analysis(file.filename or "upload.csv", content, current_user)
 
 
 @protected.post("/api/analyze/{analysis_id}/refresh")
-def refresh_analysis(analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+def refresh_analysis(request: Request, analysis_id: str, current_user: str = Depends(get_current_user)) -> dict:
     """Manually re-runs the full analysis pipeline against whatever is
     currently in _ANALYSIS_DF_CACHE for this id — the one way the rest of
     the dashboard (Overview KPIs, schema, stats, forecast, anomalies, action
@@ -458,7 +482,8 @@ def refresh_analysis(analysis_id: str, current_user: str = Depends(get_current_u
 
 
 @protected.post("/api/analyze/start")
-async def start_analyze_job(file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+async def start_analyze_job(request: Request, file: UploadFile, current_user: str = Depends(get_current_user)) -> dict:
     """Kicks off analysis in a background thread and returns a job_id to
     watch over WS /ws/analyze/{job_id} for live step-by-step progress —
     useful for larger files where the multi-model forecast backtest alone
@@ -584,7 +609,8 @@ def delete_ask_history_entry(analysis_id: str, index: int, current_user: str = D
 
 
 @protected.post("/api/ask")
-async def ask(req: AskRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def ask(request: Request, req: AskRequest, current_user: str = Depends(get_current_user)) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -611,7 +637,8 @@ class SimulateRequest(BaseModel):
 
 
 @protected.post("/api/simulate")
-def simulate(req: SimulateRequest) -> dict:
+@limiter.limit("10/minute")
+def simulate(request: Request, req: SimulateRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -632,7 +659,8 @@ class ExplainSimulationRequest(BaseModel):
 
 
 @protected.post("/api/simulate/explain")
-async def explain_simulation(req: ExplainSimulationRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def explain_simulation(request: Request, req: ExplainSimulationRequest, current_user: str = Depends(get_current_user)) -> dict:
     cache_key = f"simulate_explain:{req.simulation.get('driver_column')}:{_cache_key(req.persona, req.simple_mode)}"
     if req.analysis_id:
         cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
@@ -667,7 +695,8 @@ _LAST_OPTIMIZE_KEY = "optimize_last"
 
 
 @protected.post("/api/optimize")
-async def optimize_scenario(req: OptimizeRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+async def optimize_scenario(request: Request, req: OptimizeRequest, current_user: str = Depends(get_current_user)) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -738,7 +767,8 @@ class ForecastRequest(BaseModel):
 
 
 @protected.post("/api/forecast")
-def forecast_column(req: ForecastRequest) -> dict:
+@limiter.limit("10/minute")
+def forecast_column(request: Request, req: ForecastRequest) -> dict:
     df = _ANALYSIS_DF_CACHE.get(req.analysis_id)
     schema = _ANALYSIS_SCHEMA_CACHE.get(req.analysis_id)
     if df is None or schema is None:
@@ -780,7 +810,8 @@ def _cache_key(persona: str | None, simple_mode: bool) -> str:
 
 
 @protected.post("/api/forecast/explain")
-async def explain_forecast(req: ExplainForecastRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def explain_forecast(request: Request, req: ExplainForecastRequest, current_user: str = Depends(get_current_user)) -> dict:
     cache_key = f"forecast_explain:{req.forecast.get('column')}:{_cache_key(req.persona, req.simple_mode)}"
     if req.analysis_id:
         cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
@@ -808,7 +839,8 @@ class SummaryRequest(BaseModel):
 
 
 @protected.post("/api/summary")
-async def dataset_summary(req: SummaryRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def dataset_summary(request: Request, req: SummaryRequest, current_user: str = Depends(get_current_user)) -> dict:
     cache_key = f"summary:{_cache_key(req.persona, req.simple_mode)}"
     if req.analysis_id:
         cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
@@ -836,7 +868,8 @@ class AnomalyReasonsRequest(BaseModel):
 
 
 @protected.post("/api/anomalies/explain")
-async def explain_anomaly(req: AnomalyReasonsRequest) -> dict:
+@limiter.limit("20/minute")
+async def explain_anomaly(request: Request, req: AnomalyReasonsRequest) -> dict:
     try:
         reasons = await generate_anomaly_reasons(
             req.domain, req.column_label, req.value, req.direction, req.persona, req.simple_mode
@@ -1045,7 +1078,8 @@ def _load_workspace_graph(workspace_id: str) -> nx.MultiDiGraph | None:
 
 
 @protected.post("/api/workspace")
-async def create_workspace(files: list[UploadFile], current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+async def create_workspace(request: Request, files: list[UploadFile], current_user: str = Depends(get_current_user)) -> dict:
     if not files:
         raise HTTPException(status_code=400, detail="Upload at least one file.")
 
@@ -1257,7 +1291,8 @@ class EntityImpactRequest(BaseModel):
 
 
 @protected.post("/api/workspace/{workspace_id}/simulate-entity")
-def simulate_entity(workspace_id: str, req: EntityImpactRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("10/minute")
+def simulate_entity(request: Request, workspace_id: str, req: EntityImpactRequest, current_user: str = Depends(get_current_user)) -> dict:
     if catalog.get_workspace(workspace_id, current_user) is None:
         raise HTTPException(status_code=404, detail="Workspace not found.")
     graph = _load_workspace_graph(workspace_id)
@@ -1287,7 +1322,8 @@ class ActionPlanRequest(BaseModel):
 
 
 @protected.post("/api/action-plan")
-async def action_plan(req: ActionPlanRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def action_plan(request: Request, req: ActionPlanRequest, current_user: str = Depends(get_current_user)) -> dict:
     cache_key = f"action_plan:{_cache_key(req.persona, req.simple_mode)}"
     cached = catalog.get_ai_cache(req.analysis_id, current_user, cache_key)
     if cached is not None:
@@ -1403,8 +1439,9 @@ def export_report(analysis_id: str, format: str = "pdf") -> Response:
 
 
 @protected.post("/api/documents")
+@limiter.limit("10/minute")
 async def upload_documents(
-    files: list[UploadFile], current_user: str = Depends(get_current_user)
+    request: Request, files: list[UploadFile], current_user: str = Depends(get_current_user)
 ) -> dict:
     uploaded = []
     for file in files:
@@ -1449,7 +1486,8 @@ class AskDocumentsRequest(BaseModel):
 
 
 @protected.post("/api/ask-documents")
-async def ask_documents(req: AskDocumentsRequest, current_user: str = Depends(get_current_user)) -> dict:
+@limiter.limit("20/minute")
+async def ask_documents(request: Request, req: AskDocumentsRequest, current_user: str = Depends(get_current_user)) -> dict:
     structured_context = None
     if req.analysis_id:
         # Falls back to the persisted catalog record when the in-memory
