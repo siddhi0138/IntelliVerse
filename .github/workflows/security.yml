@@ -19,7 +19,7 @@ jobs:
   scan-backend-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build backend image
         run: docker build -t intelliverse-backend:scan ./backend
@@ -41,7 +41,7 @@ jobs:
   scan-frontend-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build frontend image
         run: docker build -t intelliverse-frontend:scan ./frontend
