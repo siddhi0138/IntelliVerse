@@ -153,53 +153,60 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
 
 ## Features
 
-**🔍 Data understanding** — automatic schema + semantic inference with
-confidence scores, domain detection, rule-based quality scoring, editable
-per-column labels.
+**🔍 Data understanding**
+- Auto schema + semantic inference, with a confidence score per column
+- Domain detection (Retail, Healthcare, Finance, Logistics, ...)
+- Rule-based data quality score, with editable column labels
 
-**📈 Statistics & analytics** — Pearson/Spearman correlations and Cramér's V
-associations (both significance-tested), ANOVA/Kruskal-Wallis root-cause
-decomposition, distribution analysis, univariate + multivariate (Isolation
-Forest + LOF + One-Class SVM, SHAP-explained) anomaly detection, auto-K
-KMeans clustering, evidence-ranked findings.
+**📈 Statistics & analytics**
+- Correlations (Pearson/Spearman) and associations (Cramér's V) — both significance-tested
+- Root-cause variance decomposition (ANOVA/Kruskal-Wallis)
+- Anomaly detection: single-column (Z-score/IQR) and multi-column
+  (Isolation Forest + LOF + One-Class SVM, explained via SHAP)
+- Auto-K KMeans clustering, evidence-ranked findings
 
-**🔮 Forecasting** — 7 models backtested per target (naive → Prophet),
-lowest validation RMSE wins automatically; automatic target discovery,
-threshold-crossing risk alerts.
+**🔮 Forecasting**
+- 7 models backtested per target (naive → Holt's → Random Forest → XGBoost → LightGBM → Prophet)
+- Lowest validation error wins automatically — not a fixed pick
+- Automatic target discovery, threshold-crossing risk alerts
 
-**🕸️ Knowledge graph & multi-table** — cross-table relationship discovery,
-Neo4j-backed graph (PageRank, centrality, components), entity profiles,
-graph-based "digital twin" impact simulation.
+**🕸️ Knowledge graph & multi-table**
+- Cross-table relationship discovery, confidence-scored
+- Neo4j-backed graph: PageRank, centrality, connected components
+- Entity profiles, graph-based "digital twin" impact simulation
 
-**🎛️ Decision support** — schema-aware decision simulator, autonomous action
-plans grounded in already-computed findings/risk/forecast, and a multi-lever
-optimizer ("Find the best plan") that searches lever combinations rather
-than testing one change at a time.
+**🎛️ Decision support**
+- Decision simulator (change one metric, see propagated effects)
+- Autonomous action plan, grounded in already-computed findings
+- Multi-lever optimizer ("Find the best plan") — searches combinations, not one change at a time
 
-**⚡ Real-time streaming & continuous learning** — a real Kafka broker
-(single-node KRaft) carries sampled rows from producer to consumer to a
-WebSocket UI; each row also updates a persistent online-learning model
-(`SGDRegressor`, `partial_fit`) that scores its own prediction *before*
-learning from it, so the accuracy chart is genuine out-of-sample.
+**⚡ Real-time streaming & continuous learning**
+- Real Kafka broker (single-node KRaft) — producer → consumer → WebSocket UI
+- Each row updates a persistent online-learning model (`SGDRegressor`, `partial_fit`)
+- The model scores its own prediction *before* learning — a real out-of-sample accuracy chart
 
-**📤 Data access & export** — read-only ad-hoc SQL (DuckDB), full PDF/Excel/
-PowerPoint export (12-slide deck, not just a summary), live WebSocket
-progress, 2D/3D knowledge graph views.
+**📤 Data access & export**
+- Read-only ad-hoc SQL over any dataset (DuckDB)
+- Full export: multi-page PDF, multi-sheet Excel, 12-slide PowerPoint deck
+- Live WebSocket progress, 2D/3D knowledge graph views
 
-**🔐 Auth & workspace** — Postgres-backed JWT auth, per-user dataset catalog
-that restores the full dashboard on reopen, save/list/delete for every
-artifact (forecasts, simulations, action plans, SQL queries, ask history).
+**🔐 Auth & workspace**
+- Postgres-backed JWT auth
+- Per-user dataset catalog — reopen a past dataset, no re-upload
+- Save/list/delete for every artifact: forecasts, simulations, action plans, SQL queries, ask history
 
-**📄 Knowledge Assistant** — RAG over uploaded PDF/DOCX/PPTX/TXT, answers
-grounded in retrieved excerpts (cited by filename) optionally combined with
-a dataset's own findings. Embeddings run locally via fastembed (ONNX, no
-PyTorch — the PyTorch stack's memory footprint OOM-killed Render's free
-tier on first use, which is why fastembed and not sentence-transformers).
+**📄 Knowledge Assistant**
+- RAG over uploaded PDF/DOCX/PPTX/TXT, answers cited by filename
+- Can combine document retrieval with a dataset's own findings in one answer
+- Embeddings run locally via fastembed (ONNX, not PyTorch — PyTorch's memory
+  footprint OOM-killed Render's free tier the first time this ran)
 
-**🎨 Personalization** — dark/light mode, a persona field that reframes every
-AI narration without changing the numbers, a genuine Simple/Expert language
-switch (not a collapse toggle), clickable glossary links on every statistical
-term, and the deterministic 0-100 Business Health rollup.
+**🎨 Personalization**
+- Dark/light mode
+- Persona field reframes every AI narration without changing the numbers
+- Real Simple/Expert language switch (not a collapse toggle)
+- Clickable glossary on every statistical term
+- Deterministic 0-100 Business Health score
 
 ## Tech stack
 
