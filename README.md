@@ -1,8 +1,6 @@
 <div align="center">
 
-# 🧠 IntelliVerse
-
-### Autonomous Decision Intelligence
+# 🧠 IntelliVerse - Autonomous Decision Intelligence
 
 **Upload anything. Understand everything.**
 
@@ -18,8 +16,6 @@ No configuration, no manual column mapping, no invented numbers.
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![Neo4j](https://img.shields.io/badge/Neo4j-018bff?logo=neo4j&logoColor=white)
 
-**[Live app](https://intelli-verse-phi.vercel.app)** · every number below was captured from a real run against it, not written by hand.
-
 <!--
 TODO(demo): record a 2-3 min screen capture of: upload sample_business.csv
 → overview dashboard appears → forecast tab (chart + model comparison) →
@@ -30,6 +26,7 @@ comment with:
 ![IntelliVerse demo](docs/demo.gif)
 -->
 > 🎥 **Demo video/GIF goes here** — full walkthrough: upload → dashboard → forecast → knowledge graph → Ask IntelliVerse.
+
 
 </div>
 
