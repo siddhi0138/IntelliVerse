@@ -318,12 +318,16 @@ Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) —
 frontend on **Vercel**, backend on **Render**, all data stores on genuinely
 permanent free tiers: **Neon** (Postgres), **Neo4j AuraDB Free** (graph),
 **Aiven** (Kafka), **Qdrant Cloud** (vectors). Vercel auto-deploys on push to
-`master`; the Render backend redeploys manually.
+`master`; the Render backend auto-deploys too, via a CI step that calls
+Render's Deploy Hook after tests pass (`.github/workflows/ci.yml`) — Render's
+own GitHub webhook integration stopped firing for this service, so CI
+triggers the deploy directly instead of depending on it.
 
 Full step-by-step setup (env vars, why each provider was picked over its
 free-but-expiring alternatives, monitoring, and how cold starts are handled)
 lives in **[DEPLOYMENT.md](DEPLOYMENT.md)** — kept separate so this README
-stays scannable.
+stays scannable. The auth model, rate limiting, CORS, secrets handling, and
+dependency/container scanning are documented in **[SECURITY.md](SECURITY.md)**.
 
 ## Testing
 
@@ -339,7 +343,7 @@ estimated). LLM-touching modules are tested for their deterministic error
 paths only — the LLM calls themselves are verified manually against a live
 endpoint.
 
-That 78% is scoped to the modules with dedicated test files on purpose, not
+That 81% is scoped to the modules with dedicated test files on purpose, not
 cherry-picked after the fact — it excludes `main.py` (the API/route layer)
 and the Postgres/Kafka/Qdrant/Neo4j integration modules, none of which
 `pytest` ever imports (see `tests/conftest.py`). Those are verified by

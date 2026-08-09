@@ -175,5 +175,8 @@ Actions workflow as the one that can't quietly stop working unnoticed.
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) — the
 Vercel project is git-connected (auto-deploys on push to `master`); the Render
-backend redeploys manually. To run your own copy, follow the steps above with
-your own Vercel/Render accounts.
+backend auto-deploys via a CI step that calls Render's Deploy Hook after
+tests pass (`.github/workflows/ci.yml`) — Render's own GitHub webhook
+integration for this service stopped firing, so CI triggers the deploy
+directly instead of depending on it. To run your own copy, follow the steps
+above with your own Vercel/Render accounts.
