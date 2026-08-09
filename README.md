@@ -333,9 +333,23 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-52 tests across every deterministic module. LLM-touching modules are tested for
-their deterministic error paths only — the LLM calls themselves are verified
-manually against a live endpoint.
+57 tests across every deterministic module — **78% line coverage** on the 13
+modules those tests actually target (`pytest --cov`, tool-measured, not
+estimated). LLM-touching modules are tested for their deterministic error
+paths only — the LLM calls themselves are verified manually against a live
+endpoint.
+
+That 78% is scoped to the modules with dedicated test files on purpose, not
+cherry-picked after the fact — it excludes `main.py` (the API/route layer)
+and the Postgres/Kafka/Qdrant/Neo4j integration modules, none of which
+`pytest` ever imports (see `tests/conftest.py`). Those are verified by
+actually running them against the real deployed services instead of a mock,
+which catches things a passing mocked test can't — several real production
+bugs this project shipped with (a Postgres schema-check running on every
+connection, missing Qdrant Cloud payload indexes, rate limiting silently
+not enforcing) were found exactly that way, not by unit tests. A single
+blanket repo-wide coverage number would bury that distinction, so it's
+reported per-scope instead of averaged into one misleading figure.
 
 ## Project structure
 
