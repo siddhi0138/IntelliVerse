@@ -333,7 +333,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-57 tests across every deterministic module — **78% line coverage** on the 13
+131 tests across every deterministic module — **81% line coverage** on the 20
 modules those tests actually target (`pytest --cov`, tool-measured, not
 estimated). LLM-touching modules are tested for their deterministic error
 paths only — the LLM calls themselves are verified manually against a live
