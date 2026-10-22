@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 
 import psycopg2
 import psycopg2.extras
+from pgvector.psycopg2 import register_vector
 
 from schema_inference import ColumnSchema
 
@@ -236,6 +237,33 @@ def _init_db(conn) -> None:
             )
             """
         )
+
+        # Document chunk embeddings for the Knowledge Assistant (RAG over
+        # uploaded PDFs/DOCX/PPTX/TXT) — on the same Neon Postgres as
+        # everything else rather than a separate vector DB (Qdrant Cloud),
+        # which has its own free-tier auto-suspend-after-a-week/delete-
+        # after-a-month policy and was going dark between sessions for
+        # exactly that reason. Neon already supports the pgvector
+        # extension, and this app's realistic document-count-per-user
+        # scale doesn't need a dedicated vector database to begin with —
+        # a plain indexed column search is genuinely enough here, not a
+        # workaround standing in for one.
+        cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS document_chunks (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                doc_id TEXT NOT NULL,
+                filename TEXT NOT NULL,
+                chunk_index INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                embedding vector(384) NOT NULL
+            )
+            """
+        )
+        cur.execute("CREATE INDEX IF NOT EXISTS document_chunks_username_idx ON document_chunks (username)")
+        cur.execute("CREATE INDEX IF NOT EXISTS document_chunks_doc_id_idx ON document_chunks (doc_id)")
     conn.commit()
 
 
@@ -247,6 +275,11 @@ def _connect():
         if not _schema_ready:
             _init_db(conn)
             _schema_ready = True
+        # Needed on every connection (not just the first) so psycopg2 knows
+        # how to adapt a Python list/array to the `vector` column type —
+        # it's a per-connection registration, not a one-time process-wide
+        # setting, and _connect() opens a fresh connection per call.
+        register_vector(conn)
         yield conn
     finally:
         conn.close()
@@ -581,6 +614,52 @@ def delete_document_record(doc_id: str, username: str) -> bool:
         cur.execute("DELETE FROM documents WHERE doc_id = %s AND username = %s", (doc_id, username))
         conn.commit()
         return cur.rowcount > 0
+
+
+def save_document_chunks(
+    username: str, doc_id: str, filename: str, chunks: list[str], embeddings: list
+) -> None:
+    with _connect() as conn, conn.cursor() as cur:
+        psycopg2.extras.execute_batch(
+            cur,
+            "INSERT INTO document_chunks (id, username, doc_id, filename, chunk_index, text, embedding) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            [
+                (str(uuid.uuid4()), username, doc_id, filename, i, chunk, embedding)
+                for i, (chunk, embedding) in enumerate(zip(chunks, embeddings))
+            ],
+        )
+        conn.commit()
+
+
+def search_document_chunks(username: str, query_embedding, limit: int = 5) -> list[dict]:
+    # `<=>` is pgvector's cosine *distance* (0 = identical, 2 = opposite);
+    # converting to a 0-1 similarity score here keeps the API response
+    # shape identical to what the Qdrant-backed version used to return.
+    # The explicit `::vector` cast matters: register_vector(conn) adapts a
+    # plain Python list for an INSERT because the target column's type
+    # tells Postgres how to coerce it, but a bare `embedding <=> %s` with
+    # no destination column defaults to `numeric[]`, which `<=>` has no
+    # overload for (UndefinedFunction) — confirmed by actually running this
+    # against a real pgvector instance, not just reading the adapter docs.
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT filename, chunk_index, text, 1 - (embedding <=> %s::vector) AS score
+            FROM document_chunks
+            WHERE username = %s
+            ORDER BY embedding <=> %s::vector
+            LIMIT %s
+            """,
+            (query_embedding, username, query_embedding, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def delete_document_chunks(username: str, doc_id: str) -> None:
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM document_chunks WHERE username = %s AND doc_id = %s", (username, doc_id))
+        conn.commit()
 
 
 def save_workspace(workspace_id: str, username: str, tables: list[dict]) -> None:

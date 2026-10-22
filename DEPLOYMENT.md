@@ -39,7 +39,8 @@ separately:
    not on the backend's own disk. Neon's compute scales to zero after 5 min
    idle, so expect a short cold-start on the first query after inactivity,
    same tradeoff as Render's own free web services.
-3. **Neo4j: use AuraDB Free, not a self-hosted Render service.** Render's
+3. **Neo4j (optional): use AuraDB Free, not a self-hosted Render service — and
+   note it degrades gracefully if you skip it or it goes idle.** Render's
    free web services can't attach a persistent disk at all — disks require
    a paid instance type — so a self-hosted Neo4j-on-Render "free" service is
    actually either silently billed or has no real persistent disk (data
@@ -49,25 +50,28 @@ separately:
    relationships) — sign up, create a free instance, and it gives you a
    `neo4j+s://...` connection URI plus a one-time-shown password. The
    `neo4j` Python driver accepts that URI scheme natively, so `NEO4J_URI`
-   just changes value, no code change needed.
+   just changes value, no code change needed. **If you skip this, or Aura
+   pauses itself after 3 days of inactivity (and deletes itself after 30
+   days paused — a real Neo4j free-tier policy, not a hypothetical),
+   the Multi-table Workspace's graph view keeps working from its
+   in-process cache; only the Entity Profile drill-down (which needs
+   Neo4j's full row properties) returns a clean 503 instead.**
 4. Add the environment variables below to the backend Web Service.
-5. Real-time streaming (Kafka) is **not** part of this Render setup by
-   default — Kafka only runs inside the local `docker-compose` stack, and
-   Render hosts just the one backend web service, no broker alongside it.
-   Without it, the backend retries connecting (with capped exponential
-   backoff, not a fixed 5s hammer) and logs a warning periodically, but the
-   "Go live" feature genuinely won't work. To make it work on Render too,
-   sign up for a free hosted Kafka (e.g. **Aiven for Apache Kafka** — a
-   genuinely free tier, no trial expiry, though it auto-pauses after 24h of
-   inactivity and needs a manual "power on" from Aiven's console) and add
-   the variables below — a hosted broker needs login credentials over an
-   encrypted connection, unlike the unauthenticated local one, which is
-   exactly what those variables are for.
-6. Knowledge Assistant's document vectors (Qdrant) also default to
-   on-disk mode inside the backend container — fine locally, but reset on
-   every Render redeploy. Sign up for a free [Qdrant
-   Cloud](https://qdrant.tech/cloud/) cluster (permanently free, no card)
-   and add `QDRANT_URL`/`QDRANT_API_KEY` below to point at it instead.
+5. Real-time streaming (Kafka, optional) is **not** part of this Render
+   setup by default — Kafka only runs inside the local `docker-compose`
+   stack, and Render hosts just the one backend web service, no broker
+   alongside it. **Without it, "Go live" still works** — the producer
+   gives the broker `KAFKA_CONNECT_TIMEOUT_SECONDS` (8s) to connect, and
+   permanently falls back to delivering rows in-process (producer and
+   consumer logic run directly, skipping the broker hop) for the rest of
+   the deployment's lifetime if it can't. To demo a real decoupled broker
+   on Render too, sign up for a free hosted Kafka (e.g. **Aiven for
+   Apache Kafka** — a genuinely free tier, no trial expiry, though it
+   auto-pauses after 24h of inactivity and needs a manual "power on" from
+   Aiven's console) and add the variables below — a hosted broker needs
+   login credentials over an encrypted connection, unlike the
+   unauthenticated local one, which is exactly what those variables are
+   for.
 
 **Environment variables to add on Render:**
 
@@ -83,8 +87,6 @@ separately:
 | `POSTGRES_DSN` | Your Neon project's connection string (includes `?sslmode=require`) |
 | `JWT_SECRET_KEY` | Generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `JWT_EXPIRE_MINUTES` | `1440` |
-| `QDRANT_URL` *(optional)* | A hosted Qdrant instance's URL, e.g. a free [Qdrant Cloud](https://qdrant.tech/cloud/) cluster's endpoint. Leave unset and Knowledge Assistant falls back to on-disk mode on the backend's own (ephemeral) disk |
-| `QDRANT_API_KEY` *(optional)* | That cluster's API key |
 | `KAFKA_BOOTSTRAP_SERVERS` *(optional)* | Only if using a hosted Kafka, e.g. `<service-name>.aivencloud.com:<port>` |
 | `KAFKA_SECURITY_PROTOCOL` *(optional)* | `SASL_SSL` |
 | `KAFKA_SASL_MECHANISM` *(optional)* | `SCRAM-SHA-256` |
@@ -121,19 +123,17 @@ differently:
 
 ### What still doesn't survive a Render restart
 
-Nothing, anymore. Datasets, saved forecasts/simulations/optimizations/
-queries, ask history, and the incremental-learning model's actual learned
-weights (not just their history) all live in Postgres now — a backend
-redeploy loses none of it. The two gaps that used to exist here are both
-closed:
+Nothing. Datasets, saved forecasts/simulations/optimizations/queries, ask
+history, document chunks/embeddings (pgvector), and the incremental-
+learning model's actual learned weights (not just their history) all live
+in Postgres now — a backend redeploy loses none of it. Document vectors
+used to be the one gap here (Qdrant Cloud's on-disk fallback lived on the
+backend's own ephemeral disk, and its hosted free tier auto-suspends
+after a week of inactivity and deletes after four) — closed by moving
+them onto the same Postgres instance as everything else via the
+`pgvector` extension (`catalog.py`'s `document_chunks` table), which Neon
+supports natively and has no equivalent expiry.
 
-- **Qdrant** (Knowledge Assistant's document vectors) — set `QDRANT_URL`
-  (and `QDRANT_API_KEY` if required) to point at a hosted instance, e.g. a
-  free [Qdrant Cloud](https://qdrant.tech/cloud/) cluster (permanently
-  free, 1GB RAM/4GB disk, no card — auto-suspends after 1 week of
-  inactivity and deletes after 4 weeks, so touch it at least that often).
-  Leave both unset for local dev and `document_intelligence.py` keeps using
-  on-disk mode under `backend/data/qdrant`, same as before.
 - **Incremental-learning model weights** — `incremental_model.py` now
   serializes its (tiny, a few KB) scikit-learn state as a BYTEA row via
   `catalog.save_model_weights`/`load_model_weights`, reusing the Postgres

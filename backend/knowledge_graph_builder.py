@@ -7,6 +7,16 @@ from the same ingested data for graph algorithms (PageRank, centrality,
 connected components) — Neo4j is the persistent store, NetworkX is the
 in-process compute engine for this request.
 
+The NetworkX graph is built first and is what every endpoint actually
+serves (via main.py's _WORKSPACE_GRAPH_CACHE) — Neo4j is a best-effort
+mirror on top, not a dependency the request's own response needs. A
+free-tier hosted instance (Aura) can legitimately be paused or deleted
+between sessions; when that happens this still returns a complete graph,
+just logs a warning instead of also persisting to Neo4j. Only the
+Neo4j-only endpoints in main.py (get_entity_profile's full row
+properties, which the lightweight NetworkX node doesn't carry) are
+actually unavailable until Neo4j comes back.
+
 Scope limit, stated plainly: rows are capped per table
 (MAX_ROWS_PER_TABLE) to keep ingestion and analytics fast within a live
 request/response cycle. This is a live analytical tool, not a batch ETL
@@ -22,6 +32,7 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pandas as pd
+from loguru import logger
 
 from multi_table import RelationshipCandidate
 from neo4j_client import get_driver
@@ -60,66 +71,101 @@ def _sanitize_value(v: Any) -> Any:
     return str(v)
 
 
+def _node_records(
+    workspace_id: str, table_name: str, df: pd.DataFrame, key_col: str
+) -> list[dict[str, Any]]:
+    sample = df.head(MAX_ROWS_PER_TABLE)
+    records = []
+    for _, row in sample.iterrows():
+        props = {k: _sanitize_value(v) for k, v in row.to_dict().items()}
+        props["_workspace_id"] = workspace_id
+        props["_key"] = str(row[key_col])
+        records.append(props)
+    return records
+
+
+def _relationship_pairs(
+    tables: dict[str, pd.DataFrame], row_id_columns: dict[str, str], rel: RelationshipCandidate
+) -> list[dict[str, str]]:
+    from_key_col = row_id_columns.get(rel.from_table, tables[rel.from_table].columns[0])
+    from_sample = tables[rel.from_table].head(MAX_ROWS_PER_TABLE)
+    return [
+        {"from_key": str(row[from_key_col]), "to_key": str(row[rel.from_column])}
+        for _, row in from_sample.iterrows()
+        if pd.notna(row.get(rel.from_column))
+    ]
+
+
+def _mirror_to_neo4j(
+    workspace_id: str,
+    tables: dict[str, pd.DataFrame],
+    row_id_columns: dict[str, str],
+    relationships: list[RelationshipCandidate],
+) -> None:
+    """Best-effort persistence into Neo4j — never raises. A paused/deleted
+    free-tier Aura instance means this silently no-ops (with one logged
+    warning); the NetworkX graph build_graph() already returned is what
+    every endpoint actually serves, so this not completing doesn't break
+    the request that triggered it."""
+    try:
+        driver = get_driver()
+        with driver.session() as session:
+            session.run("MATCH (n {_workspace_id: $wid}) DETACH DELETE n", wid=workspace_id)
+
+            for table_name, df in tables.items():
+                records = _node_records(workspace_id, table_name, df, row_id_columns[table_name])
+                session.run(
+                    f"UNWIND $rows AS row MERGE (n:`{table_name}` {{_workspace_id: row._workspace_id, _key: row._key}}) SET n += row",
+                    rows=records,
+                )
+
+            for rel in relationships:
+                rel_type = _relationship_type_name(rel.from_column)
+                pairs = _relationship_pairs(tables, row_id_columns, rel)
+                if not pairs:
+                    continue
+                session.run(
+                    f"""
+                    UNWIND $pairs AS pair
+                    MATCH (a:`{rel.from_table}` {{_workspace_id: $wid, _key: pair.from_key}})
+                    MATCH (b:`{rel.to_table}` {{_workspace_id: $wid, _key: pair.to_key}})
+                    MERGE (a)-[r:`{rel_type}`]->(b)
+                    """,
+                    pairs=pairs,
+                    wid=workspace_id,
+                )
+    except Exception as exc:  # pragma: no cover - defensive, Neo4j is best-effort here
+        logger.warning(
+            f"Neo4j mirror for workspace {workspace_id} failed ({exc!r}); the knowledge graph "
+            "is still fully available from the in-process cache, but entity-profile lookups "
+            "(which need Neo4j's full row properties) won't work until it's reachable again."
+        )
+
+
 def build_graph(
     workspace_id: str,
     tables: dict[str, pd.DataFrame],
     schemas: dict[str, list[ColumnSchema]],
     relationships: list[RelationshipCandidate],
 ) -> dict[str, Any]:
-    driver = get_driver()
     graph = nx.MultiDiGraph()
     row_id_columns: dict[str, str] = {}
 
-    with driver.session() as session:
-        # idempotent: clear any previous ingestion for this workspace first
-        session.run("MATCH (n {_workspace_id: $wid}) DETACH DELETE n", wid=workspace_id)
+    for table_name, df in tables.items():
+        schema = schemas[table_name]
+        key_col = _row_id_column(schema) or df.columns[0]
+        row_id_columns[table_name] = key_col
+        for _, row in df.head(MAX_ROWS_PER_TABLE).iterrows():
+            graph.add_node(f"{table_name}:{row[key_col]}", table=table_name, key=str(row[key_col]))
 
-        for table_name, df in tables.items():
-            schema = schemas[table_name]
-            key_col = _row_id_column(schema) or df.columns[0]
-            row_id_columns[table_name] = key_col
+    for rel in relationships:
+        rel_type = _relationship_type_name(rel.from_column)
+        for pair in _relationship_pairs(tables, row_id_columns, rel):
+            a_node = f"{rel.from_table}:{pair['from_key']}"
+            b_node = f"{rel.to_table}:{pair['to_key']}"
+            if graph.has_node(a_node) and graph.has_node(b_node):
+                graph.add_edge(a_node, b_node, type=rel_type)
 
-            sample = df.head(MAX_ROWS_PER_TABLE)
-            records = []
-            for _, row in sample.iterrows():
-                props = {k: _sanitize_value(v) for k, v in row.to_dict().items()}
-                props["_workspace_id"] = workspace_id
-                props["_key"] = str(row[key_col])
-                records.append(props)
-                graph.add_node(f"{table_name}:{row[key_col]}", table=table_name, key=str(row[key_col]))
-
-            session.run(
-                f"UNWIND $rows AS row MERGE (n:`{table_name}` {{_workspace_id: row._workspace_id, _key: row._key}}) SET n += row",
-                rows=records,
-            )
-
-        for rel in relationships:
-            from_key_col = row_id_columns.get(rel.from_table, tables[rel.from_table].columns[0])
-            rel_type = _relationship_type_name(rel.from_column)
-
-            from_sample = tables[rel.from_table].head(MAX_ROWS_PER_TABLE)
-            pairs = [
-                {"from_key": str(row[from_key_col]), "to_key": str(row[rel.from_column])}
-                for _, row in from_sample.iterrows()
-                if pd.notna(row.get(rel.from_column))
-            ]
-            if not pairs:
-                continue
-
-            session.run(
-                f"""
-                UNWIND $pairs AS pair
-                MATCH (a:`{rel.from_table}` {{_workspace_id: $wid, _key: pair.from_key}})
-                MATCH (b:`{rel.to_table}` {{_workspace_id: $wid, _key: pair.to_key}})
-                MERGE (a)-[r:`{rel_type}`]->(b)
-                """,
-                pairs=pairs,
-                wid=workspace_id,
-            )
-
-            for p in pairs:
-                a_node, b_node = f"{rel.from_table}:{p['from_key']}", f"{rel.to_table}:{p['to_key']}"
-                if graph.has_node(a_node) and graph.has_node(b_node):
-                    graph.add_edge(a_node, b_node, type=rel_type)
+    _mirror_to_neo4j(workspace_id, tables, row_id_columns, relationships)
 
     return {"node_count": graph.number_of_nodes(), "edge_count": graph.number_of_edges(), "graph": graph}

@@ -53,6 +53,13 @@ KAFKA_SASL_PASSWORD = os.environ.get("KAFKA_SASL_PASSWORD")
 KAFKA_SSL_CA_CERT = os.environ.get("KAFKA_SSL_CA_CERT")
 TOPIC = "intelliverse.live-rows"
 PRODUCE_INTERVAL_SECONDS = 4.0
+# How long to wait for the broker to accept a connection before treating it
+# as unreachable for the rest of this process's life (see _kafka_unavailable
+# below) — without this, an unreachable/paused hosted broker (e.g. Aiven
+# auto-paused after inactivity) leaves every "Go live" click hanging with
+# rows silently never delivered, since aiokafka's own connect has no
+# timeout of its own and the row producer loop would just never progress.
+KAFKA_CONNECT_TIMEOUT_SECONDS = 8.0
 
 
 def _kafka_auth_kwargs() -> dict:
@@ -93,6 +100,13 @@ _STREAMS: dict[str, LiveStream] = {}
 _PRODUCER_TASKS: dict[str, asyncio.Task] = {}
 _PRODUCER: AIOKafkaProducer | None = None
 _CONSUMER_TASK: asyncio.Task | None = None
+# Sticky for the process's lifetime once set: a deployment with no real
+# broker (or a dead/paused one) would otherwise retry the connect on every
+# single synthetic row forever, each attempt stalling that row by
+# KAFKA_CONNECT_TIMEOUT_SECONDS. One confirmed failure is enough to know
+# "this deployment has no usable broker" and switch every stream to the
+# in-process fallback in _produce_loop below instead.
+_kafka_unavailable = False
 
 
 def _sample_synthetic_row(df: pd.DataFrame, schema: list[ColumnSchema]) -> dict:
@@ -113,20 +127,40 @@ def _sample_synthetic_row(df: pd.DataFrame, schema: list[ColumnSchema]) -> dict:
     return row
 
 
-async def _get_producer() -> AIOKafkaProducer:
-    global _PRODUCER
+async def _get_producer() -> AIOKafkaProducer | None:
+    """Returns None (rather than raising) once the broker is confirmed
+    unreachable, so callers can fall back to in-process delivery instead of
+    stalling forever — see _kafka_unavailable above."""
+    global _PRODUCER, _kafka_unavailable
+    if _kafka_unavailable:
+        return None
     if _PRODUCER is None:
-        _PRODUCER = AIOKafkaProducer(
+        producer = AIOKafkaProducer(
             bootstrap_servers=KAFKA_BOOTSTRAP,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
             **_kafka_auth_kwargs(),
         )
-        await _PRODUCER.start()
+        try:
+            await asyncio.wait_for(producer.start(), timeout=KAFKA_CONNECT_TIMEOUT_SECONDS)
+        except Exception as exc:
+            logger.warning(
+                f"Kafka producer could not connect ({exc!r}); live streaming will run "
+                "in-process for the rest of this deployment's lifetime instead of through "
+                "a real broker."
+            )
+            _kafka_unavailable = True
+            return None
+        _PRODUCER = producer
     return _PRODUCER
 
 
-async def _produce_loop(analysis_id: str, username: str, df_cache: dict[str, pd.DataFrame], schema: list[ColumnSchema]) -> None:
-    producer = await _get_producer()
+async def _produce_loop(
+    analysis_id: str,
+    username: str,
+    df_cache: dict[str, pd.DataFrame],
+    schema: list[ColumnSchema],
+    primary_metric_getter,
+) -> None:
     stream = _STREAMS[analysis_id]
     try:
         while stream.running:
@@ -135,7 +169,17 @@ async def _produce_loop(analysis_id: str, username: str, df_cache: dict[str, pd.
             if df is None:
                 break
             row = _sample_synthetic_row(df, schema)
-            await producer.send_and_wait(TOPIC, {"analysis_id": analysis_id, "username": username, "row": row})
+            payload = {"analysis_id": analysis_id, "username": username, "row": row}
+            producer = await _get_producer()
+            if producer is not None:
+                await producer.send_and_wait(TOPIC, payload)
+            else:
+                # No real broker available — same end state (the row lands
+                # in stream.log / df_cache / the incremental model) without
+                # the decoupled producer/consumer hop, since both halves
+                # live in this one process anyway when there's no Kafka to
+                # separate them.
+                _handle_message(payload, df_cache, primary_metric_getter)
     except asyncio.CancelledError:
         pass
     except Exception as exc:  # pragma: no cover - defensive, streaming is best-effort
@@ -143,14 +187,20 @@ async def _produce_loop(analysis_id: str, username: str, df_cache: dict[str, pd.
 
 
 def start_stream(
-    analysis_id: str, username: str, df_cache: dict[str, pd.DataFrame], schema: list[ColumnSchema]
+    analysis_id: str,
+    username: str,
+    df_cache: dict[str, pd.DataFrame],
+    schema: list[ColumnSchema],
+    primary_metric_getter,
 ) -> LiveStream:
     existing = _STREAMS.get(analysis_id)
     if existing and existing.running:
         return existing
     stream = LiveStream(analysis_id=analysis_id, loop=asyncio.get_running_loop())
     _STREAMS[analysis_id] = stream
-    _PRODUCER_TASKS[analysis_id] = asyncio.create_task(_produce_loop(analysis_id, username, df_cache, schema))
+    _PRODUCER_TASKS[analysis_id] = asyncio.create_task(
+        _produce_loop(analysis_id, username, df_cache, schema, primary_metric_getter)
+    )
     return stream
 
 

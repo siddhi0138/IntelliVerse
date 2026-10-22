@@ -217,7 +217,7 @@ median of 3 consecutive runs on an already-warm backend.
 | Backend | FastAPI, Python 3.12+ |
 | Data processing | pandas, NumPy, DuckDB, Polars + PyArrow |
 | Statistics/ML | SciPy, statsmodels, scikit-learn, XGBoost, LightGBM, Prophet, SHAP |
-| Databases | PostgreSQL (auth + catalog), Neo4j (knowledge graph), Qdrant (documents) |
+| Databases | PostgreSQL (auth + catalog + pgvector document embeddings), Neo4j (knowledge graph, optional) |
 | Streaming & online learning | Apache Kafka (KRaft, single-node), aiokafka, scikit-learn `SGDRegressor` + `joblib` persistence |
 | Document intelligence | fastembed (ONNX embeddings, no PyTorch), pypdf, python-docx, python-pptx |
 | Validation | Great Expectations |
@@ -315,13 +315,18 @@ the others correctly over the compose network.
 ## Deployment
 
 Live at [intelli-verse-phi.vercel.app](https://intelli-verse-phi.vercel.app) —
-frontend on **Vercel**, backend on **Render**, all data stores on genuinely
-permanent free tiers: **Neon** (Postgres), **Neo4j AuraDB Free** (graph),
-**Aiven** (Kafka), **Qdrant Cloud** (vectors). Vercel auto-deploys on push to
-`master`; the Render backend auto-deploys too, via a CI step that calls
-Render's Deploy Hook after tests pass (`.github/workflows/ci.yml`) — Render's
-own GitHub webhook integration stopped firing for this service, so CI
-triggers the deploy directly instead of depending on it.
+frontend on **Vercel**, backend on **Render**, core data on **Neon**
+(Postgres — auth, catalog, and document vectors via `pgvector`). **Neo4j
+AuraDB Free** (graph) and **Aiven** (Kafka) are optional add-ons layered on
+top: both have real free-tier inactivity policies (Aura pauses after 3 days,
+deletes after 30 paused; Aiven auto-pauses after 24h), and both degrade
+gracefully rather than breaking the app when idle — see
+[DEPLOYMENT.md](DEPLOYMENT.md) for exactly what each one's absence costs.
+Vercel auto-deploys on push to `master`; the Render backend auto-deploys
+too, via a CI step that calls Render's Deploy Hook after tests pass
+(`.github/workflows/ci.yml`) — Render's own GitHub webhook integration
+stopped firing for this service, so CI triggers the deploy directly instead
+of depending on it.
 
 Full step-by-step setup (env vars, why each provider was picked over its
 free-but-expiring alternatives, monitoring, and how cold starts are handled)
@@ -345,15 +350,16 @@ endpoint.
 
 That 81% is scoped to the modules with dedicated test files on purpose, not
 cherry-picked after the fact — it excludes `main.py` (the API/route layer)
-and the Postgres/Kafka/Qdrant/Neo4j integration modules, none of which
-`pytest` ever imports (see `tests/conftest.py`). Those are verified by
-actually running them against the real deployed services instead of a mock,
-which catches things a passing mocked test can't — several real production
-bugs this project shipped with (a Postgres schema-check running on every
-connection, missing Qdrant Cloud payload indexes, rate limiting silently
-not enforcing) were found exactly that way, not by unit tests. A single
-blanket repo-wide coverage number would bury that distinction, so it's
-reported per-scope instead of averaged into one misleading figure.
+and the Postgres/Kafka/Neo4j integration modules, none of which `pytest`
+ever imports (see `tests/conftest.py`). Those are verified by actually
+running them against the real deployed services instead of a mock, which
+catches things a passing mocked test can't — several real production bugs
+this project shipped with (a Postgres schema-check running on every
+connection, rate limiting silently not enforcing, Neo4j/Kafka outages
+surfacing as raw 500s instead of degrading gracefully) were found exactly
+that way, not by unit tests. A single blanket repo-wide coverage number
+would bury that distinction, so it's reported per-scope instead of
+averaged into one misleading figure.
 
 ## Project structure
 
@@ -368,20 +374,20 @@ backend/
   anomalies_ml.py             Multivariate anomaly detection (+ SHAP)
   clustering.py                KMeans segmentation
   multi_table.py               Cross-table relationship discovery
-  knowledge_graph_builder.py   Neo4j ingestion
+  knowledge_graph_builder.py   NetworkX graph build + best-effort Neo4j mirror
   graph_analytics.py           PageRank/centrality via NetworkX
   digital_twin.py              Graph-based impact simulation
   simulation.py                Decision simulation engine
   optimization.py               Multi-lever "find the best plan" search
   autonomous_analyst.py        Autonomous action plan pipeline
-  streaming.py                  Kafka producer/consumer for live row streaming
+  streaming.py                  Kafka producer/consumer for live row streaming, with an in-process fallback if no broker is reachable
   incremental_model.py          Persistent online-learning model (SGDRegressor)
   duckdb_query.py               Ad-hoc SQL querying
   report.py                     PDF/Excel/PPTX export
   progress_jobs.py              WebSocket progress streaming
   auth.py                       Users, JWT, bcrypt
   catalog.py                    Postgres dataset/document metadata store
-  document_intelligence.py      Document chunking, embedding, Qdrant storage/search
+  document_intelligence.py      Document chunking, embedding, pgvector storage/search
   document_qa.py                Retrieval-then-narrate over documents + structured findings
   logging_config.py             Loguru setup
   tests/                        Pytest suite

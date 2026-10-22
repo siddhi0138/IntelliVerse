@@ -1043,35 +1043,43 @@ def _table_name_from_filename(filename: str) -> str:
 
 def _load_workspace_graph(workspace_id: str) -> nx.MultiDiGraph | None:
     """The in-memory cache is lost on a backend restart, but the actual
-    graph data lives in Neo4j (tagged by _workspace_id) regardless — so
+    graph data normally lives in Neo4j too (tagged by _workspace_id) — so
     fall back to rebuilding the NetworkX graph from there instead of
-    treating a cold cache as "no graph exists"."""
+    treating a cold cache as "no graph exists". If Neo4j itself is
+    unreachable (paused/deleted free-tier instance), that fallback simply
+    can't help — treated the same as "no graph exists yet" (a clean 404
+    upstream) rather than a 500, since from the caller's perspective the
+    graph genuinely isn't available right now either way."""
     cached = _WORKSPACE_GRAPH_CACHE.get(workspace_id)
     if cached is not None:
         return cached
 
-    driver = get_driver()
-    graph = nx.MultiDiGraph()
-    with driver.session() as session:
-        nodes = session.run(
-            "MATCH (n {_workspace_id: $wid}) RETURN labels(n)[0] AS table, n._key AS key", wid=workspace_id
-        )
-        found = False
-        for rec in nodes:
-            found = True
-            graph.add_node(f"{rec['table']}:{rec['key']}", table=rec["table"], key=rec["key"])
-        if not found:
-            return None
+    try:
+        driver = get_driver()
+        graph = nx.MultiDiGraph()
+        with driver.session() as session:
+            nodes = session.run(
+                "MATCH (n {_workspace_id: $wid}) RETURN labels(n)[0] AS table, n._key AS key", wid=workspace_id
+            )
+            found = False
+            for rec in nodes:
+                found = True
+                graph.add_node(f"{rec['table']}:{rec['key']}", table=rec["table"], key=rec["key"])
+            if not found:
+                return None
 
-        edges = session.run(
-            """
-            MATCH (a {_workspace_id: $wid})-[r]->(b {_workspace_id: $wid})
-            RETURN labels(a)[0] AS at, a._key AS ak, labels(b)[0] AS bt, b._key AS bk, type(r) AS rtype
-            """,
-            wid=workspace_id,
-        )
-        for rec in edges:
-            graph.add_edge(f"{rec['at']}:{rec['ak']}", f"{rec['bt']}:{rec['bk']}", type=rec["rtype"])
+            edges = session.run(
+                """
+                MATCH (a {_workspace_id: $wid})-[r]->(b {_workspace_id: $wid})
+                RETURN labels(a)[0] AS at, a._key AS ak, labels(b)[0] AS bt, b._key AS bk, type(r) AS rtype
+                """,
+                wid=workspace_id,
+            )
+            for rec in edges:
+                graph.add_edge(f"{rec['at']}:{rec['ak']}", f"{rec['bt']}:{rec['bk']}", type=rec["rtype"])
+    except Exception as exc:
+        logger.warning(f"Neo4j fallback read for workspace {workspace_id} failed ({exc!r}); treating as no graph yet.")
+        return None
 
     _WORKSPACE_GRAPH_CACHE[workspace_id] = graph
     return graph
@@ -1209,9 +1217,17 @@ def delete_workspace(workspace_id: str, current_user: str = Depends(get_current_
     if catalog.get_workspace(workspace_id, current_user) is None:
         raise HTTPException(status_code=404, detail="Workspace not found.")
 
-    driver = get_driver()
-    with driver.session() as session:
-        session.run("MATCH (n {_workspace_id: $wid}) DETACH DELETE n", wid=workspace_id)
+    try:
+        driver = get_driver()
+        with driver.session() as session:
+            session.run("MATCH (n {_workspace_id: $wid}) DETACH DELETE n", wid=workspace_id)
+    except Exception as exc:
+        # Don't let an unreachable Neo4j block deleting the workspace from
+        # Postgres/cache — there's nothing left to delete from Neo4j's side
+        # anyway if it's down, and the user's delete intent for *their*
+        # data (the part that's actually reachable) shouldn't be blocked by
+        # an optional mirror being unavailable.
+        logger.warning(f"Neo4j cleanup for workspace {workspace_id} failed ({exc!r}); continuing with deletion anyway.")
 
     _WORKSPACE_TABLES_CACHE.pop(workspace_id, None)
     _WORKSPACE_SCHEMAS_CACHE.pop(workspace_id, None)
@@ -1250,36 +1266,48 @@ def get_entity_profile(workspace_id: str, table: str, key: str, current_user: st
     if catalog.get_workspace(workspace_id, current_user) is None:
         raise HTTPException(status_code=404, detail="Workspace not found.")
 
-    driver = get_driver()
-    with driver.session() as session:
-        record = session.run(
-            f"MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}}) RETURN properties(n) AS props",
-            wid=workspace_id,
-            key=key,
-        ).single()
-        if record is None:
-            raise HTTPException(status_code=404, detail="Entity not found in the graph.")
-        properties = {k: v for k, v in record["props"].items() if not k.startswith("_")}
+    # Unlike /graph and /simulate-entity, this genuinely needs Neo4j: the
+    # in-process NetworkX cache only carries node/edge structure, not full
+    # row properties. A down Neo4j means this one endpoint is unavailable —
+    # reported as a clean 503, not an unhandled 500.
+    try:
+        driver = get_driver()
+        with driver.session() as session:
+            record = session.run(
+                f"MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}}) RETURN properties(n) AS props",
+                wid=workspace_id,
+                key=key,
+            ).single()
+            if record is None:
+                raise HTTPException(status_code=404, detail="Entity not found in the graph.")
+            properties = {k: v for k, v in record["props"].items() if not k.startswith("_")}
 
-        neighbors = session.run(
-            f"""
-            MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}})-[r]-(m)
-            RETURN labels(m)[0] AS table, m._key AS key, type(r) AS relationship,
-                   startNode(r)._key = $key AS outgoing
-            LIMIT 25
-            """,
-            wid=workspace_id,
-            key=key,
-        )
-        neighbor_list = [
-            {
-                "table": n["table"],
-                "key": n["key"],
-                "relationship": n["relationship"],
-                "direction": "outgoing" if n["outgoing"] else "incoming",
-            }
-            for n in neighbors
-        ]
+            neighbors = session.run(
+                f"""
+                MATCH (n:`{table}` {{_workspace_id: $wid, _key: $key}})-[r]-(m)
+                RETURN labels(m)[0] AS table, m._key AS key, type(r) AS relationship,
+                       startNode(r)._key = $key AS outgoing
+                LIMIT 25
+                """,
+                wid=workspace_id,
+                key=key,
+            )
+            neighbor_list = [
+                {
+                    "table": n["table"],
+                    "key": n["key"],
+                    "relationship": n["relationship"],
+                    "direction": "outgoing" if n["outgoing"] else "incoming",
+                }
+                for n in neighbors
+            ]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning(f"Neo4j entity profile lookup failed ({exc!r}).")
+        raise HTTPException(
+            status_code=503, detail="Entity profiles need the graph database, which is temporarily unavailable."
+        ) from exc
 
     return {"table": table, "key": key, "properties": properties, "neighbors": neighbor_list}
 
@@ -1521,7 +1549,7 @@ async def start_live_stream(analysis_id: str, current_user: str = Depends(get_cu
     schema = _ANALYSIS_SCHEMA_CACHE.get(analysis_id)
     if analysis_id not in _ANALYSIS_DF_CACHE or schema is None:
         raise HTTPException(status_code=404, detail="Analysis not found — re-upload the file and try again.")
-    streaming.start_stream(analysis_id, current_user, _ANALYSIS_DF_CACHE, schema)
+    streaming.start_stream(analysis_id, current_user, _ANALYSIS_DF_CACHE, schema, _primary_metric_for)
     return {"running": True}
 
 
