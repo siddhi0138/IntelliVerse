@@ -76,6 +76,38 @@ async def test_produce_loop_uses_real_producer_when_kafka_is_reachable():
 
 
 @pytest.mark.asyncio
+async def test_produce_loop_falls_back_when_a_connected_producer_fails_to_send():
+    """A second, distinct real production bug: the producer can connect
+    fine (a real reachable Aiven broker with valid credentials) while
+    every send still fails — most realistically UnknownTopicOrPartitionError
+    if the topic was never created and the hosted broker has auto-topic-
+    creation disabled (Aiven's default, unlike local Kafka). Before this
+    fix, a send failure wasn't caught anywhere except _produce_loop's
+    outer try/except, which just silently killed the whole loop on the
+    first attempt — connect succeeding was enough to mark Kafka as
+    'available' and never try the in-process fallback at all."""
+    df = pd.DataFrame({"Revenue": [100.0, 200.0]})
+    schema = build_schema(df)
+    df_cache = {"a1": df}
+
+    streaming.PRODUCE_INTERVAL_SECONDS = 0.01
+    streaming._STREAMS["a1"] = streaming.LiveStream(analysis_id="a1", loop=asyncio.get_running_loop())
+
+    fake_producer = AsyncMock()
+    fake_producer.send_and_wait.side_effect = Exception("UnknownTopicOrPartitionError")
+    with patch("streaming._get_producer", new=AsyncMock(return_value=fake_producer)):
+        task = asyncio.create_task(
+            streaming._produce_loop("a1", "user1", df_cache, schema, lambda analysis_id: None)
+        )
+        await asyncio.sleep(0.05)
+        streaming._STREAMS["a1"].running = False
+        await asyncio.wait_for(task, timeout=1)
+
+    assert streaming._STREAMS["a1"].row_count > 2, "a send failure must still fall back, not die silently"
+    assert streaming._kafka_unavailable is True, "a confirmed send failure should stop retrying the real broker"
+
+
+@pytest.mark.asyncio
 async def test_get_producer_becomes_sticky_unavailable_after_connect_failure():
     with patch("streaming.AIOKafkaProducer") as fake_cls:
         fake_cls.return_value.start = AsyncMock(side_effect=TimeoutError("broker unreachable"))

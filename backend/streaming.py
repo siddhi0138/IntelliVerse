@@ -26,8 +26,6 @@ import pandas as pd
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from loguru import logger
 
-import catalog
-from incremental_model import IncrementalMetricModel
 from schema_inference import ColumnSchema
 
 KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
@@ -171,6 +169,7 @@ async def _produce_loop(
     schema: list[ColumnSchema],
     primary_metric_getter,
 ) -> None:
+    global _kafka_unavailable
     stream = _STREAMS[analysis_id]
     try:
         while stream.running:
@@ -181,14 +180,33 @@ async def _produce_loop(
             row = _sample_synthetic_row(df, schema)
             payload = {"analysis_id": analysis_id, "username": username, "row": row}
             producer = await _get_producer()
+            delivered = False
             if producer is not None:
-                await producer.send_and_wait(TOPIC, payload)
-            else:
-                # No real broker available — same end state (the row lands
-                # in stream.log / df_cache / the incremental model) without
-                # the decoupled producer/consumer hop, since both halves
-                # live in this one process anyway when there's no Kafka to
-                # separate them.
+                try:
+                    await asyncio.wait_for(producer.send_and_wait(TOPIC, payload), timeout=KAFKA_CONNECT_TIMEOUT_SECONDS)
+                    delivered = True
+                except Exception as exc:
+                    # A *connected* producer can still fail to deliver — most
+                    # realistically a hosted broker with auto-topic-creation
+                    # disabled (Aiven's default) rejecting sends to a topic
+                    # that was never manually created there, which
+                    # UnknownTopicOrPartitionError surfaces here, not at
+                    # connect time. Sticky, same as a connect failure: once
+                    # a send fails this way it's going to keep failing, and
+                    # retrying it every single row would just recreate the
+                    # original stuck-at-0-forever bug this is fixing.
+                    logger.warning(
+                        f"Kafka send failed ({exc!r}); live streaming will run in-process "
+                        "for the rest of this deployment's lifetime instead of through a "
+                        "real broker."
+                    )
+                    _kafka_unavailable = True
+            if not delivered:
+                # No real broker available (or it just failed) — same end
+                # state (the row lands in stream.log / df_cache / the
+                # incremental model) without the decoupled producer/
+                # consumer hop, since both halves live in this one process
+                # anyway when there's no working Kafka to separate them.
                 _handle_message(payload, df_cache, primary_metric_getter)
     except asyncio.CancelledError:
         pass
@@ -304,6 +322,16 @@ def _handle_message(payload: dict, df_cache: dict[str, pd.DataFrame], primary_me
     model_update = None
     target = primary_metric_getter(analysis_id)
     if target and row.get(target) is not None:
+        # Deferred import: both of these pull in catalog.py at their own
+        # module level (for persisting model weights/history to Postgres),
+        # which requires POSTGRES_DSN to be set. Keeping that out of this
+        # module's top-level imports means streaming.py itself — and its
+        # test suite — never needs a database connection string just to
+        # exercise the Kafka fallback logic, matching the rest of this
+        # project's "pure-logic tests need no external service" rule.
+        import catalog
+        from incremental_model import IncrementalMetricModel
+
         model = IncrementalMetricModel(analysis_id, target)
         result = model.update(float(stream.row_count), float(row[target]))
         update_dict = {
