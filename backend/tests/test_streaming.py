@@ -87,3 +87,42 @@ async def test_get_producer_becomes_sticky_unavailable_after_connect_failure():
     assert streaming._kafka_unavailable is True
     # second call must not even try to construct a new producer again
     assert fake_cls.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_producer_falls_back_when_construction_itself_raises():
+    """The real production bug this reproduces: a hosted broker config that
+    raises synchronously during AIOKafkaProducer(**kwargs) construction —
+    e.g. SASL_SSL set with empty/missing credentials, or a malformed CA
+    cert breaking ssl.create_default_context() inside _kafka_auth_kwargs()
+    — happens *before* .start() is ever awaited. If that construction call
+    isn't inside the same try/except as .start(), the exception escapes
+    _get_producer() entirely and silently kills _produce_loop's current
+    iteration for good (row_count stuck at 0 forever, exactly what was
+    observed live), instead of falling back like every other Kafka failure
+    mode."""
+    with patch("streaming.AIOKafkaProducer", side_effect=ValueError("sasl_plain_username required")):
+        result = await streaming._get_producer()
+
+    assert result is None
+    assert streaming._kafka_unavailable is True
+
+
+@pytest.mark.asyncio
+async def test_produce_loop_still_delivers_rows_when_producer_construction_raises():
+    df = pd.DataFrame({"Revenue": [100.0, 200.0]})
+    schema = build_schema(df)
+    df_cache = {"a1": df}
+
+    streaming.PRODUCE_INTERVAL_SECONDS = 0.01
+    streaming._STREAMS["a1"] = streaming.LiveStream(analysis_id="a1", loop=asyncio.get_running_loop())
+
+    with patch("streaming.AIOKafkaProducer", side_effect=ValueError("sasl_plain_username required")):
+        task = asyncio.create_task(
+            streaming._produce_loop("a1", "user1", df_cache, schema, lambda analysis_id: None)
+        )
+        await asyncio.sleep(0.05)
+        streaming._STREAMS["a1"].running = False
+        await asyncio.wait_for(task, timeout=1)
+
+    assert streaming._STREAMS["a1"].row_count > 2, "a constructor-time failure must still fall back, not die silently"

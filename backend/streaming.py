@@ -135,12 +135,22 @@ async def _get_producer() -> AIOKafkaProducer | None:
     if _kafka_unavailable:
         return None
     if _PRODUCER is None:
-        producer = AIOKafkaProducer(
-            bootstrap_servers=KAFKA_BOOTSTRAP,
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-            **_kafka_auth_kwargs(),
-        )
+        # Everything here — constructing the SSL context from
+        # KAFKA_SSL_CA_CERT, constructing AIOKafkaProducer itself (which
+        # validates SASL kwargs immediately), and the actual connect — must
+        # stay inside this one try/except. A malformed/incomplete hosted-
+        # broker config (e.g. SASL_SSL set but credentials empty, or a bad
+        # CA cert) raises synchronously during construction, before
+        # .start() is even awaited — letting that escape here silently
+        # kills the produce loop for good (row_count stuck at 0 forever)
+        # instead of falling back, which is the exact failure this
+        # fallback exists to prevent.
         try:
+            producer = AIOKafkaProducer(
+                bootstrap_servers=KAFKA_BOOTSTRAP,
+                value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                **_kafka_auth_kwargs(),
+            )
             await asyncio.wait_for(producer.start(), timeout=KAFKA_CONNECT_TIMEOUT_SECONDS)
         except Exception as exc:
             logger.warning(
