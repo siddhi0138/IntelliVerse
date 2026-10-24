@@ -41,7 +41,7 @@ from schema_inference import ColumnSchema
 MAX_ROWS_PER_TABLE = 2000
 
 
-def _row_id_column(schema: list[ColumnSchema]) -> str | None:
+def row_id_column(schema: list[ColumnSchema]) -> str | None:
     id_cols = [c for c in schema if c.type == "id"]
     return id_cols[0].name if id_cols else None
 
@@ -55,7 +55,7 @@ def _relationship_type_name(column_name: str) -> str:
     return re.sub(r"[^A-Za-z0-9]", "_", stripped).upper() or "REFERENCES"
 
 
-def _sanitize_value(v: Any) -> Any:
+def sanitize_value(v: Any) -> Any:
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return None
     if isinstance(v, np.integer):
@@ -77,7 +77,7 @@ def _node_records(
     sample = df.head(MAX_ROWS_PER_TABLE)
     records = []
     for _, row in sample.iterrows():
-        props = {k: _sanitize_value(v) for k, v in row.to_dict().items()}
+        props = {k: sanitize_value(v) for k, v in row.to_dict().items()}
         props["_workspace_id"] = workspace_id
         props["_key"] = str(row[key_col])
         records.append(props)
@@ -153,7 +153,7 @@ def build_graph(
 
     for table_name, df in tables.items():
         schema = schemas[table_name]
-        key_col = _row_id_column(schema) or df.columns[0]
+        key_col = row_id_column(schema) or df.columns[0]
         row_id_columns[table_name] = key_col
         for _, row in df.head(MAX_ROWS_PER_TABLE).iterrows():
             graph.add_node(f"{table_name}:{row[key_col]}", table=table_name, key=str(row[key_col]))

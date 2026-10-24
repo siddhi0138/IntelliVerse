@@ -55,7 +55,7 @@ import document_intelligence
 from document_intelligence import UnsupportedDocumentError
 from document_qa import answer_with_documents
 from duckdb_query import UnsafeQueryError, run_query
-from knowledge_graph_builder import build_graph
+from knowledge_graph_builder import build_graph, row_id_column, sanitize_value
 from multi_table import RelationshipCandidate, discover_relationships
 from neo4j_client import get_driver
 from profiling import build_quality_report
@@ -1085,6 +1085,45 @@ def _load_workspace_graph(workspace_id: str) -> nx.MultiDiGraph | None:
     return graph
 
 
+def _entity_profile_from_cache(workspace_id: str, table: str, key: str) -> dict | None:
+    """Serves an entity profile from the same in-process cache /graph and
+    /simulate-entity already use, so this endpoint stops depending on
+    Neo4j for the common case — only a cold cache (e.g. right after a
+    backend restart, before anyone's reopened this workspace) needs the
+    Neo4j fallback below. Returns None only when the *cache itself* isn't
+    available; a genuinely missing entity is a 404 raised here directly,
+    not a cache miss for the caller to interpret."""
+    tables = _WORKSPACE_TABLES_CACHE.get(workspace_id)
+    schemas = _WORKSPACE_SCHEMAS_CACHE.get(workspace_id)
+    graph = _load_workspace_graph(workspace_id)
+    if tables is None or schemas is None or graph is None or table not in tables:
+        return None
+
+    df = tables[table]
+    key_col = row_id_column(schemas[table]) or df.columns[0]
+    matches = df[df[key_col].astype(str) == key]
+    if matches.empty:
+        raise HTTPException(status_code=404, detail="Entity not found in the graph.")
+
+    properties = {k: sanitize_value(v) for k, v in matches.iloc[0].to_dict().items()}
+
+    node_id = f"{table}:{key}"
+    neighbor_list = []
+    if graph.has_node(node_id):
+        for _, target, data in graph.out_edges(node_id, data=True):
+            t_table, t_key = target.split(":", 1)
+            neighbor_list.append(
+                {"table": t_table, "key": t_key, "relationship": data.get("type"), "direction": "outgoing"}
+            )
+        for source, _, data in graph.in_edges(node_id, data=True):
+            s_table, s_key = source.split(":", 1)
+            neighbor_list.append(
+                {"table": s_table, "key": s_key, "relationship": data.get("type"), "direction": "incoming"}
+            )
+
+    return {"table": table, "key": key, "properties": properties, "neighbors": neighbor_list[:25]}
+
+
 @protected.post("/api/workspace")
 @limiter.limit("10/minute")
 async def create_workspace(request: Request, files: list[UploadFile], current_user: str = Depends(get_current_user)) -> dict:
@@ -1266,9 +1305,14 @@ def get_entity_profile(workspace_id: str, table: str, key: str, current_user: st
     if catalog.get_workspace(workspace_id, current_user) is None:
         raise HTTPException(status_code=404, detail="Workspace not found.")
 
-    # Unlike /graph and /simulate-entity, this genuinely needs Neo4j: the
-    # in-process NetworkX cache only carries node/edge structure, not full
-    # row properties. A down Neo4j means this one endpoint is unavailable —
+    cached = _entity_profile_from_cache(workspace_id, table, key)
+    if cached is not None:
+        return cached
+
+    # Cache miss (cold start after a restart, before this workspace's
+    # graph has been rebuilt) — fall back to a direct Neo4j read. A down
+    # Neo4j at this point means this one lookup is unavailable until
+    # someone reopens the workspace (which repopulates the cache above) —
     # reported as a clean 503, not an unhandled 500.
     try:
         driver = get_driver()
