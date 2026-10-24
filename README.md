@@ -342,24 +342,30 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-131 tests across every deterministic module — **81% line coverage** on the 20
+140 tests across every deterministic module — **86% line coverage** on the 25
 modules those tests actually target (`pytest --cov`, tool-measured, not
 estimated). LLM-touching modules are tested for their deterministic error
 paths only — the LLM calls themselves are verified manually against a live
-endpoint.
+endpoint. Two of those 25 — `knowledge_graph_builder.py` (Neo4j) and
+`streaming.py` (Kafka) — are tested by *simulating* a down or misconfigured
+broker/graph DB (a fake driver that raises mid-write, a mocked producer that
+fails to connect or to send) rather than a real one, since the thing being
+tested is specifically "does this degrade cleanly when the real service
+fails" — genuinely verifiable without the real service existing.
 
-That 81% is scoped to the modules with dedicated test files on purpose, not
-cherry-picked after the fact — it excludes `main.py` (the API/route layer)
-and the Postgres/Kafka/Neo4j integration modules, none of which `pytest`
-ever imports (see `tests/conftest.py`). Those are verified by actually
-running them against the real deployed services instead of a mock, which
-catches things a passing mocked test can't — several real production bugs
-this project shipped with (a Postgres schema-check running on every
-connection, rate limiting silently not enforcing, Neo4j/Kafka outages
-surfacing as raw 500s instead of degrading gracefully) were found exactly
-that way, not by unit tests. A single blanket repo-wide coverage number
-would bury that distinction, so it's reported per-scope instead of
-averaged into one misleading figure.
+That coverage is scoped to the modules with dedicated test files on
+purpose, not cherry-picked after the fact — it excludes `main.py` (the
+API/route layer) and `catalog.py`/`auth.py`'s actual database calls, which
+`pytest` never exercises end-to-end (see `tests/conftest.py`). Those are
+verified by actually running them against the real deployed services
+instead of a mock, which catches things a passing mocked test can't —
+several real production bugs this project shipped with (a Postgres
+schema-check running on every connection, rate limiting silently not
+enforcing, Neo4j/Kafka outages surfacing as raw 500s instead of degrading
+gracefully, a Kafka fallback that caught connect failures but not send
+failures) were found exactly that way, not by unit tests. A single blanket
+repo-wide coverage number would bury that distinction, so it's reported
+per-scope instead of averaged into one misleading figure.
 
 ## Project structure
 
