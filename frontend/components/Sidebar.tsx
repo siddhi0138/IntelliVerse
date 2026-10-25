@@ -7,6 +7,7 @@ import { Workflow, Database, MessageSquareText, BookOpen, LogOut, Menu, ChevronL
 import { Logo } from "@/components/Logo";
 import { GlossaryModal } from "@/components/GlossaryModal";
 import { clearToken, getUsername } from "@/lib/auth";
+import { DatasetSectionsNav } from "@/components/DatasetSectionsNav";
 
 // Distinct colors per link (instead of every active item reading the same
 // flat cyan) — same teal/violet/amber palette used across the dataset tabs'
@@ -94,6 +95,7 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <DatasetSectionsNav onNavigate={closeMobile} />
         <button
           onClick={() => {
             setGlossaryOpen(true);

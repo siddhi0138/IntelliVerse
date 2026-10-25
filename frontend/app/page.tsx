@@ -2,16 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  LayoutDashboard,
-  Database,
-  BarChart3,
   TrendingUp,
-  AlertTriangle,
-  GitBranch,
-  Workflow,
-  Target,
-  ListChecks,
-  MessageSquareText,
   Upload,
   Activity,
   Layers,
@@ -24,7 +15,6 @@ import {
   Home as HomeIcon,
   Compass,
   History,
-  Terminal,
   RefreshCw,
 } from "lucide-react";
 import { analyzeFileWithProgress, checkUploadSize, deleteDataset, fetchCatalogDataset, refreshAnalysis } from "@/lib/api";
@@ -60,31 +50,8 @@ import { QuickSummaryPanel } from "@/components/QuickSummaryPanel";
 import { BusinessHealthPanel } from "@/components/BusinessHealthPanel";
 import { GuidedTour, hasSeenTour, type TabId } from "@/components/GuidedTour";
 import { PersonaSelector } from "@/components/PersonaSelector";
+import { useDatasetNav } from "@/components/DatasetNavContext";
 import { useSimpleMode } from "@/components/SimpleModeContext";
-
-const TABS: { id: TabId; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: "overview", label: "Overview", icon: LayoutDashboard },
-  { id: "schema", label: "Schema", icon: Database },
-  { id: "stats", label: "Statistics", icon: BarChart3 },
-  { id: "forecast", label: "Forecast", icon: TrendingUp },
-  { id: "anomalies", label: "Anomalies", icon: AlertTriangle },
-  { id: "rootcause", label: "Root cause", icon: GitBranch },
-  { id: "graph", label: "Knowledge graph", icon: Workflow },
-  { id: "simulation", label: "Simulation", icon: Target },
-  { id: "action", label: "Action plan", icon: ListChecks },
-  { id: "ask", label: "Ask IntelliVerse", icon: MessageSquareText },
-  { id: "sql", label: "SQL Query", icon: Terminal },
-];
-
-// Matches the reference workspace shell's grouping (Analyze / Investigate /
-// Decide) — same three buckets, same tab order within each. SQL query gets
-// its own tab in Decide rather than being bundled inside Ask IntelliVerse —
-// ad-hoc SQL is a distinct power-user tool, not a follow-up to chat.
-const TAB_GROUPS: { title: string; ids: TabId[] }[] = [
-  { title: "Analyze", ids: ["overview", "schema", "stats"] },
-  { title: "Investigate", ids: ["forecast", "anomalies", "rootcause"] },
-  { title: "Decide", ids: ["graph", "simulation", "action", "ask", "sql"] },
-];
 
 // Cycled by index — our KPIs are domain-agnostic (no fixed metric-to-icon
 // mapping like the reference's Revenue/Units/Anomalies/Confidence).
@@ -107,6 +74,12 @@ export default function Home() {
   const [graphView, setGraphView] = useState<"2d" | "3d">("2d");
   const [tourActive, setTourActive] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const { publish: publishDatasetNav } = useDatasetNav();
+  // The sections are listed in the sidebar, so tell it which one is open and how to change it.
+  useEffect(() => {
+    publishDatasetNav(result ? { activeTab, onSelect: setActiveTab } : null);
+  }, [result, activeTab, publishDatasetNav]);
+  useEffect(() => () => publishDatasetNav(null), [publishDatasetNav]);
   const [lastDataset, setLastDataset] = useState<{ id: string; filename: string } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const { simpleMode, setSimpleMode } = useSimpleMode();
@@ -391,50 +364,6 @@ export default function Home() {
   return (
     <div className="flex-1 min-h-0 flex">
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Sticky bar holds only real in-page navigation (the tabs) — no
-            dataset name/badge here, that was reading as part of the
-            navbar. Dataset identity + actions now live inside the
-            scrollable content instead, as an ordinary card. */}
-        <div className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur-xl">
-          {/* Left edge lines up with the content below (same px-4 sm:px-6),
-              but this row itself spans the full width rather than being
-              capped at max-w-7xl. Labels collapse to icon-only (with a
-              hover/long-press tooltip via `title`) at every width up to
-              very large desktop monitors — 11 tabs' full labels at a normal
-              text size didn't reliably fit even at the low end of the 2xl
-              breakpoint's own range (a 1536px-wide window is "2xl" but only
-              ~1250px of that is left after the sidebar), so the label text
-              stays at the smallest size and padding stays tight instead of
-              growing at 2xl, to actually fit rather than just mostly fit.
-              Even icon-only, 11 tabs clip a few px past 375px-wide phones,
-              so overflow-x-auto is a scroll fallback rather than the
-              primary layout mechanism. */}
-          <div className="flex items-center justify-start gap-3 px-2 sm:px-4 lg:px-6 py-2 overflow-x-auto scrollbar-hide">
-            {TAB_GROUPS.map((group) => (
-              <div key={group.title} className="flex items-center gap-0.5">
-                {group.ids.map((id) => {
-                  const tab = TABS.find((t) => t.id === id)!;
-                  const isActive = activeTab === id;
-                  return (
-                    <button
-                      key={id}
-                      data-tab={id}
-                      title={tab.label}
-                      onClick={() => setActiveTab(id)}
-                      className={`flex items-center gap-1 rounded-lg px-2 py-1.5 sm:py-2 text-xs font-medium transition-all ${
-                        isActive ? "bg-primary/10 text-foreground ring-1 ring-primary/20" : "text-muted hover:bg-surface hover:text-foreground"
-                      }`}
-                    >
-                      <tab.icon className={`h-4 w-4 shrink-0 ${isActive ? "text-primary" : ""}`} />
-                      <span className="hidden 2xl:inline whitespace-nowrap">{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
         <main className="flex-1 overflow-y-auto max-w-7xl w-full mx-auto px-4 py-8 sm:px-6 sm:py-12">
           {/* Same container width/padding as every other page (catalog,
               workspace, knowledge, the pre-upload homepage) — this was the

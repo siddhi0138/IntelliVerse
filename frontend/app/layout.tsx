@@ -6,6 +6,7 @@ import { Footer } from "@/components/Footer";
 import { Sidebar } from "@/components/Sidebar";
 import { PersonaProvider } from "@/components/PersonaContext";
 import { SimpleModeProvider } from "@/components/SimpleModeContext";
+import { DatasetNavProvider } from "@/components/DatasetNavContext";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -53,6 +54,7 @@ export default function RootLayout({
         />
         <SimpleModeProvider>
           <PersonaProvider>
+            <DatasetNavProvider>
             <div className="flex-1 min-h-0 flex">
               <Sidebar />
               <div className="flex-1 min-w-0 flex flex-col min-h-0 pt-14 md:pt-0">
@@ -60,6 +62,7 @@ export default function RootLayout({
               </div>
             </div>
             <Footer />
+            </DatasetNavProvider>
           </PersonaProvider>
         </SimpleModeProvider>
       </body>

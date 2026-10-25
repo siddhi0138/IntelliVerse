@@ -160,6 +160,14 @@ apply, IntelliVerse says so instead of asking the LLM to fill the gap.
   PyTorch-based alternative used enough memory to crash the free hosting
   tier the first time anyone tried this feature)
 
+**🧭 Navigation**
+- While a dataset is open, its 11 sections are listed in the left sidebar as three collapsible
+  groups — **Analyze** (Overview, Schema, Statistics), **Investigate** (Forecast, Anomalies,
+  Root cause) and **Decide** (Knowledge graph, Simulation, Action plan, Ask IntelliVerse, SQL
+  Query). The group holding the current section starts expanded; the others stay collapsed until
+  opened. Elsewhere (catalog, workspace, knowledge assistant) the sidebar shows only its main links.
+  On phones the same list is inside the menu drawer.
+
 **🎨 Personalization**
 - Dark/light mode
 - Tell it who you are ("I am a CFO"), and every AI explanation adapts its
@@ -223,7 +231,7 @@ median of 3 consecutive runs on an already-warm backend.
 | Validation | Great Expectations |
 | Reports | openpyxl, ReportLab, python-pptx |
 | Auth | bcrypt, python-jose (JWT) |
-| LLM layer | Any OpenAI-compatible endpoint — [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi) or a local [Ollama](https://ollama.com) both work |
+| LLM layer | Any OpenAI-compatible endpoint — [Groq](https://console.groq.com) directly, [FreeLLMAPI](https://github.com/tashfeenahmed/freellmapi), or a local [Ollama](https://ollama.com) all work |
 | Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS |
 | Visualization | Recharts, @xyflow/react, Three.js + React Three Fiber |
 | Observability | Loguru, Prometheus + Grafana (self-hosted) |
@@ -255,7 +263,8 @@ uvicorn main:app --port 8001
 
 | Variable | Purpose |
 |---|---|
-| `FREELLMAPI_BASE_URL`, `FREELLMAPI_API_KEY`, `FREELLMAPI_MODEL` | LLM endpoint for narration (FreeLLMAPI or a local Ollama) |
+| `FREELLMAPI_BASE_URL`, `FREELLMAPI_API_KEY`, `FREELLMAPI_MODEL` | LLM endpoint for narration (Groq, FreeLLMAPI or a local Ollama). For Groq directly: `https://api.groq.com/openai/v1` with model `openai/gpt-oss-120b` — `auto` is mapped to it, since Groq has no `auto` model |
+| `FREELLMAPI_MODEL_FALLBACKS` | Optional. Comma-separated models tried in order when Groq reports the configured one as not found (default `openai/gpt-oss-120b,openai/gpt-oss-20b`); the first that works is remembered. Groq shut down `llama-3.3-70b-versatile` on 2026-08-16, so a deployment still set to it would otherwise get "model not found" and no AI text — see [Groq's deprecations](https://console.groq.com/docs/deprecations) |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Knowledge graph database |
 | `POSTGRES_DSN` | Auth *and* the dataset catalog (datasets, saved items, ask history, model history) |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker for real-time streaming (default `localhost:9092`) |
@@ -342,7 +351,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-140 tests across every deterministic module — **86% line coverage** on the 25
+153 tests across every deterministic module — **86% line coverage** on the 25
 modules those tests actually target (`pytest --cov`, tool-measured, not
 estimated). LLM-touching modules are tested for their deterministic error
 paths only — the LLM calls themselves are verified manually against a live
