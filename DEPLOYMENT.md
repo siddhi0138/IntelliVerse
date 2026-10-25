@@ -80,7 +80,7 @@ separately:
 | `FRONTEND_ORIGINS` | Your Vercel domain, e.g. `https://your-app.vercel.app` (comma-separate if you have more than one) |
 | `FREELLMAPI_BASE_URL` | Your LLM endpoint's base URL — must be a real, publicly reachable endpoint. `localhost` (even the code's own default) means "this container," not your laptop, so a local Ollama only works if it's likewise reachable, e.g. via a tunnel — most deployments point this at a real hosted LLM instead |
 | `FREELLMAPI_API_KEY` | Your LLM endpoint's API key |
-| `FREELLMAPI_MODEL` | `auto` (or a specific model name) |
+| `FREELLMAPI_MODEL` | `auto` (or a specific model name). Against Groq directly (`FREELLMAPI_BASE_URL=https://api.groq.com/openai/v1`) use `openai/gpt-oss-120b` — `auto` is mapped to it, and a model Groq has retired (such as `llama-3.3-70b-versatile`) falls back to `FREELLMAPI_MODEL_FALLBACKS` automatically |
 | `NEO4J_URI` | Your AuraDB Free instance's URI, e.g. `neo4j+s://xxxxxxxx.databases.neo4j.io` |
 | `NEO4J_USER` | `neo4j` |
 | `NEO4J_PASSWORD` | The password AuraDB shows you once at instance creation — save it, it isn't shown again |

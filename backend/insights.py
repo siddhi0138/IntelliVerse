@@ -18,6 +18,37 @@ LLM_BASE_URL = os.environ.get("FREELLMAPI_BASE_URL", "http://localhost:3001/v1")
 LLM_API_KEY = os.environ.get("FREELLMAPI_API_KEY", "")
 LLM_MODEL = os.environ.get("FREELLMAPI_MODEL", "auto")
 
+# When FREELLMAPI_BASE_URL is Groq itself (https://api.groq.com/openai/v1) there is no
+# router to pick a model: "auto" doesn't exist on Groq, and Groq retires models on a
+# schedule (llama-3.3-70b-versatile was shut down 2026-08-16 for free/developer accounts;
+# its replacement is openai/gpt-oss-120b - https://console.groq.com/docs/deprecations).
+# Against Groq, "auto" maps to a current model, and if a configured model is reported as
+# not found the next one in FREELLMAPI_MODEL_FALLBACKS is tried and then remembered.
+# Any other endpoint (a FreeLLMAPI router, Ollama) keeps using FREELLMAPI_MODEL as is.
+GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
+LLM_FALLBACK_MODELS = [
+    m.strip()
+    for m in os.environ.get("FREELLMAPI_MODEL_FALLBACKS", "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",")
+    if m.strip()
+]
+_working_model: str | None = None
+
+
+def _is_groq() -> bool:
+    return "groq.com" in LLM_BASE_URL
+
+
+def _models_to_try() -> list[str]:
+    if not _is_groq():
+        return [LLM_MODEL]
+    configured = LLM_MODEL if LLM_MODEL and LLM_MODEL != "auto" else GROQ_DEFAULT_MODEL
+    ordered = ([_working_model] if _working_model else []) + [configured] + LLM_FALLBACK_MODELS
+    models: list[str] = []
+    for name in ordered:
+        if name and name not in models:
+            models.append(name)
+    return models
+
 
 def persona_instruction(persona: str | None) -> str:
     """Appended to a system prompt so narration is framed for who's reading it,
@@ -56,36 +87,79 @@ async def call_llm_json(system_prompt: str, user_content: str) -> dict:
     if not LLM_API_KEY:
         raise InsightsUnavailable("No FREELLMAPI_API_KEY configured on the backend.")
 
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_content},
-        ],
-        "response_format": {"type": "json_object"},
-        "temperature": 0.3,
-    }
+    global _working_model
+    last_missing: httpx.Response | None = None
 
-    try:
-        # A small local model (e.g. Ollama on CPU) can genuinely take over
-        # 30s for longer prompts like the action plan's — 30s was timing
-        # those out as "unavailable" even though the router was healthy.
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            res = await client.post(
-                f"{LLM_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {LLM_API_KEY}"},
-                json=payload,
-            )
-        res.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise InsightsUnavailable(f"Could not reach LLM router: {type(exc).__name__}: {exc}") from exc
+    # A small local model (e.g. Ollama on CPU) can genuinely take over
+    # 30s for longer prompts like the action plan's — 30s was timing
+    # those out as "unavailable" even though the router was healthy.
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for model in _models_to_try():
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0.3,
+            }
+            if _is_groq() and model.startswith("openai/gpt-oss"):
+                # A reasoning model: keep the thinking short so the answer isn't starved of tokens.
+                payload["reasoning_effort"] = "low"
+                payload["include_reasoning"] = False
 
-    body = res.json()
+            try:
+                res = await client.post(
+                    f"{LLM_BASE_URL}/chat/completions",
+                    headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                    json=payload,
+                )
+            except httpx.HTTPError as exc:
+                raise InsightsUnavailable(f"Could not reach LLM router: {type(exc).__name__}: {exc}") from exc
+
+            if res.status_code == 404 and _is_groq():
+                last_missing = res  # this model doesn't exist (any more): try the next one
+                continue
+            try:
+                res.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                # Include the provider's own message - httpx's alone doesn't say why.
+                raise InsightsUnavailable(
+                    f"Could not reach LLM router: HTTP {res.status_code}: {res.text[:300]}"
+                ) from exc
+
+            _working_model = model
+            return _parse_json_reply(res)
+
+    raise InsightsUnavailable(
+        f"Could not reach LLM router: no available model ({last_missing.text[:300] if last_missing else 'none configured'})"
+    )
+
+
+def _parse_json_reply(res: httpx.Response) -> dict:
+    """The model's reply as a JSON object. An empty reply (a reasoning model can spend its
+    whole budget thinking), text that isn't JSON, or JSON that isn't an object is reported
+    as "unavailable" with the reason, never as a crash."""
     try:
-        content = body["choices"][0]["message"]["content"]
-        return json.loads(content)
-    except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        content = res.json()["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError, ValueError) as exc:
         raise InsightsUnavailable(f"Router returned an unparseable response: {exc}") from exc
+    if not isinstance(content, str) or not content.strip():
+        raise InsightsUnavailable("The model returned an empty reply - please try again.")
+
+    text = content.strip()
+    if text.startswith("```"):  # some models wrap JSON in a markdown fence
+        text = text.strip("`").strip()
+        if text.lower().startswith("json"):
+            text = text[4:].strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise InsightsUnavailable(f"Router returned an unparseable response: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise InsightsUnavailable("Router returned JSON that is not an object.")
+    return parsed
 
 
 # Observed failure mode (confirmed against real small-model output, not a guess):
