@@ -10,12 +10,13 @@ import {
   ListChecks,
   MessageSquareText,
   Terminal,
+  Search,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import type { TabId } from "@/components/GuidedTour";
 
 export type TabDef = { id: TabId; label: string; icon: ComponentType<{ className?: string }> };
-export type TabGroup = { title: string; ids: TabId[] };
+export type TabGroup = { title: string; icon: ComponentType<{ className?: string }>; ids: TabId[] };
 
 export const TABS: TabDef[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -36,7 +37,7 @@ export const TABS: TabDef[] = [
 // its own tab in Decide rather than being bundled inside Ask IntelliVerse —
 // ad-hoc SQL is a distinct power-user tool, not a follow-up to chat.
 export const TAB_GROUPS: TabGroup[] = [
-  { title: "Analyze", ids: ["overview", "schema", "stats"] },
-  { title: "Investigate", ids: ["forecast", "anomalies", "rootcause"] },
-  { title: "Decide", ids: ["graph", "simulation", "action", "ask", "sql"] },
+  { title: "Analyze", icon: BarChart3, ids: ["overview", "schema", "stats"] },
+  { title: "Investigate", icon: Search, ids: ["forecast", "anomalies", "rootcause"] },
+  { title: "Decide", icon: Target, ids: ["graph", "simulation", "action", "ask", "sql"] },
 ];
