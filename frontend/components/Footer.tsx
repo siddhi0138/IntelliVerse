@@ -11,18 +11,6 @@ export function Footer() {
           </span>
           <span className="font-display text-base text-foreground">IntelliVerse</span>
         </div>
-        <p className="text-xs font-mono">
-          <a
-            href="https://github.com/siddhi0138/IntelliVerse"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-primary hover:underline"
-          >
-            GitHub
-          </a>
-          <span className="mx-2">&middot;</span>
-          FastAPI + Next.js
-        </p>
       </div>
     </footer>
   );
